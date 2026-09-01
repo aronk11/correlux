@@ -5,9 +5,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	kubeclient "github.com/akiesel/kubeui/internal/kube/client"
-	"github.com/akiesel/kubeui/internal/ui/layout"
-	"github.com/akiesel/kubeui/internal/ui/theme"
+	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	"github.com/aronk11/kubeui/internal/ui/layout"
+	"github.com/aronk11/kubeui/internal/ui/theme"
 )
 
 // noticeTTL is how long a transient status message stays on screen.

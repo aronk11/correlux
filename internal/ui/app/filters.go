@@ -5,9 +5,9 @@ import (
 
 	"github.com/sahilm/fuzzy"
 
-	"github.com/akiesel/kubeui/internal/ui/async"
-	"github.com/akiesel/kubeui/internal/ui/components"
-	"github.com/akiesel/kubeui/internal/ui/theme"
+	"github.com/aronk11/kubeui/internal/ui/async"
+	"github.com/aronk11/kubeui/internal/ui/components"
+	"github.com/aronk11/kubeui/internal/ui/theme"
 )
 
 // allNamespacesLabel is what the cluster-wide row is matched against, so that

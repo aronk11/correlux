@@ -3,9 +3,9 @@ package app
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/akiesel/kubeui/internal/ui/async"
-	"github.com/akiesel/kubeui/internal/ui/palette"
-	"github.com/akiesel/kubeui/internal/ui/theme"
+	"github.com/aronk11/kubeui/internal/ui/async"
+	"github.com/aronk11/kubeui/internal/ui/palette"
+	"github.com/aronk11/kubeui/internal/ui/theme"
 )
 
 // Palette action identifiers. Direct actions carry their target in Command.Arg,

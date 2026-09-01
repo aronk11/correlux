@@ -8,7 +8,7 @@ your change are the ones worth reading.
 Requirements: Go 1.25 or newer. Nothing else.
 
 ```bash
-git clone https://github.com/akiesel/kubeui
+git clone https://github.com/aronk11/kubeui
 cd kubeui
 make check       # vet + lint + race tests: exactly what CI runs
 make run         # run against your current kubeconfig

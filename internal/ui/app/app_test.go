@@ -12,11 +12,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/akiesel/kubeui/internal/config"
-	kubeclient "github.com/akiesel/kubeui/internal/kube/client"
-	"github.com/akiesel/kubeui/internal/kube/kubeconfig"
-	"github.com/akiesel/kubeui/internal/ui/components"
-	"github.com/akiesel/kubeui/internal/ui/theme"
+	"github.com/aronk11/kubeui/internal/config"
+	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
+	"github.com/aronk11/kubeui/internal/ui/components"
+	"github.com/aronk11/kubeui/internal/ui/theme"
 )
 
 // newTestModel builds a model over the fixture kubeconfig. No network call is
