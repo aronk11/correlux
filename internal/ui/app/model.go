@@ -6,15 +6,15 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/akiesel/kubeui/internal/buildinfo"
-	"github.com/akiesel/kubeui/internal/config"
-	kubeclient "github.com/akiesel/kubeui/internal/kube/client"
-	"github.com/akiesel/kubeui/internal/kube/kubeconfig"
-	"github.com/akiesel/kubeui/internal/ui/async"
-	"github.com/akiesel/kubeui/internal/ui/components"
-	"github.com/akiesel/kubeui/internal/ui/layout"
-	"github.com/akiesel/kubeui/internal/ui/palette"
-	"github.com/akiesel/kubeui/internal/ui/theme"
+	"github.com/aronk11/kubeui/internal/buildinfo"
+	"github.com/aronk11/kubeui/internal/config"
+	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
+	"github.com/aronk11/kubeui/internal/ui/async"
+	"github.com/aronk11/kubeui/internal/ui/components"
+	"github.com/aronk11/kubeui/internal/ui/layout"
+	"github.com/aronk11/kubeui/internal/ui/palette"
+	"github.com/aronk11/kubeui/internal/ui/theme"
 )
 
 // overlayKind identifies the modal currently on screen.

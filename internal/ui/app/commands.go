@@ -6,8 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	kubeclient "github.com/akiesel/kubeui/internal/kube/client"
-	"github.com/akiesel/kubeui/internal/kube/kubeconfig"
+	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
 )
 
 // Messages carrying the result of asynchronous work. Every one of them is

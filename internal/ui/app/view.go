@@ -7,13 +7,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/akiesel/kubeui/internal/config"
-	kubeclient "github.com/akiesel/kubeui/internal/kube/client"
-	"github.com/akiesel/kubeui/internal/ui/async"
-	"github.com/akiesel/kubeui/internal/ui/components"
-	"github.com/akiesel/kubeui/internal/ui/layout"
-	"github.com/akiesel/kubeui/internal/ui/screens"
-	"github.com/akiesel/kubeui/internal/ui/theme"
+	"github.com/aronk11/kubeui/internal/config"
+	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	"github.com/aronk11/kubeui/internal/ui/async"
+	"github.com/aronk11/kubeui/internal/ui/components"
+	"github.com/aronk11/kubeui/internal/ui/layout"
+	"github.com/aronk11/kubeui/internal/ui/screens"
+	"github.com/aronk11/kubeui/internal/ui/theme"
 )
 
 // View renders the frame. It is a pure function of the model: nothing is

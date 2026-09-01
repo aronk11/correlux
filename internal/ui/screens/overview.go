@@ -9,7 +9,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/akiesel/kubeui/internal/ui/theme"
+	"github.com/aronk11/kubeui/internal/ui/theme"
 )
 
 // Field is one label/value row inside a panel.

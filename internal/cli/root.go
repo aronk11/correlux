@@ -14,11 +14,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/akiesel/kubeui/internal/buildinfo"
-	"github.com/akiesel/kubeui/internal/config"
-	kubeclient "github.com/akiesel/kubeui/internal/kube/client"
-	"github.com/akiesel/kubeui/internal/kube/kubeconfig"
-	"github.com/akiesel/kubeui/internal/ui/app"
+	"github.com/aronk11/kubeui/internal/buildinfo"
+	"github.com/aronk11/kubeui/internal/config"
+	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
+	"github.com/aronk11/kubeui/internal/ui/app"
 )
 
 type globalFlags struct {
