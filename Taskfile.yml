@@ -218,6 +218,17 @@ tasks:
       - go test ./internal/ui/app -run TestDumpFrames -count=1
       - 'echo "wrote .frames/*.txt"'
 
+  frames:live:
+    desc: Render the TUI against the kind cluster to plain text files
+    deps: [kind:up]
+    env:
+      KUBEUI_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
+      KUBEUI_DUMP_DIR: "{{.ROOT_DIR}}/.frames"
+    cmds:
+      - mkdir -p .frames
+      - go test -tags integration -count=1 ./test/integration -run TestDumpRealFrames
+      - 'echo "wrote .frames/live-*.txt"'
+
   clean:
     desc: Remove build and test artefacts
     cmds:
