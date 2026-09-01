@@ -1,0 +1,248 @@
+# kubeui — task runner (https://taskup.dev).
+#
+# Everything CI does is available here, so a contributor can reproduce a failed
+# pipeline with a single command. Tools are pinned and installed into .tools/ on
+# demand: the only prerequisite is Go (and Docker for the kind tasks).
+#
+#   task            list the tasks
+#   task check      what CI runs on every pull request
+#   task kind:up    a local cluster to develop against
+version: "3"
+
+vars:
+  BINARY: kubeui
+  MODULE: github.com/aronk11/kubeui
+  TOOLS_DIR: "{{.ROOT_DIR}}/.tools"
+  # Pinned tool versions. CI uses the same ones.
+  GOLANGCI_VERSION: v2.6.2
+  KIND_VERSION: v0.33.0
+  # kind cluster used by the integration and load tasks.
+  KIND_CLUSTER: kubeui-test
+  KIND_KUBECONFIG: "{{.ROOT_DIR}}/.tools/kind.kubeconfig"
+  VERSION:
+    sh: git describe --tags --dirty 2>/dev/null || echo dev
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
+  DATE:
+    sh: date -u +%Y-%m-%dT%H:%M:%SZ
+  LDFLAGS: >-
+    -s -w
+    -X {{.MODULE}}/internal/buildinfo.Version={{.VERSION}}
+    -X {{.MODULE}}/internal/buildinfo.Commit={{.COMMIT}}
+    -X {{.MODULE}}/internal/buildinfo.Date={{.DATE}}
+
+tasks:
+  default:
+    desc: List the available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  # ---------------------------------------------------------------- build ---
+
+  build:
+    desc: Build the binary into ./bin
+    sources: ["**/*.go", go.mod, go.sum]
+    generates: ["bin/{{.BINARY}}"]
+    cmds:
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/{{.BINARY}} ./cmd/kubeui
+
+  install:
+    desc: Install the binary into $GOBIN
+    cmds:
+      - go install -trimpath -ldflags "{{.LDFLAGS}}" ./cmd/kubeui
+
+  run:
+    desc: Run kubeui against your current kubeconfig
+    cmds:
+      - go run ./cmd/kubeui {{.CLI_ARGS}}
+
+  run:kind:
+    desc: Run kubeui against the local kind cluster
+    deps: [kind:up]
+    env:
+      KUBECONFIG: "{{.KIND_KUBECONFIG}}"
+    cmds:
+      - go run ./cmd/kubeui {{.CLI_ARGS}}
+
+  # ----------------------------------------------------------------- test ---
+
+  test:
+    desc: Run the unit tests
+    cmds:
+      - go test -shuffle=on ./...
+
+  test:race:
+    desc: Run the unit tests under the race detector
+    cmds:
+      - go test -race -shuffle=on ./...
+
+  test:cover:
+    desc: Run the tests with coverage and print a summary
+    cmds:
+      - go test -coverprofile=coverage.out -covermode=atomic ./...
+      - go tool cover -func=coverage.out | tail -1
+      - 'echo "html report: go tool cover -html=coverage.out"'
+
+  test:integration:
+    desc: Run the integration tests against the kind cluster
+    deps: [kind:up]
+    env:
+      KUBEUI_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
+    cmds:
+      - go test -tags integration -timeout 20m -count=1 ./test/integration/... {{.CLI_ARGS}}
+
+  # ------------------------------------------------------------- benchmark ---
+
+  bench:
+    desc: Run the in-process benchmarks (no cluster required)
+    cmds:
+      - go test -run '^$' -bench . -benchmem ./internal/... {{.CLI_ARGS}}
+
+  bench:cluster:
+    desc: Benchmark listing and rendering against the seeded kind cluster
+    deps: [kind:up]
+    env:
+      KUBEUI_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
+    cmds:
+      - go test -tags integration -run '^$' -bench . -benchmem -benchtime 3x -timeout 30m ./test/integration/... {{.CLI_ARGS}}
+
+  # ------------------------------------------------------------- kind/load ---
+
+  kind:up:
+    desc: Create the local kind cluster (no-op if it already exists)
+    deps: [tools:kind]
+    status:
+      - "{{.TOOLS_DIR}}/kind get clusters 2>/dev/null | grep -qx {{.KIND_CLUSTER}}"
+    cmds:
+      - "{{.TOOLS_DIR}}/kind create cluster --name {{.KIND_CLUSTER}} --config test/kind/cluster.yaml --wait 120s"
+      - "{{.TOOLS_DIR}}/kind export kubeconfig --name {{.KIND_CLUSTER}} --kubeconfig {{.KIND_KUBECONFIG}}"
+
+  kind:kubeconfig:
+    desc: Print the export line for talking to the kind cluster with kubectl
+    silent: true
+    cmds:
+      - 'echo "export KUBECONFIG={{.KIND_KUBECONFIG}}"'
+
+  kind:down:
+    desc: Delete the local kind cluster
+    deps: [tools:kind]
+    cmds:
+      - "{{.TOOLS_DIR}}/kind delete cluster --name {{.KIND_CLUSTER}}"
+      - rm -f {{.KIND_KUBECONFIG}}
+
+  kind:seed:
+    desc: 'Fill the kind cluster with load (task kind:seed -- --pods 5000)'
+    deps: [kind:up]
+    env:
+      KUBEUI_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
+    cmds:
+      - go run ./test/cmd/seed --kubeconfig {{.KIND_KUBECONFIG}} {{.CLI_ARGS}}
+
+  kind:reset:
+    desc: Remove everything the seeder created, keeping the cluster
+    deps: [kind:up]
+    cmds:
+      - go run ./test/cmd/seed --kubeconfig {{.KIND_KUBECONFIG}} --clean
+
+  # ------------------------------------------------------------------ lint ---
+
+  lint:
+    desc: Run golangci-lint
+    deps: [tools:golangci]
+    cmds:
+      - "{{.TOOLS_DIR}}/golangci-lint run ./..."
+
+  lint:all:
+    desc: Run golangci-lint including the build-tagged integration tests
+    deps: [tools:golangci]
+    cmds:
+      - "{{.TOOLS_DIR}}/golangci-lint run --build-tags integration ./..."
+
+  fmt:
+    desc: Format the code
+    deps: [tools:golangci]
+    cmds:
+      - "{{.TOOLS_DIR}}/golangci-lint fmt ./..."
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  vuln:
+    desc: Check dependencies for known vulnerabilities
+    cmds:
+      - go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  tidy:
+    desc: Tidy the module graph
+    cmds:
+      - go mod tidy
+      - go mod verify
+
+  tidy:check:
+    desc: Fail if go.mod or go.sum are not tidy
+    cmds:
+      - go mod tidy
+      - git diff --exit-code -- go.mod go.sum
+
+  commits:
+    desc: Check that commits follow Conventional Commits and are signed
+    cmds:
+      - ./scripts/check-conventional-commits.sh
+      - ./scripts/check-signed-commits.sh
+
+  check:
+    desc: Everything CI runs on a pull request
+    cmds:
+      - task: vet
+      - task: lint
+      - task: test:race
+
+  ci:
+    desc: check plus the module and commit hygiene gates
+    cmds:
+      - task: check
+      - task: tidy:check
+      - task: commits
+
+  # ------------------------------------------------------------------ misc ---
+
+  frames:
+    desc: Render the TUI to plain text files for review (no terminal needed)
+    env:
+      KUBEUI_DUMP_DIR: "{{.ROOT_DIR}}/.frames"
+    cmds:
+      - mkdir -p .frames
+      - go test ./internal/ui/app -run TestDumpFrames -count=1
+      - 'echo "wrote .frames/*.txt"'
+
+  clean:
+    desc: Remove build and test artefacts
+    cmds:
+      - rm -rf bin dist coverage.out .frames
+
+  clean:all:
+    desc: Remove artefacts, downloaded tools and the kind cluster
+    cmds:
+      - task: kind:down
+        ignore_error: true
+      - task: clean
+      - rm -rf {{.TOOLS_DIR}}
+
+  # ----------------------------------------------------------------- tools ---
+
+  tools:golangci:
+    internal: true
+    status:
+      - test -x {{.TOOLS_DIR}}/golangci-lint
+    cmds:
+      - GOBIN={{.TOOLS_DIR}} go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_VERSION}}
+
+  tools:kind:
+    internal: true
+    status:
+      - test -x {{.TOOLS_DIR}}/kind
+    cmds:
+      - GOBIN={{.TOOLS_DIR}} go install sigs.k8s.io/kind@{{.KIND_VERSION}}
