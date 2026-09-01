@@ -1,0 +1,17 @@
+# Build output
+/bin/
+/dist/
+kubeui
+kubeui.exe
+
+# Test and coverage artefacts
+*.test
+*.out
+coverage.*
+
+# Editor and OS noise
+.idea/
+.vscode/
+.DS_Store
+/.tools/
+/.frames/
