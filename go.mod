@@ -1,4 +1,4 @@
-module github.com/akiesel/kubeui
+module github.com/aronk11/kubeui
 
 go 1.25.4
 

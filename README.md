@@ -32,10 +32,10 @@ time from *"something is wrong"* to *"I know why"*.
 ## Install
 
 ```bash
-go install github.com/akiesel/kubeui/cmd/kubeui@latest
+go install github.com/aronk11/kubeui/cmd/kubeui@latest
 ```
 
-Or download a binary from the [releases page](https://github.com/akiesel/kubeui/releases)
+Or download a binary from the [releases page](https://github.com/aronk11/kubeui/releases)
 and put it on your `PATH`. Pre-built binaries are static: there is nothing else
 to install.
 

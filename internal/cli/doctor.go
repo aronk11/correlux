@@ -14,8 +14,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kubeclient "github.com/akiesel/kubeui/internal/kube/client"
-	"github.com/akiesel/kubeui/internal/ui/theme"
+	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	"github.com/aronk11/kubeui/internal/ui/theme"
 )
 
 // checkResult is the outcome of one diagnostic.

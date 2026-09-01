@@ -8,7 +8,7 @@ version and `main`.
 ## Reporting a vulnerability
 
 Please report security issues privately through GitHub's
-[private vulnerability reporting](https://github.com/akiesel/kubeui/security/advisories/new)
+[private vulnerability reporting](https://github.com/aronk11/kubeui/security/advisories/new)
 rather than in a public issue.
 
 Include the version (`kubeui version`), your platform, and the steps to

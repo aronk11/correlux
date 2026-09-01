@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/akiesel/kubeui/internal/config"
+	"github.com/aronk11/kubeui/internal/config"
 )
 
 func TestDetectColorHonoursNoColor(t *testing.T) {
