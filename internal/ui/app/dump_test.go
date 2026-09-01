@@ -20,10 +20,23 @@ func TestDumpFrames(t *testing.T) {
 		t.Skip("set KUBEUI_DUMP_DIR to dump rendered frames")
 	}
 
-	frames := map[string]string{"main": "", "palette": "ctrl+p", "clusters": "ctrl+k", "help": "?"}
+	frames := map[string]string{
+		"main":      "",
+		"palette":   "ctrl+p",
+		"clusters":  "ctrl+k",
+		"resources": "ctrl+b",
+		"help":      "?",
+		"table":     "",
+	}
 	for name, key := range frames {
 		m := newTestModel(t)
 		m.Update(tea.WindowSizeMsg{Width: 110, Height: 32})
+		loadCatalogInto(m, testCatalog())
+		if name == "table" {
+			m.openResource("pods")
+			m.Update(tableLoadedMsg{gen: m.table.Generation(), table: podTablePage(
+				"payments-7d8f9c", "payments-8a91bd", "worker-91abcd", "frontend-2f4e6a")})
+		}
 		if key != "" {
 			press(t, m, key)
 		}
