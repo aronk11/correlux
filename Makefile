@@ -4,7 +4,7 @@
 # pipeline locally with a single command.
 
 BINARY      := kubeui
-MODULE      := github.com/akiesel/kubeui
+MODULE      := github.com/aronk11/kubeui
 VERSION     ?= $(shell git describe --tags --dirty 2>/dev/null || echo dev)
 COMMIT      ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE        ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)

@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/akiesel/kubeui/internal/config"
+	"github.com/aronk11/kubeui/internal/config"
 )
 
 // Capabilities describes what the current terminal can do.
