@@ -21,6 +21,8 @@ const (
 	ActionPalette         = "palette"
 	ActionContextPicker   = "context.picker"
 	ActionNamespacePicker = "namespace.picker"
+	ActionResourcePicker  = "resource.picker"
+	ActionToggleWide      = "table.wide"
 	ActionAllNamespaces   = "namespace.all"
 	ActionRefresh         = "refresh"
 	ActionReloadKubeconfi = "kubeconfig.reload"
@@ -44,6 +46,8 @@ var DefaultBindings = map[string]string{
 	ActionPalette:         "ctrl+p",
 	ActionContextPicker:   "ctrl+k",
 	ActionNamespacePicker: "ctrl+o",
+	ActionResourcePicker:  "ctrl+b",
+	ActionToggleWide:      "w",
 	ActionRefresh:         "ctrl+r",
 	ActionClose:           "esc",
 }

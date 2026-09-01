@@ -9,6 +9,7 @@ import (
 
 	"github.com/aronk11/kubeui/internal/config"
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	"github.com/aronk11/kubeui/internal/kube/resources"
 	"github.com/aronk11/kubeui/internal/ui/async"
 	"github.com/aronk11/kubeui/internal/ui/components"
 	"github.com/aronk11/kubeui/internal/ui/layout"
@@ -71,7 +72,7 @@ func (m *Model) headerData() components.HeaderData {
 		Production: kctx.Production,
 		Scope:      m.scopeLabel(),
 		Version:    m.version(),
-		Breadcrumb: []string{"Cluster", m.scopeLabel(), "Overview"},
+		Breadcrumb: m.breadcrumb(),
 	}
 
 	info := m.cluster.Get()
@@ -104,6 +105,33 @@ func (m *Model) headerData() components.HeaderData {
 	return d
 }
 
+// breadcrumb shows where the user is in the navigation model.
+func (m *Model) breadcrumb() []string {
+	crumbs := []string{"Cluster", m.scopeLabel()}
+	if m.view == viewTable {
+		label := m.resource.Kind()
+		if table := m.table.Get(); table != nil {
+			label += "  " + m.rowCountLabel(table)
+		}
+		return append(crumbs, label)
+	}
+	return append(crumbs, "Overview")
+}
+
+// rowCountLabel is honest about paging: "500 of 4213" beats a bare "500" that
+// looks like the whole truth.
+func (m *Model) rowCountLabel(table *resources.Table) string {
+	loaded := len(table.Rows)
+	switch {
+	case table.Remaining > 0:
+		return itoa(loaded) + " of " + itoa(loaded+int(table.Remaining))
+	case table.HasMore():
+		return itoa(loaded) + "+"
+	default:
+		return itoa(loaded)
+	}
+}
+
 func (m *Model) statusData() components.StatusData {
 	if m.message != "" {
 		return components.StatusData{Message: m.message, MessageStatus: m.messageStatus}
@@ -111,11 +139,19 @@ func (m *Model) statusData() components.StatusData {
 
 	hints := []components.KeyHint{
 		{Key: m.keys.Key(ActionPalette), Desc: "Commands"},
+		{Key: m.keys.Key(ActionResourcePicker), Desc: "Resources"},
 		{Key: m.keys.Key(ActionContextPicker), Desc: "Cluster"},
 		{Key: m.keys.Key(ActionNamespacePicker), Desc: "Namespace"},
 		{Key: m.keys.Key(ActionRefresh), Desc: "Refresh"},
 		{Key: m.keys.Key(ActionHelp), Desc: "Help"},
 		{Key: m.keys.Key(ActionQuit), Desc: "Quit"},
+	}
+	if m.view == viewTable {
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Rows"},
+			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide)},
+			{Key: "Esc", Desc: "Overview"},
+		}, hints...)
 	}
 	if m.overlay != overlayNone {
 		hints = []components.KeyHint{
@@ -129,8 +165,90 @@ func (m *Model) statusData() components.StatusData {
 
 func (m *Model) renderBody() string {
 	body := m.screen.Body
-	content := screens.RenderOverview(m.theme, m.overviewData(), body.Width, body.Height)
+	var content string
+	if m.view == viewTable {
+		content = screens.RenderTable(m.theme, m.tableData(), body.Width, body.Height)
+	} else {
+		content = screens.RenderOverview(m.theme, m.overviewData(), body.Width, body.Height)
+	}
 	return padBlock(content, body.Width, body.Height)
+}
+
+// tableData turns the loaded page into rendering data. The four remote states
+// become four different sentences: a spinner-free "Loading…", an explicit
+// "none", a permission error and a transport error do not look alike.
+func (m *Model) tableData() screens.TableData {
+	d := screens.TableData{
+		Cursor:   m.tableCursor,
+		Offset:   m.tableOffset,
+		ShowWide: m.tableWide,
+	}
+
+	switch m.table.State() {
+	case async.Idle, async.Loading:
+		d.Message = "Loading " + m.resource.Plural() + "…"
+		return d
+	case async.Failed:
+		d.Message = "Could not list " + m.resource.Plural() + ": " + shortError(m.table.Err())
+		d.MessageStatus = theme.StatusCritical
+		return d
+	}
+
+	table := m.table.Get()
+	if table == nil {
+		d.Message = "No data."
+		return d
+	}
+	if len(table.Rows) == 0 {
+		d.Message = "No " + m.resource.Plural() + " in " + m.scopeLabel() + "."
+		d.MessageStatus = theme.StatusUnknown
+		return d
+	}
+
+	d.Columns = make([]screens.TableColumn, 0, len(table.Columns))
+	for _, c := range table.Columns {
+		d.Columns = append(d.Columns, screens.TableColumn{
+			Title: c.Name,
+			Wide:  c.Wide(),
+			Right: c.Type == "integer" || c.Type == "number",
+		})
+	}
+	d.Rows = make([]screens.TableRow, 0, len(table.Rows))
+	for i := range table.Rows {
+		d.Rows = append(d.Rows, screens.TableRow{
+			Cells:  table.Rows[i].Cells,
+			Status: rowStatus(table.Rows[i].Cells),
+		})
+	}
+	return d
+}
+
+// unhealthyCells are the status words that make a row worth noticing. The
+// colour is a hint on top of the text the server already printed, never the
+// only signal.
+var unhealthyCells = map[string]theme.Status{
+	"CrashLoopBackOff":     theme.StatusCritical,
+	"ImagePullBackOff":     theme.StatusCritical,
+	"ErrImagePull":         theme.StatusCritical,
+	"CreateContainerError": theme.StatusCritical,
+	"Failed":               theme.StatusCritical,
+	"Evicted":              theme.StatusCritical,
+	"OOMKilled":            theme.StatusCritical,
+	"NotReady":             theme.StatusCritical,
+	"Pending":              theme.StatusWarning,
+	"ContainerCreating":    theme.StatusWarning,
+	"PodInitializing":      theme.StatusWarning,
+	"Terminating":          theme.StatusWarning,
+	"Unknown":              theme.StatusWarning,
+}
+
+func rowStatus(cells []string) theme.Status {
+	for _, cell := range cells {
+		if status, ok := unhealthyCells[cell]; ok {
+			return status
+		}
+	}
+	return theme.StatusUnknown
 }
 
 // overviewData assembles the Phase 1 body: what kubeui knows for certain about
@@ -190,6 +308,7 @@ func (m *Model) overviewData() screens.OverviewData {
 		{Label: "Scope", Value: m.scopeLabel()},
 		{Label: "User", Value: orNone(kctx.User)},
 		{Label: "Namespaces", Value: m.namespacesSummary()},
+		{Label: "API kinds", Value: m.catalogSummary(), Status: m.catalogStatus()},
 	}
 	session.Note = "Switching context here does not change your kubectl context."
 
@@ -206,9 +325,42 @@ func (m *Model) overviewData() screens.OverviewData {
 		Roadmap: []string{
 			"Application-first dashboard (Phase 2)",
 			"WHY diagnosis engine (Phase 3)",
-			"Logs, exec and resource inspection (Phase 4)",
+			"Logs, exec and object detail (Phase 4)",
 		},
 	}
+}
+
+// catalogSummary reports what the cluster serves, custom resources called out
+// separately: on most real clusters they are half of what an operator works
+// with, and they are what other tools hide behind a submenu.
+func (m *Model) catalogSummary() string {
+	switch m.catalog.State() {
+	case async.Idle:
+		return "not discovered"
+	case async.Loading:
+		return "discovering…"
+	case async.Failed:
+		return "unavailable — " + kubeclient.FriendlyError(m.catalog.Err())
+	}
+	catalog := m.catalog.Get()
+	if catalog == nil || catalog.Len() == 0 {
+		return "none"
+	}
+	summary := itoa(catalog.Len()) + " listable, " + itoa(len(catalog.CustomResources())) + " custom"
+	if catalog.Partial() {
+		summary += "  (" + itoa(len(catalog.Failures)) + " group(s) unavailable)"
+	}
+	return summary
+}
+
+func (m *Model) catalogStatus() theme.Status {
+	if m.catalog.State() == async.Failed {
+		return theme.StatusCritical
+	}
+	if catalog := m.catalog.Get(); catalog != nil && catalog.Partial() {
+		return theme.StatusWarning
+	}
+	return theme.StatusUnknown
 }
 
 // namespacesSummary states the namespace count without ever implying that a
@@ -265,7 +417,13 @@ func (m *Model) renderHelp(width, height int) string {
 			{m.keys.Key(ActionNamespacePicker), "Switch namespace"},
 		}},
 		{"Cluster", [][2]string{
-			{m.keys.Key(ActionRefresh), "Refresh cluster status"},
+			{m.keys.Key(ActionResourcePicker), "Browse resource kinds, including custom resources"},
+			{m.keys.Key(ActionRefresh), "Refresh"},
+		}},
+		{"In a resource table", [][2]string{
+			{"↑ ↓ / j k", "Move; the next page loads as you reach the end"},
+			{m.keys.Key(ActionToggleWide), "Toggle the wide columns"},
+			{"Esc", "Back to the overview"},
 		}},
 		{"General", [][2]string{
 			{m.keys.Key(ActionHelp), "This help"},
@@ -329,6 +487,13 @@ func padTo(s string, width int) string {
 		return s + strings.Repeat(" ", gap)
 	}
 	return s
+}
+
+func wideHint(wide bool) string {
+	if wide {
+		return "Compact"
+	}
+	return "Wide"
 }
 
 func formatLatency(d time.Duration) string {
