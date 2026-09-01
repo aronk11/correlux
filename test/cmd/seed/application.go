@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/util/retry"
 )
 
 // health decides what a seeded application looks like. A cluster where
@@ -185,6 +186,12 @@ func seedPod(
 // makes the seeded cluster useful for testing kubeui's health rendering: pods
 // are Running, CrashLoopBackOff or OOMKilled because their status says so.
 func setPodStatus(ctx context.Context, c *clients, namespace, name, app string, state health) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		return setPodStatusOnce(ctx, c, namespace, name, app, state)
+	})
+}
+
+func setPodStatusOnce(ctx context.Context, c *clients, namespace, name, app string, state health) error {
 	pod, err := c.core.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return err

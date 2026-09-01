@@ -5,6 +5,7 @@ package integration
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -29,23 +30,40 @@ func newModelFor(t testing.TB) *app.Model {
 	return m
 }
 
+// drainTimeout bounds a single command. Some of the application's commands are
+// timers (a status message expiring after eight seconds); a test runs them for
+// real and must not wait for them.
+const drainTimeout = 5 * time.Second
+
 // drain runs a command and feeds its message back into the model, the way the
-// Bubble Tea runtime would. Commands are plain functions, which is what makes
-// an end-to-end UI test against a live cluster possible at all.
+// Bubble Tea runtime would. Commands are plain functions, which is what makes an
+// end-to-end UI test against a live cluster possible at all.
 func drain(t testing.TB, m *app.Model, cmd tea.Cmd) {
 	t.Helper()
 	for depth := 0; cmd != nil && depth < 20; depth++ {
-		msg := cmd()
-		if msg == nil {
+		msg, ok := runCommand(cmd)
+		if !ok || msg == nil {
 			return
 		}
-		if batch, ok := msg.(tea.BatchMsg); ok {
+		if batch, isBatch := msg.(tea.BatchMsg); isBatch {
 			for _, sub := range batch {
 				drain(t, m, sub)
 			}
 			return
 		}
 		_, cmd = m.Update(msg)
+	}
+}
+
+// runCommand executes cmd, giving up on anything that is really a timer.
+func runCommand(cmd tea.Cmd) (tea.Msg, bool) {
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+	select {
+	case msg := <-done:
+		return msg, true
+	case <-time.After(drainTimeout):
+		return nil, false
 	}
 }
 
@@ -71,6 +89,8 @@ func TestBrowsingToPodsShowsRealRows(t *testing.T) {
 	m := newModelFor(t)
 	drain(t, m, m.Init())
 
+	// The kind context starts in "default", which is legitimately empty.
+	drain(t, m, m.SwitchNamespaceForTest("kube-system"))
 	drain(t, m, m.OpenResourceForTest("pods"))
 	out := frame(m)
 
@@ -80,8 +100,8 @@ func TestBrowsingToPodsShowsRealRows(t *testing.T) {
 	if strings.Contains(out, "Loading pods…") {
 		t.Errorf("the table must be loaded by now:\n%s", out)
 	}
-	if !strings.Contains(out, "kubeui-load-") && !strings.Contains(out, "kube-system") {
-		t.Errorf("real pods must be listed:\n%s", out)
+	if !strings.Contains(out, "kube-apiserver") && !strings.Contains(out, "etcd") {
+		t.Errorf("the real pods of kube-system must be listed:\n%s", out)
 	}
 }
 
@@ -89,6 +109,7 @@ func TestBrowsingToACustomResourceShowsItsPrinterColumns(t *testing.T) {
 	m := newModelFor(t)
 	drain(t, m, m.Init())
 
+	drain(t, m, m.SwitchNamespaceForTest("kubeui-load-000"))
 	drain(t, m, m.OpenResourceForTest("widgets"))
 	out := frame(m)
 
