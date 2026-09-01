@@ -1,8 +1,9 @@
-# Build output
+# Build output. The binary patterns are anchored: an unanchored `kubeui`
+# would also match the cmd/kubeui/ source directory.
 /bin/
 /dist/
-kubeui
-kubeui.exe
+/kubeui
+/kubeui.exe
 
 # Test and coverage artefacts
 *.test
