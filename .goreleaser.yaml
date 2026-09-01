@@ -1,0 +1,53 @@
+# GoReleaser builds the cross-platform binaries kubeui ships.
+#
+# kubeui is a single static binary on purpose: installing an operations tool
+# must never require a runtime, a container or a package manager.
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: kubeui
+    main: ./cmd/kubeui
+    binary: kubeui
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/akiesel/kubeui/internal/buildinfo.Version={{ .Version }}
+      - -X github.com/akiesel/kubeui/internal/buildinfo.Commit={{ .FullCommit }}
+      - -X github.com/akiesel/kubeui/internal/buildinfo.Date={{ .Date }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files: [LICENSE, NOTICE, README.md]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^feat'
+      order: 0
+    - title: Fixes
+      regexp: '^fix'
+      order: 1
+    - title: Performance
+      regexp: '^perf'
+      order: 2
+    - title: Other
+      order: 99
+  filters:
+    exclude: ['^docs', '^test', '^ci', '^chore']
