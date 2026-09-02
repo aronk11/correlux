@@ -15,11 +15,39 @@ import (
 type fakeDiscovery struct {
 	discovery.DiscoveryInterface
 	lists []*metav1.APIResourceList
-	err   error
+	// groups overrides the preferred versions; when empty, every version in
+	// lists is treated as preferred, which is what a single-version fake means.
+	groups []*metav1.APIGroup
+	err    error
 }
 
-func (f *fakeDiscovery) ServerPreferredResources() ([]*metav1.APIResourceList, error) {
-	return f.lists, f.err
+func (f *fakeDiscovery) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
+	if f.groups != nil {
+		return f.groups, f.lists, f.err
+	}
+	return groupsOf(f.lists), f.lists, f.err
+}
+
+// groupsOf derives one preferred version per group from the lists themselves.
+func groupsOf(lists []*metav1.APIResourceList) []*metav1.APIGroup {
+	seen := map[string]bool{}
+	var out []*metav1.APIGroup
+	for _, list := range lists {
+		if list == nil {
+			continue
+		}
+		gv, err := schema.ParseGroupVersion(list.GroupVersion)
+		if err != nil || seen[gv.Group] {
+			continue
+		}
+		seen[gv.Group] = true
+		out = append(out, &metav1.APIGroup{
+			Name:             gv.Group,
+			Versions:         []metav1.GroupVersionForDiscovery{{GroupVersion: list.GroupVersion, Version: gv.Version}},
+			PreferredVersion: metav1.GroupVersionForDiscovery{GroupVersion: list.GroupVersion, Version: gv.Version},
+		})
+	}
+	return out
 }
 
 func coreList() *metav1.APIResourceList {
@@ -226,5 +254,51 @@ func TestScaleSubresourcesMarkTheirParentScalable(t *testing.T) {
 	// The subresource itself is never offered as something to browse.
 	if _, ok := c.Lookup("deployments/scale"); ok {
 		t.Error("a subresource must not appear in the catalog as a kind of its own")
+	}
+}
+
+func TestOnlyThePreferredVersionOfAGroupIsListed(t *testing.T) {
+	// The same kind served by two versions must appear once, as the version the
+	// server prefers: that is what a user means when they type "widgets".
+	v1 := &metav1.APIResourceList{
+		GroupVersion: "acme.example.com/v1",
+		APIResources: []metav1.APIResource{
+			{Name: "widgets", SingularName: "widget", Kind: "Widget", Namespaced: true,
+				Verbs: []string{"get", "list"}},
+		},
+	}
+	v1alpha1 := &metav1.APIResourceList{
+		GroupVersion: "acme.example.com/v1alpha1",
+		APIResources: []metav1.APIResource{
+			{Name: "widgets", SingularName: "widget", Kind: "Widget", Namespaced: true,
+				Verbs: []string{"get", "list"}},
+		},
+	}
+	dc := &fakeDiscovery{
+		lists: []*metav1.APIResourceList{v1alpha1, v1},
+		groups: []*metav1.APIGroup{{
+			Name: "acme.example.com",
+			Versions: []metav1.GroupVersionForDiscovery{
+				{GroupVersion: "acme.example.com/v1", Version: "v1"},
+				{GroupVersion: "acme.example.com/v1alpha1", Version: "v1alpha1"},
+			},
+			PreferredVersion: metav1.GroupVersionForDiscovery{
+				GroupVersion: "acme.example.com/v1", Version: "v1",
+			},
+		}},
+	}
+
+	c := build(t, dc)
+	widgets := 0
+	for _, r := range c.Resources {
+		if r.Plural() == "widgets" {
+			widgets++
+			if r.GVR.Version != "v1" {
+				t.Errorf("listed version %q, want the preferred v1", r.GVR.Version)
+			}
+		}
+	}
+	if widgets != 1 {
+		t.Errorf("widgets appears %d times, want once", widgets)
 	}
 }
