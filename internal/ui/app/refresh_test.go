@@ -13,6 +13,9 @@ import (
 	"github.com/aronk11/kubeui/internal/kube/resources"
 )
 
+// plainView renders the frame with the styling stripped.
+func plainView(m *Model) string { return ansi.ReplaceAllString(view(m), "") }
+
 // tick delivers one auto-refresh tick and reports the commands it produced.
 func tick(m *Model) tea.Cmd {
 	_, cmd := m.Update(autoRefreshTickMsg{seq: m.refreshSeq})
@@ -39,6 +42,22 @@ func TestAutoRefreshIsOffUntilItIsAskedFor(t *testing.T) {
 	press(t, m, "ctrl+f")
 	if m.autoRefresh {
 		t.Error("the toggle must turn it off again")
+	}
+}
+
+func TestTheKeyIsAdvertisedInTheStatusBar(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
+
+	// Styling splits a hint into several escape runs, so the assertion is made
+	// on the frame as a user sees it.
+	if out := plainView(m); !strings.Contains(out, "Ctrl+F Auto") {
+		t.Errorf("a feature nobody can find is a feature nobody has:\n%s", out)
+	}
+
+	m.autoRefresh = true
+	if out := plainView(m); !strings.Contains(out, "Ctrl+F Stop auto") {
+		t.Errorf("while it runs, the key must offer to stop it:\n%s", out)
 	}
 }
 
