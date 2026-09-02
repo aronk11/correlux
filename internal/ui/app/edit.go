@@ -45,7 +45,7 @@ func (m *Model) editObject(ref objectRef) tea.Cmd {
 		m.notice("Open "+ref.label()+" first, then edit it", theme.StatusWarning)
 		return m.expireNotice()
 	}
-	if _, ok := m.resourceFor(ref.Kind); !ok {
+	if _, ok := m.resourceFor(ref); !ok {
 		m.notice("This cluster does not serve "+ref.Kind, theme.StatusWarning)
 		return m.expireNotice()
 	}
@@ -147,7 +147,7 @@ func (m *Model) checkIdentity(document []byte, ref objectRef) error {
 
 // applyEdit sends the edited document.
 func (m *Model) applyEdit(ref objectRef, document []byte) tea.Cmd {
-	res, ok := m.resourceFor(ref.Kind)
+	res, ok := m.resourceFor(ref)
 	if !ok {
 		return nil
 	}

@@ -188,3 +188,33 @@ func TestOpeningAnObjectFromTheClusterShowsItsDocument(t *testing.T) {
 		t.Errorf("the document the server holds must be readable:\n%s", yaml)
 	}
 }
+
+func TestOpeningACustomResourceFromTheBrowser(t *testing.T) {
+	// The seeded cluster serves a CRD with printer columns. Opening one of its
+	// objects must work exactly as opening a Pod does — that is the whole
+	// promise of resolving kinds through discovery.
+	m := newModelFor(t)
+	drain(t, m, m.Init())
+	drain(t, m, m.SwitchNamespaceForTest(seededNamespace))
+	drain(t, m, m.OpenResourceForTest("widgets"))
+
+	if out := frame(m); !strings.Contains(out, "widget-") {
+		t.Fatalf("the custom resources must be listed:\n%s", out)
+	}
+
+	drain(t, m, m.PressForTest("enter"))
+	out := frame(m)
+	if !strings.Contains(out, "Widget/widget-") {
+		t.Fatalf("Enter must open the custom resource:\n%s", out)
+	}
+	for _, want := range []string{"IDENTITY", "STATUS"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("a custom resource is described like any other, missing %q:\n%s", want, out)
+		}
+	}
+
+	m.ShowYAMLForTest()
+	if yaml := frame(m); !strings.Contains(yaml, "apiVersion:") || !strings.Contains(yaml, "kind: Widget") {
+		t.Errorf("its document must be readable:\n%s", yaml)
+	}
+}

@@ -403,3 +403,108 @@ func TestTheWheelScrollsTheResourceTable(t *testing.T) {
 		t.Errorf("the viewport scrolled past the end of the table, offset %d", m.tableOffset)
 	}
 }
+
+func TestEnterOpensTheObjectUnderTheCursor(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	m.openResource("widgets")
+	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: &resources.Table{
+		Columns: []resources.Column{{Name: "Name", Type: "string"}, {Name: "Phase", Type: "string"}},
+		Rows: []resources.Row{
+			{Name: "widget-1", Namespace: "default", Cells: []string{"widget-1", "Ready"}},
+			{Name: "widget-2", Namespace: "default", Cells: []string{"widget-2", "Pending"}},
+		},
+		Remaining: -1,
+	}})
+
+	press(t, m, "down")
+	press(t, m, "enter")
+
+	if m.view != viewObject {
+		t.Fatalf("Enter must open the object, got view %v", m.view)
+	}
+	if m.objectTarget.Name != "widget-2" || m.objectTarget.Kind != "Widget" {
+		t.Errorf("opened %+v, want the row under the cursor", m.objectTarget)
+	}
+	// The exact resource travels with the reference: two groups may serve the
+	// same kind, and the browser listed this one.
+	if m.objectTarget.Resource != "widgets.acme.example.com" {
+		t.Errorf("resource = %q, want the fully qualified name", m.objectTarget.Resource)
+	}
+	if out := plainView(m); !strings.Contains(out, "Loading Widget/widget-2") {
+		t.Errorf("the fetch must be visible:\n%s", out)
+	}
+}
+
+func TestEscapeFromAnObjectReturnsToTheTableItCameFrom(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	m.openResource("widgets")
+	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: &resources.Table{
+		Columns:   []resources.Column{{Name: "Name", Type: "string"}},
+		Rows:      []resources.Row{{Name: "widget-1", Namespace: "default", Cells: []string{"widget-1"}}},
+		Remaining: -1,
+	}})
+
+	press(t, m, "enter")
+	press(t, m, "esc")
+
+	if m.view != viewTable {
+		t.Fatalf("Esc must return to the table, got view %v", m.view)
+	}
+	if len(m.tableRows()) != 1 {
+		t.Error("the rows must still be there; going back is not a reload")
+	}
+}
+
+func TestAnObjectWithoutANameIsNotOpened(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	m.openResource("widgets")
+	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: &resources.Table{
+		Columns:   []resources.Column{{Name: "Name", Type: "string"}},
+		Rows:      []resources.Row{{Cells: []string{""}}},
+		Remaining: -1,
+	}})
+
+	press(t, m, "enter")
+	if m.view == viewObject {
+		t.Error("a row the server gave no name for is not something to open")
+	}
+}
+
+func TestAClusterScopedRowOpensWithoutANamespace(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	m.openResource("nodes")
+	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: &resources.Table{
+		Columns:   []resources.Column{{Name: "Name", Type: "string"}},
+		Rows:      []resources.Row{{Name: "node-1", Cells: []string{"node-1"}}},
+		Remaining: -1,
+	}})
+
+	press(t, m, "enter")
+	if m.objectTarget.Namespace != "" {
+		t.Errorf("a node has no namespace, got %q", m.objectTarget.Namespace)
+	}
+}
+
+func TestTheBreadcrumbSaysWhereAnObjectWasOpenedFrom(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	m.openResource("widgets")
+	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: &resources.Table{
+		Columns:   []resources.Column{{Name: "Name", Type: "string"}},
+		Rows:      []resources.Row{{Name: "widget-1", Namespace: "default", Cells: []string{"widget-1"}}},
+		Remaining: -1,
+	}})
+	press(t, m, "enter")
+
+	out := plainView(m)
+	if !strings.Contains(out, "Widget") {
+		t.Errorf("the breadcrumb must name the kind it was browsed from:\n%s", out)
+	}
+	if strings.Contains(out, "Applications → Widget") {
+		t.Errorf("this object did not come through an application:\n%s", out)
+	}
+}

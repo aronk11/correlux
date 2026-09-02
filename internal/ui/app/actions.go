@@ -412,7 +412,7 @@ func (m *Model) scalableTarget() (objectRef, bool) {
 	if ref.empty() {
 		return objectRef{}, false
 	}
-	res, ok := m.resourceFor(ref.Kind)
+	res, ok := m.resourceFor(ref)
 	return ref, ok && res.Scalable
 }
 

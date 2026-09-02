@@ -11,6 +11,9 @@ package app
 import (
 	"sort"
 	"strings"
+	"unicode/utf8"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // Action names used both for key bindings and for palette entries, so a key and
@@ -122,6 +125,63 @@ func (k KeyMap) Key(action string) string {
 		return prettyKey(key)
 	}
 	return ""
+}
+
+// keyPress builds the event a terminal would send for a keystroke like
+// "ctrl+p", "enter" or "a".
+//
+// It lives here rather than in a test file because the integration suite drives
+// the real application through it: a test that reaches past the keyboard proves
+// less than one that presses the key.
+func keyPress(keystroke string) tea.KeyPressMsg {
+	key := tea.Key{}
+	rest := keystroke
+	for {
+		switch {
+		case strings.HasPrefix(rest, "ctrl+"):
+			key.Mod |= tea.ModCtrl
+			rest = strings.TrimPrefix(rest, "ctrl+")
+			continue
+		case strings.HasPrefix(rest, "alt+"):
+			key.Mod |= tea.ModAlt
+			rest = strings.TrimPrefix(rest, "alt+")
+			continue
+		case strings.HasPrefix(rest, "shift+"):
+			key.Mod |= tea.ModShift
+			rest = strings.TrimPrefix(rest, "shift+")
+			continue
+		}
+		break
+	}
+
+	if code, ok := namedKeys[rest]; ok {
+		key.Code = code
+		return tea.KeyPressMsg(key)
+	}
+	r, _ := utf8.DecodeRuneInString(rest)
+	key.Code = r
+	if key.Mod == 0 {
+		key.Text = rest
+	}
+	return tea.KeyPressMsg(key)
+}
+
+// namedKeys are the keys that are not a character.
+var namedKeys = map[string]rune{
+	"enter":     tea.KeyEnter,
+	"esc":       tea.KeyEscape,
+	"up":        tea.KeyUp,
+	"down":      tea.KeyDown,
+	"left":      tea.KeyLeft,
+	"right":     tea.KeyRight,
+	"pgup":      tea.KeyPgUp,
+	"pgdown":    tea.KeyPgDown,
+	"home":      tea.KeyHome,
+	"end":       tea.KeyEnd,
+	"tab":       tea.KeyTab,
+	"backspace": tea.KeyBackspace,
+	"delete":    tea.KeyDelete,
+	"space":     tea.KeySpace,
 }
 
 // prettyKey renders a keystroke the way it is printed on a keyboard.

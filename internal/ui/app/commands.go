@@ -257,7 +257,7 @@ func (m *Model) loadObject() tea.Cmd {
 		m.object.Fail(gen, errors.New("resource kinds are not discovered yet"))
 		return m.loadCatalog()
 	}
-	res, ok := catalog.Lookup(ref.Kind)
+	res, ok := catalog.Lookup(ref.lookup())
 	if !ok {
 		m.object.Fail(gen, fmt.Errorf("this cluster does not serve %s", ref.Kind))
 		return nil
