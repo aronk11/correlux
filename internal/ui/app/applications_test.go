@@ -282,3 +282,18 @@ func TestTheWheelDoesNotScrollPastTheEnd(t *testing.T) {
 		t.Errorf("a list that fits on screen must not scroll at all, offset is %d", m.appOffset)
 	}
 }
+
+func TestTheWheelDoesNotScrollBehindAnOverlay(t *testing.T) {
+	m := newTestModel(t)
+	apps := make([]application.Application, 0, 80)
+	for i := 0; i < 80; i++ {
+		apps = append(apps, testApplication("app-"+itoa(i), application.Healthy, 1, 1))
+	}
+	loadApplicationsInto(m, apps...)
+	press(t, m, "?") // the help overlay has nothing to scroll
+
+	m.Update(wheel(false))
+	if m.appOffset != 0 {
+		t.Errorf("the dashboard scrolled behind an open overlay, offset is %d", m.appOffset)
+	}
+}
