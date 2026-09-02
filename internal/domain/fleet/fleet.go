@@ -215,7 +215,12 @@ func sortInstances(instances []Instance) {
 		if a.Production != b.Production {
 			return a.Production
 		}
-		return a.Context < b.Context
+		if a.Context != b.Context {
+			return a.Context < b.Context
+		}
+		// One cluster can run the same application in several namespaces; they
+		// are different installations and must not shuffle between renders.
+		return a.Namespace < b.Namespace
 	})
 }
 

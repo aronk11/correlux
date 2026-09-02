@@ -307,8 +307,11 @@ func (m *Model) fleetData() screens.FleetData {
 	}
 
 	applications := screens.DetailSection{
-		Title:   "What is broken",
-		Columns: []string{"Application", "Cluster", "Health", "Pods", "Detail"},
+		Title: "What is broken",
+		// The namespace is not decoration: the same application name in five
+		// namespaces of one cluster is five different things, and without this
+		// column they render as five identical lines.
+		Columns: []string{"Application", "Cluster", "Namespace", "Health", "Pods", "Detail"},
 		Empty:   fleetEmpty(summary),
 	}
 	for _, row := range m.fleetRows() {
@@ -320,6 +323,7 @@ func (m *Model) fleetData() screens.FleetData {
 				Cells: []string{
 					row.Name,
 					memberLabel(instance.Context, instance.Production),
+					orNone(instance.Namespace),
 					instance.Health.String(),
 					itoa(int(instance.ReadyPods)) + "/" + itoa(int(instance.DesiredPods)),
 					instanceDetail(instance),

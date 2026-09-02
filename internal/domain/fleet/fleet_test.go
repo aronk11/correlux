@@ -178,3 +178,22 @@ func TestAnEmptyFleetIsNotAnError(t *testing.T) {
 		t.Errorf("summary = %+v", summary)
 	}
 }
+
+func TestTheSameNameInSeveralNamespacesStaysDistinguishable(t *testing.T) {
+	// A seeded cluster runs app-00 in five namespaces. They are five
+	// installations, and a fleet that cannot tell them apart is a fleet nobody
+	// can act on.
+	one := app("app-00", application.Down, 0, 3)
+	one.Namespace = "load-001"
+	two := app("app-00", application.Down, 0, 3)
+	two.Namespace = "load-000"
+
+	rows := Rows([]Member{member("kind", false, one, two)})
+	if len(rows) != 1 || len(rows[0].Instances) != 2 {
+		t.Fatalf("both installations belong to the row, got %+v", rows)
+	}
+	if rows[0].Instances[0].Namespace != "load-000" {
+		t.Errorf("instances = %v, want a stable order by namespace",
+			[]string{rows[0].Instances[0].Namespace, rows[0].Instances[1].Namespace})
+	}
+}
