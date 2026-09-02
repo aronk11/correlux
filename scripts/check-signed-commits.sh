@@ -17,21 +17,21 @@ if [[ -z "$base" ]]; then
   base="$(git merge-base origin/main HEAD 2>/dev/null || git rev-list --max-parents=0 HEAD)"
 fi
 
+# The signature is read off the commit object itself rather than through
+# `git log --format=%G?`.
+#
+# %G? asks git to *verify*, which needs to know the signature format and, for
+# SSH, an allowed-signers file. A CI checkout has neither, so a perfectly good
+# SSH signature comes back as "N: no signature" and the check fails every commit
+# it was written to protect. The header is the fact this script is after; whose
+# key it is, and whether that key is trusted, is GitHub's job (ADR 15).
 fail=0
-while read -r sha status subject; do
-  # %G? reports: G good, U good-but-untrusted, X expired, Y expired key,
-  # R revoked key, E cannot check, B bad, N no signature.
-  case "$status" in
-    N)
-      echo "::error::commit $sha is not signed: $subject"
-      fail=1
-      ;;
-    B)
-      echo "::error::commit $sha has a bad signature: $subject"
-      fail=1
-      ;;
-  esac
-done < <(git log --format='%H %G? %s' "$base..$head")
+while read -r sha subject; do
+  if ! git cat-file commit "$sha" | sed -n '/^$/q;p' | grep -q '^gpgsig'; then
+    echo "::error::commit $sha is not signed: $subject"
+    fail=1
+  fi
+done < <(git log --format='%H %s' "$base..$head")
 
 if (( fail )); then
   cat >&2 <<'USAGE'
