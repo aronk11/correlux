@@ -62,6 +62,9 @@ kubeui version
 | `Ctrl+A` | Back to the application dashboard |
 | `Enter` | Open the application under the cursor |
 | `Ctrl+W` | Why is this unhealthy? |
+| `y` | Show the document the server holds, and back |
+| `e` | Edit the open object in your editor |
+| `S` | Scale the selected workload |
 | `Ctrl+B` | Browse resource kinds, custom resources included |
 | `Ctrl+K` | Switch cluster |
 | `Ctrl+O` | Switch namespace |
@@ -130,6 +133,44 @@ The evidence — events, endpoints, node conditions, volume claims — is fetche
 when you open an application or ask the question, never on the dashboard's
 timer ([ADR 18](docs/adr/0018-evidence-on-demand.md)).
 
+### From an application to the object, and back
+
+`Enter` on an application opens what it is made of; `Enter` again opens the
+object under the cursor. From there, its relations lead up to the controller
+that made it and down to the objects it made, so Deployment to ReplicaSet to Pod
+is three keystrokes in either direction, and `Esc` retraces the path it came in
+by.
+
+Each object is described from the document it came as — a pod by its containers,
+their images, states, restarts and limits; a workload by its replicas and pod
+template — and `y` shows that document unabridged. A kind kubeui has never heard
+of is described from its own status and conditions, which is where a custom
+controller reports itself anyway.
+
+### Changing something
+
+`S` scales the selected workload, `e` opens the object in `$EDITOR`. Both end at
+the same screen, which states what the change does before it happens:
+
+```
+Scale Deployment/payments
+This removes 2 replicas.
+Deployment/payments in shop
+3 replicas → 1 replica
+
+Cluster   ⬤ PROD prod-eu   shop
+
+This context is production. Type prod-eu to confirm.
+❯
+```
+
+The consequence, the object, and the cluster — because the mistake worth
+guarding against is not a mistyped number, it is a correct action on the wrong
+cluster ([ADR 20](docs/adr/0020-changes-go-through-one-gate.md)). An edit shows
+its diff first, is refused if it renames the object or is not valid YAML, and is
+refused by the server if somebody else changed the object while it sat in the
+editor.
+
 ### Keeping up with a rollout
 
 `Ctrl+F` reloads the current screen on a timer until you turn it off, and the
@@ -189,6 +230,9 @@ keybindings:
   palette: ctrl+p
   applications: ctrl+a
   why: ctrl+w
+  object.yaml: "y"
+  edit: e
+  scale: S
   context.picker: ctrl+k
   namespace.picker: ctrl+o
   resource.picker: ctrl+b
@@ -217,8 +261,10 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | 2 | Application discovery and the application-first dashboard | **done** |
 | — | Timed refresh, mouse-wheel scrolling | **done** |
 | 3 | Deterministic WHY diagnosis engine | **done** |
-| 4 | Logs, exec, object detail, clipboard | next |
-| 5 | Safe mutating actions | planned |
+| 4 | Object detail, describe and navigation between objects | **done** |
+| — | Logs, exec, clipboard | next |
+| 5 | Safe mutating actions: scale and edit | **done** |
+| — | Further safe actions: delete, restart, cordon | planned |
 | 6 | Large-cluster performance work, guided by the benchmarks | planned |
 | 7 | Platform polish across macOS, Linux and Windows | planned |
 
