@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/retry"
 )
 
 const (
@@ -231,7 +232,16 @@ func createNode(ctx context.Context, cs kubernetes.Interface, node *corev1.Node)
 
 // setNodeReady writes a Ready condition and a plausible capacity, so the node
 // looks like a node to anything that reads it — kubeui included.
+//
+// The node lifecycle controller is writing to the same object (it has noticed
+// there is no kubelet), so this races by construction and retries on conflict.
 func setNodeReady(ctx context.Context, cs kubernetes.Interface) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		return setNodeReadyOnce(ctx, cs)
+	})
+}
+
+func setNodeReadyOnce(ctx context.Context, cs kubernetes.Interface) error {
 	node, err := cs.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		return err
