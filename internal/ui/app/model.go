@@ -239,6 +239,10 @@ type Model struct {
 	nsPicker     *components.Selector
 	resPicker    *components.Selector
 
+	// The filter over whatever list is on screen.
+	search    components.Input
+	searching bool
+
 	// Transient status message.
 	message       string
 	messageStatus theme.Status
@@ -297,6 +301,7 @@ func New(opts Options) *Model {
 		}
 	}
 
+	m.search = newInput("filter…")
 	m.confirmInput = newInput("")
 	m.promptInput = newInput("")
 

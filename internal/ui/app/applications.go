@@ -69,7 +69,7 @@ func (m *Model) openApplication(name string) tea.Cmd {
 
 // openSelectedApplication opens whatever the dashboard cursor is on.
 func (m *Model) openSelectedApplication() tea.Cmd {
-	apps := m.applications()
+	apps := m.visibleApplications()
 	if m.appCursor < 0 || m.appCursor >= len(apps) {
 		return nil
 	}
@@ -96,7 +96,7 @@ func (m *Model) applicationsVisible() int { return max(m.screen.Body.Height-1, 1
 
 // moveAppCursor scrolls the dashboard.
 func (m *Model) moveAppCursor(delta int) {
-	apps := m.applications()
+	apps := m.visibleApplications()
 	if len(apps) == 0 {
 		return
 	}
@@ -119,7 +119,7 @@ func (m *Model) moveAppCursor(delta int) {
 // cursor onto a different application under the user's hands. The cursor
 // follows the application it was on, not the position it was at.
 func (m *Model) keepCursorOnApplication(previous string) {
-	apps := m.applications()
+	apps := m.visibleApplications()
 	if len(apps) == 0 {
 		m.appCursor, m.appOffset = 0, 0
 		return
@@ -147,7 +147,7 @@ func (m *Model) keepCursorOnApplication(previous string) {
 // cursorApplicationKey is the application the cursor is on, for restoring it
 // across a reload.
 func (m *Model) cursorApplicationKey() string {
-	apps := m.applications()
+	apps := m.visibleApplications()
 	if m.appCursor >= 0 && m.appCursor < len(apps) {
 		return apps[m.appCursor].Key()
 	}
@@ -185,7 +185,12 @@ func (m *Model) applicationsData() screens.TableData {
 		return d
 	}
 
-	apps := m.applications()
+	apps := m.visibleApplications()
+	if len(apps) == 0 && m.filtering() {
+		d.Message = "Nothing matches " + m.query() + " among " +
+			itoa(len(m.applications())) + " applications."
+		return d
+	}
 	if len(apps) == 0 {
 		d.Message = "No applications in " + m.scopeLabel() + "."
 		if gaps := m.apps.Get().Snapshot.Gaps; len(gaps) > 0 {

@@ -142,7 +142,7 @@ func (m *Model) applyFleetPart(msg fleetPartMsg) tea.Cmd {
 	m.fleetParts = append(m.fleetParts, msg.part)
 	m.fleetPending = max(m.fleetPending-1, 0)
 	m.fleetTable = resources.Merge(m.fleetParts, m.fleetResource.Namespaced)
-	m.fleetTableCursor = clampInt(m.fleetTableCursor, max(len(m.fleetTable.Rows)-1, 0))
+	m.fleetTableCursor = clampInt(m.fleetTableCursor, max(len(m.visibleFleetRows())-1, 0))
 	return waitForFleetPart(msg.gen, m.fleetPartsChan)
 }
 
@@ -154,7 +154,13 @@ func (m *Model) fleetResourceData() screens.TableData {
 		ShowWide: m.tableWide,
 	}
 
-	if len(m.fleetTable.Rows) == 0 {
+	rows := m.visibleFleetRows()
+	if len(rows) == 0 && m.filtering() {
+		d.Message = "Nothing matches " + m.query() + " among " +
+			itoa(len(m.fleetTable.Rows)) + " " + m.fleetResource.Plural() + "."
+		return d
+	}
+	if len(rows) == 0 {
 		switch {
 		case m.fleetPending > 0:
 			d.Message = "Reading " + m.fleetResource.Plural() + " from " +
@@ -176,11 +182,11 @@ func (m *Model) fleetResourceData() screens.TableData {
 			Right: c.Type == "integer" || c.Type == "number",
 		})
 	}
-	d.Rows = make([]screens.TableRow, 0, len(m.fleetTable.Rows))
-	for i := range m.fleetTable.Rows {
+	d.Rows = make([]screens.TableRow, 0, len(rows))
+	for i := range rows {
 		d.Rows = append(d.Rows, screens.TableRow{
-			Cells:  m.fleetTable.Rows[i].Cells,
-			Status: rowStatus(m.fleetTable.Rows[i].Cells),
+			Cells:  rows[i].Cells,
+			Status: rowStatus(rows[i].Cells),
 		})
 	}
 	return d
@@ -223,10 +229,11 @@ func (m *Model) fleetFailureNote() string {
 // openFleetRow leaves the fleet for the object under the cursor: its cluster,
 // its namespace, the object itself.
 func (m *Model) openFleetRow() tea.Cmd {
-	if m.fleetTableCursor < 0 || m.fleetTableCursor >= len(m.fleetTable.Rows) {
+	rows := m.visibleFleetRows()
+	if m.fleetTableCursor < 0 || m.fleetTableCursor >= len(rows) {
 		return nil
 	}
-	row := m.fleetTable.Rows[m.fleetTableCursor]
+	row := rows[m.fleetTableCursor]
 	res := m.fleetResource
 
 	m.stopFleet()
@@ -244,7 +251,7 @@ func (m *Model) openFleetRow() tea.Cmd {
 
 // moveFleetTableCursor scrolls the merged table.
 func (m *Model) moveFleetTableCursor(delta int) {
-	rows := m.fleetTable.Rows
+	rows := m.visibleFleetRows()
 	if len(rows) == 0 {
 		return
 	}
@@ -262,7 +269,7 @@ func (m *Model) moveFleetTableCursor(delta int) {
 
 // scrollFleetTable moves the viewport and drags the selection with it.
 func (m *Model) scrollFleetTable(delta int) {
-	rows := m.fleetTable.Rows
+	rows := m.visibleFleetRows()
 	if len(rows) == 0 {
 		return
 	}

@@ -59,7 +59,7 @@ func (m *Model) openObject(ref objectRef) tea.Cmd {
 // the same inspector the application view opens, reached from the other side:
 // a custom resource is opened by exactly the code that opens a Pod.
 func (m *Model) openSelectedRow() tea.Cmd {
-	rows := m.tableRows()
+	rows := m.visibleRows()
 	if m.tableCursor < 0 || m.tableCursor >= len(rows) {
 		return nil
 	}

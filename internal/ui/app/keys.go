@@ -27,6 +27,7 @@ const (
 	ActionResourcePicker  = "resource.picker"
 	ActionApplications    = "applications"
 	ActionFleet           = "fleet"
+	ActionSearch          = "search"
 	ActionWhy             = "why"
 	ActionYAML            = "object.yaml"
 	ActionScale           = "scale"
@@ -64,6 +65,7 @@ var DefaultBindings = map[string]string{
 	ActionResourcePicker:  "ctrl+b",
 	ActionApplications:    "ctrl+a",
 	ActionFleet:           "F",
+	ActionSearch:          "/",
 	ActionWhy:             "ctrl+w",
 	ActionYAML:            "y",
 	ActionScale:           "S",

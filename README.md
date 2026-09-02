@@ -71,6 +71,7 @@ kubeui version
 | `Enter` | Open the object under the cursor |
 | `Ctrl+K` | Switch cluster |
 | `Ctrl+O` | Switch namespace |
+| `/` | Filter the list on screen |
 | `Ctrl+R` | Refresh |
 | `Ctrl+F` | Refresh on a timer, until you turn it off (`auto 10s` appears in the header) |
 | `w` | Toggle the wide columns in a resource table |
@@ -162,6 +163,22 @@ loop — `t` adds the server's timestamps and `w` wraps long lines.
 A container that cannot be read yet says so on its own line instead of silencing
 the others, the oldest lines are dropped once the buffer is full and the header
 admits it, and leaving the view closes every connection it opened.
+
+### Finding something
+
+`/` narrows whatever list is on screen — a resource table, the dashboard, or one
+kind across the whole fleet. The match is fuzzy and covers the whole row, so
+typing `crashloop` finds the pods that are in it and `pay` finds `payments`
+wherever the name sits.
+
+```
+/pay  2 of 4213 loaded rows   Ctrl+P Commands   Ctrl+K Cluster   ? Help
+```
+
+It is a filter, not a query: kubeui narrows the rows it has rather than asking
+the server a different question, and the bar says how much it is showing — with
+`loaded` when the table is paged and rows below have not been fetched. The order
+never changes; a filtered list is the same list with fewer rows.
 
 ### Changing something
 
@@ -325,6 +342,7 @@ keybindings:
   palette: ctrl+p
   applications: ctrl+a
   fleet: F
+  search: "/"
   why: ctrl+w
   object.yaml: "y"
   edit: e

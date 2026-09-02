@@ -392,7 +392,7 @@ func (m *Model) tableRows() []resources.Row {
 // moveTableCursor scrolls the table, fetching the next page when the user
 // reaches the end of what is loaded.
 func (m *Model) moveTableCursor(delta int) tea.Cmd {
-	rows := m.tableRows()
+	rows := m.visibleRows()
 	if len(rows) == 0 {
 		return nil
 	}
@@ -428,9 +428,9 @@ func (m *Model) handleTableKey(keystroke string) (tea.Cmd, bool) {
 	case "pgdown", " ":
 		return m.moveTableCursor(visible), true
 	case "home", "g":
-		return m.moveTableCursor(-len(m.tableRows())), true
+		return m.moveTableCursor(-len(m.visibleRows())), true
 	case "end", "G":
-		return m.moveTableCursor(len(m.tableRows())), true
+		return m.moveTableCursor(len(m.visibleRows())), true
 	case "enter", "right":
 		return m.openSelectedRow(), true
 	}
@@ -450,9 +450,9 @@ func (m *Model) handleApplicationsKey(keystroke string) (tea.Cmd, bool) {
 	case "pgdown", " ":
 		m.moveAppCursor(visible)
 	case "home", "g":
-		m.moveAppCursor(-len(m.applications()))
+		m.moveAppCursor(-len(m.visibleApplications()))
 	case "end", "G":
-		m.moveAppCursor(len(m.applications()))
+		m.moveAppCursor(len(m.visibleApplications()))
 	case "enter", "right":
 		return m.openSelectedApplication(), true
 	default:
@@ -587,9 +587,9 @@ func (m *Model) handleFleetResourceKey(keystroke string) (tea.Cmd, bool) {
 	case "pgdown", " ":
 		m.scrollFleetTable(visible)
 	case "home", "g":
-		m.moveFleetTableCursor(-len(m.fleetTable.Rows))
+		m.moveFleetTableCursor(-len(m.visibleFleetRows()))
 	case "end", "G":
-		m.moveFleetTableCursor(len(m.fleetTable.Rows))
+		m.moveFleetTableCursor(len(m.visibleFleetRows()))
 	case "enter", "right":
 		return m.openFleetRow(), true
 	case "esc", "left", "h":
@@ -824,6 +824,14 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 
+	// The filter takes every key while it has focus, for the same reason: a
+	// resource named "w" must be typeable.
+	if m.overlay == overlayNone && m.searching {
+		if m.handleSearchKey(keystroke, key.Text) {
+			return nil
+		}
+	}
+
 	if m.overlay == overlayNone {
 		switch m.view {
 		case viewTable:
@@ -905,9 +913,16 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.closeOverlay()
 			return nil
 		}
+		if m.filtering() {
+			// Esc undoes the filter first; leaving the view is the next press.
+			m.clearSearch()
+			return nil
+		}
 		return m.backToApplications()
 	case ActionApplications:
 		return m.backToApplications()
+	case ActionSearch:
+		return m.startSearch()
 	case ActionFleet:
 		if m.view == viewFleet {
 			m.stopFleet()
@@ -999,7 +1014,7 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 // cursor along only when it would otherwise scroll off the screen — the row a
 // user picked must not change because they looked further down the list.
 func (m *Model) scrollTable(delta int) tea.Cmd {
-	rows := m.tableRows()
+	rows := m.visibleRows()
 	if len(rows) == 0 {
 		return nil
 	}
