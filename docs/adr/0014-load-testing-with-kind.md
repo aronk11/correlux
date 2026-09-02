@@ -33,10 +33,18 @@ load five minutes into a benchmark.
 
 Around that:
 
-- Deployments are created **paused**, with a ReplicaSet already at its desired
-  count, so the real controllers observe a satisfied state and create nothing of
-  their own. The ownership graph is genuine — Deployment → ReplicaSet → Pod —
-  which is what Phase 2's application inference will be tested against.
+- The ownership graph is genuine — Deployment → ReplicaSet → Pod — and it is
+  built by **letting the ReplicaSet controller adopt the pods**. The seeder
+  creates the pods first, as orphans, and the ReplicaSet after: the controller
+  finds its desired count already satisfied, adopts them, and writes the owner
+  references itself. The obvious order (ReplicaSet first) has the controller
+  create the difference, and those pods go through the scheduler, which cannot
+  place them on a node with no kubelet — they would sit Pending forever and
+  skew every count. Deployments are paused so they do not create a ReplicaSet
+  of their own alongside the seeded one.
+- Pods carry a zero termination grace period. Nothing confirms a graceful
+  deletion when there is no kubelet, so ordinary pods would sit in Terminating
+  forever and a namespace holding one could never be deleted.
 - The seeded cluster is deliberately **not healthy**: a fixed, reproducible
   share of applications are degraded or down. A tool for finding what is broken
   must be tested on a cluster that has something broken in it.
@@ -62,5 +70,9 @@ on demand.
 - Synthetic pods are not identical to real ones: no kubelet means no real
   container statuses beyond what the seeder writes, and no metrics. That is the
   right trade — the code under test reads the API, and the API is real.
+- The seeder cooperates with live controllers working from informer caches, so
+  a run finishes with a settling pass that removes anything a controller created
+  from a stale cache. A fresh seed is exact; repeatedly re-seeding the same
+  cluster at different sizes converges rather than being instantly precise.
 - Benchmarks measure a local kind cluster, so absolute numbers are not a
   production SLA. They are a regression signal, which is what they are for.
