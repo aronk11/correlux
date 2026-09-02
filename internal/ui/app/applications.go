@@ -1,6 +1,7 @@
 package app
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -50,6 +51,12 @@ func (m *Model) openApplication(name string) tea.Cmd {
 			m.view = viewApplication
 			m.detailOffset = 0
 			m.rebuildCommands()
+			// Opening an application is the moment its evidence becomes worth
+			// fetching: the events belong on this screen, and the explanation
+			// behind Ctrl+W is then already there.
+			if m.evidence.State() == async.Idle {
+				return m.loadEvidence()
+			}
 			return nil
 		}
 	}
@@ -279,6 +286,9 @@ func (m *Model) applicationData() screens.ApplicationData {
 	d.HealthGlyph = m.theme.Glyph(status)
 	d.HealthStatus = status
 	d.Summary = a.Summary
+	if incident := m.incidentLabel(a); incident != "" {
+		d.Notes = append(d.Notes, incident)
+	}
 	if gaps := m.apps.Get().Snapshot.Gaps; len(gaps) > 0 {
 		d.Notes = append(d.Notes, gapSummary(gaps))
 	}
@@ -341,9 +351,61 @@ func (m *Model) applicationData() screens.ApplicationData {
 		})
 	}
 
-	d.Sections = []screens.DetailSection{workloads, pods, network}
+	d.Sections = []screens.DetailSection{workloads, pods, network, m.eventsSection(a, now)}
 	return d
 }
+
+// eventsSection shows what the cluster said about this application, which is
+// the difference between "the pod is not ready" and "the probe is refused".
+func (m *Model) eventsSection(a application.Application, now time.Time) screens.DetailSection {
+	section := screens.DetailSection{
+		Title:   "Recent events",
+		Columns: []string{"Age", "Type", "Object", "Reason", "Message"},
+	}
+	switch m.evidence.State() {
+	case async.Idle:
+		section.Empty = "not read yet"
+		return section
+	case async.Loading:
+		section.Empty = "loading…"
+		return section
+	case async.Failed:
+		section.Empty = "unavailable — " + shortError(m.evidence.Err())
+		return section
+	}
+
+	evidence := m.evidence.Get()
+	events := make([]application.Event, 0, maxDetailEvents)
+	for i := range a.Pods {
+		events = append(events, evidence.EventsAbout(a.Pods[i].UID, a.Pods[i].Name)...)
+	}
+	for i := range a.Workloads {
+		events = append(events, evidence.EventsAbout(a.Workloads[i].UID, a.Workloads[i].Name)...)
+	}
+	sort.SliceStable(events, func(i, j int) bool { return events[i].LastSeen.After(events[j].LastSeen) })
+	if len(events) > maxDetailEvents {
+		events = events[:maxDetailEvents]
+	}
+	if len(events) == 0 {
+		section.Empty = "none in this namespace"
+		return section
+	}
+
+	for _, e := range events {
+		row := screens.DetailRow{Cells: []string{
+			formatAge(e.LastSeen, now), e.Type, e.About.Kind + "/" + e.About.Name, e.Reason, e.Message,
+		}}
+		if e.Type == "Warning" {
+			row.Status = theme.StatusWarning
+		}
+		section.Rows = append(section.Rows, row)
+	}
+	return section
+}
+
+// maxDetailEvents bounds the events on the detail screen. The newest handful
+// explain the current state; older ones are history.
+const maxDetailEvents = 8
 
 func readyLabel(ready bool) string {
 	if ready {

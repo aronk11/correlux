@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/aronk11/kubeui/internal/domain/application"
 	"github.com/aronk11/kubeui/internal/ui/async"
 	"github.com/aronk11/kubeui/internal/ui/palette"
 	"github.com/aronk11/kubeui/internal/ui/theme"
@@ -20,6 +21,7 @@ const (
 	paletteToggleAllNS     palette.ActionID = "toggle.allnamespaces"
 	paletteOpenApps        palette.ActionID = "open.applications"
 	paletteOpenApp         palette.ActionID = "open.application"
+	paletteExplain         palette.ActionID = "explain"
 	paletteOpenResources   palette.ActionID = "open.resources"
 	paletteOpenResource    palette.ActionID = "open.resource"
 	paletteToggleWide      palette.ActionID = "toggle.wide"
@@ -90,6 +92,17 @@ func (m *Model) rebuildCommands() {
 			Keywords: []string{"resource", "kind", "crd", "custom", "api", "objects"},
 			Shortcut: m.keys.Key(ActionResourcePicker),
 			Weight:   90,
+			Enabled:  true,
+		},
+		{
+			ID:       "cmd.why",
+			Action:   paletteExplain,
+			Title:    "Explain why this is unhealthy",
+			Subtitle: m.whySubtitle(),
+			Category: "Diagnose",
+			Keywords: []string{"why", "diagnose", "explain", "root cause", "incident", "broken"},
+			Shortcut: m.keys.Key(ActionWhy),
+			Weight:   97,
 			Enabled:  true,
 		},
 		{
@@ -218,6 +231,19 @@ func (m *Model) rebuildCommands() {
 		if m.view == viewApplication && a.Key() == m.selectedApp {
 			continue
 		}
+		if a.Health != application.Healthy {
+			cmds = append(cmds, palette.Command{
+				ID:       "why." + a.Key(),
+				Action:   paletteExplain,
+				Arg:      a.Key(),
+				Title:    "Why is " + a.Name + " " + a.Health.String() + "?",
+				Subtitle: m.incidentLabel(a),
+				Category: "Diagnose",
+				Keywords: []string{"why", "diagnose", a.Name, a.Health.String()},
+				Weight:   59,
+				Enabled:  true,
+			})
+		}
 		cmds = append(cmds, palette.Command{
 			ID:       "app." + a.Key(),
 			Action:   paletteOpenApp,
@@ -274,6 +300,18 @@ func (m *Model) rebuildCommands() {
 
 	m.registry.Set(cmds)
 	m.cmdPal.Refresh()
+}
+
+// whySubtitle names what the explanation would be about.
+func (m *Model) whySubtitle() string {
+	if app, ok := m.currentApplication(); ok && m.view != viewApplications {
+		return app.Name + " — " + app.Health.String()
+	}
+	apps := m.applications()
+	if m.appCursor >= 0 && m.appCursor < len(apps) {
+		return apps[m.appCursor].Name + " — " + apps[m.appCursor].Health.String()
+	}
+	return "select an application first"
 }
 
 // catalogSubtitle summarises what discovery found, without ever implying an
@@ -392,6 +430,11 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.backToApplications()
 	case paletteOpenApp:
 		return m.openApplication(cmd.Arg)
+	case paletteExplain:
+		if cmd.Arg != "" {
+			return m.explainApplication(cmd.Arg)
+		}
+		return m.explain()
 	case paletteOpenResources:
 		return m.openOverlay(overlayResources)
 	case paletteOpenResource:
@@ -442,6 +485,8 @@ func (m *Model) switchContext(name string) tea.Cmd {
 	m.catalog.Reset()
 	m.table.Reset()
 	m.apps.Reset()
+	m.evidence.Reset()
+	m.findings = nil
 	m.appCursor, m.appOffset, m.detailOffset = 0, 0, 0
 	m.selectedApp = ""
 	m.view = viewApplications
@@ -486,9 +531,11 @@ func (m *Model) switchNamespace(ns string) tea.Cmd {
 func (m *Model) reloadScopedViews() tea.Cmd {
 	// The dashboard is always scoped, so it always reloads.
 	m.apps.Reset()
+	m.evidence.Reset()
+	m.findings = nil
 	m.appCursor, m.appOffset, m.detailOffset = 0, 0, 0
 	m.selectedApp = ""
-	if m.view == viewApplication {
+	if m.view == viewApplication || m.view == viewWhy {
 		m.view = viewApplications
 	}
 	reload := m.loadApplications()
@@ -562,6 +609,9 @@ func (m *Model) refresh() tea.Cmd {
 	cmds := []tea.Cmd{m.probeCluster(), m.loadNamespaces(), m.loadApplications(), m.expireNotice()}
 	if m.view == viewTable {
 		cmds = append(cmds, m.loadTable())
+	}
+	if m.view == viewApplication || m.view == viewWhy {
+		cmds = append(cmds, m.loadEvidence())
 	}
 	return tea.Batch(cmds...)
 }

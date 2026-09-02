@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/aronk11/kubeui/internal/domain/application"
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
 	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
 	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
@@ -47,6 +48,12 @@ type applicationsLoadedMsg struct {
 	gen  uint64
 	list applicationList
 	err  error
+}
+
+type evidenceLoadedMsg struct {
+	gen     uint64
+	context application.Context
+	err     error
 }
 
 type kubeconfigReloadedMsg struct {
@@ -191,6 +198,36 @@ func (m *Model) loadApplications() tea.Cmd {
 			list: applicationList{Apps: apps, Snapshot: snapshot},
 			err:  err,
 		}
+	}
+}
+
+// loadEvidence fetches what a diagnosis reasons about: events, endpoints, nodes
+// and volume claims for the active scope.
+//
+// It is deliberately not part of the dashboard's load. The dashboard refreshes
+// on a timer and has to stay cheap; this runs when somebody opens an
+// application or asks why it is broken (ADR 18).
+func (m *Model) loadEvidence() tea.Cmd {
+	if m.cancelEvidence != nil {
+		m.cancelEvidence()
+	}
+	gen := m.evidence.Start()
+	m.evidenceLoading = true
+
+	ctx, cancel := context.WithTimeout(context.Background(), m.factory.Timeout())
+	m.cancelEvidence = cancel
+
+	factory := m.factory
+	name := m.contextName
+	opts := workloads.Options{}
+	if !m.allNamespaces {
+		opts.Namespace = m.namespace
+	}
+
+	return func() tea.Msg {
+		defer cancel()
+		evidence, err := factory.ApplicationContext(ctx, name, opts)
+		return evidenceLoadedMsg{gen: gen, context: evidence, err: err}
 	}
 }
 

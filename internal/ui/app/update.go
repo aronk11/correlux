@@ -91,6 +91,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case applicationsLoadedMsg:
 		return m, m.applyApplications(msg)
 
+	case evidenceLoadedMsg:
+		if m.evidence.Accepts(msg.gen) {
+			m.evidenceLoading = false
+		}
+		if msg.err != nil {
+			m.evidence.Fail(msg.gen, msg.err)
+			return m, nil
+		}
+		if m.evidence.Succeed(msg.gen, msg.context) {
+			// The explanation improves as soon as the evidence lands.
+			m.rediagnose()
+		}
+		return m, nil
+
 	case tableLoadedMsg:
 		return m, m.applyTablePage(msg)
 
@@ -233,11 +247,16 @@ func (m *Model) handleAutoRefreshTick(msg autoRefreshTickMsg) tea.Cmd {
 // cost far more than the screen is worth.
 func (m *Model) autoReload() []tea.Cmd {
 	switch m.view {
-	case viewApplications, viewApplication:
+	case viewApplications, viewApplication, viewWhy:
 		if m.appsLoading {
 			return nil
 		}
-		return []tea.Cmd{m.loadApplications()}
+		cmds := []tea.Cmd{m.loadApplications()}
+		// The explanation is only worth refreshing where it is being read.
+		if m.view == viewWhy && !m.evidenceLoading {
+			cmds = append(cmds, m.loadEvidence())
+		}
+		return cmds
 	case viewTable:
 		// Only the first page is refreshed. Someone who has paged deep into a
 		// large resource would otherwise watch their rows disappear every tick.
@@ -291,6 +310,7 @@ func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
 	}
 	m.refreshFailures = 0
 	m.keepCursorOnApplication(previous)
+	m.rediagnose()
 	m.rebuildCommands()
 	return nil
 }
@@ -397,6 +417,34 @@ func (m *Model) handleApplicationKey(keystroke string) (tea.Cmd, bool) {
 	return nil, true
 }
 
+// handleWhyKey scrolls the explanation. Nothing here needs to fetch anything:
+// the explanation is already in the model.
+func (m *Model) handleWhyKey(keystroke string) bool {
+	page := max(m.screen.Body.Height-1, 1)
+	switch keystroke {
+	case "up", "k":
+		m.scrollWhy(-1)
+	case "down", "j":
+		m.scrollWhy(1)
+	case "pgup":
+		m.scrollWhy(-page)
+	case "pgdown", " ":
+		m.scrollWhy(page)
+	case "home", "g":
+		m.whyOffset = 0
+	case "end", "G":
+		m.scrollWhy(m.whyLines())
+	case "left", "h", "enter":
+		// Enter goes to the objects the explanation is about.
+		m.view = viewApplication
+		m.detailOffset = 0
+		m.rebuildCommands()
+	default:
+		return false
+	}
+	return true
+}
+
 // detailLines is how many lines the open application renders to, which is what
 // bounds scrolling.
 func (m *Model) detailLines() int {
@@ -448,6 +496,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			if cmd, handled := m.handleApplicationKey(keystroke); handled {
 				return cmd
 			}
+		case viewWhy:
+			if m.handleWhyKey(keystroke) {
+				return nil
+			}
 		}
 	}
 
@@ -488,6 +540,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.backToApplications()
 	case ActionApplications:
 		return m.backToApplications()
+	case ActionWhy:
+		return m.explain()
 	}
 	return nil
 }
@@ -525,6 +579,8 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 		m.scrollApplications(delta)
 	case viewApplication:
 		m.scrollDetail(delta)
+	case viewWhy:
+		m.scrollWhy(delta)
 	}
 	return nil
 }

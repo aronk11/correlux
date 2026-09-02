@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -18,10 +19,24 @@ var ansi = regexp.MustCompile("\x1b\\[[0-9;]*m")
 // layout has to stay readable for.
 func dumpApplications() []application.Application {
 	return []application.Application{
-		testApplication("payments", application.Down, 0, 3),
+		brokenApplication(),
 		testApplication("worker", application.Degraded, 7, 8),
 		testApplication("api", application.Healthy, 12, 12),
 		testApplication("frontend", application.Healthy, 6, 6),
+	}
+}
+
+// dumpEvidence is what the cluster would have said about the broken
+// application in dumpApplications.
+func dumpEvidence() application.Context {
+	return application.Context{
+		Events: []application.Event{{
+			Type: "Warning", Reason: "BackOff", Count: 41,
+			Message:  "Back-off restarting failed container payments in pod payments-7d8f-0",
+			LastSeen: time.Now().Add(-90 * time.Second),
+			About:    application.ObjectRef{Kind: "Pod", Name: "payments-7d8f-0"},
+		}},
+		Endpoints: []application.EndpointSet{{Service: "payments", Namespace: "default"}},
 	}
 }
 
@@ -37,6 +52,7 @@ func TestDumpFrames(t *testing.T) {
 	frames := map[string]string{
 		"main":        "",
 		"application": "",
+		"why":         "",
 		"session":     "",
 		"palette":     "ctrl+p",
 		"clusters":    "ctrl+k",
@@ -56,6 +72,11 @@ func TestDumpFrames(t *testing.T) {
 				"payments-7d8f9c", "payments-8a91bd", "worker-91abcd", "frontend-2f4e6a")})
 		case "application":
 			m.openApplication("payments")
+			loadEvidenceInto(m, dumpEvidence())
+		case "why":
+			m.openApplication("payments")
+			loadEvidenceInto(m, dumpEvidence())
+			m.explain()
 		case "session":
 			m.backToOverview()
 		}

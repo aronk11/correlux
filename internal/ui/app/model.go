@@ -8,6 +8,8 @@ import (
 
 	"github.com/aronk11/kubeui/internal/buildinfo"
 	"github.com/aronk11/kubeui/internal/config"
+	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/kubeui/internal/domain/diagnosis"
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
 	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
 	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
@@ -40,6 +42,8 @@ const (
 	viewApplications viewKind = iota
 	// viewApplication is one application and the objects it is made of.
 	viewApplication
+	// viewWhy is the explanation of why an application is unhealthy.
+	viewWhy
 	// viewOverview is the session and connection summary.
 	viewOverview
 	// viewTable lists the objects of one resource kind.
@@ -83,6 +87,9 @@ type Model struct {
 	catalog    async.Value[*kubediscovery.Catalog]
 	table      async.Value[*resources.Table]
 	apps       async.Value[applicationList]
+	// evidence is the extra context a diagnosis needs. It is loaded for the
+	// scope the user is looking at, never for the whole cluster.
+	evidence async.Value[application.Context]
 
 	// The application dashboard.
 	appCursor int
@@ -92,6 +99,10 @@ type Model struct {
 	// would then follow the ranking instead of the application.
 	selectedApp  string
 	detailOffset int
+	whyOffset    int
+	// findings are the diagnoses per application key, computed once per load
+	// rather than on every frame: View must stay a cheap pure function.
+	findings map[string][]diagnosis.Diagnosis
 
 	// The resource browser.
 	view        viewKind
@@ -110,9 +121,10 @@ type Model struct {
 
 	// In-flight markers, so a timed reload never stacks a second request on
 	// top of one that has not answered yet.
-	appsLoading    bool
-	tableLoading   bool
-	clusterLoading bool
+	appsLoading     bool
+	evidenceLoading bool
+	tableLoading    bool
+	clusterLoading  bool
 
 	// In-flight work, cancelled when it becomes irrelevant.
 	cancelCluster    context.CancelFunc
@@ -120,6 +132,7 @@ type Model struct {
 	cancelCatalog    context.CancelFunc
 	cancelTable      context.CancelFunc
 	cancelApps       context.CancelFunc
+	cancelEvidence   context.CancelFunc
 
 	// Geometry.
 	screen        layout.Screen
@@ -274,3 +287,11 @@ func (m *Model) ShowSessionForTest() tea.Cmd { return m.backToOverview() }
 
 // OpenApplicationForTest opens one application's detail view by name.
 func (m *Model) OpenApplicationForTest(name string) tea.Cmd { return m.openApplication(name) }
+
+// ExplainForTest opens the WHY view for the named application.
+func (m *Model) ExplainForTest(name string) tea.Cmd {
+	if cmd := m.openApplication(name); cmd != nil {
+		return tea.Batch(cmd, m.explain())
+	}
+	return m.explain()
+}
