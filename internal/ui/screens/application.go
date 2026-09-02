@@ -77,14 +77,11 @@ func (d ApplicationData) LineCount(width int) int {
 	return len(lines)
 }
 
-// LineOfTarget reports which line a navigable row lands on, so the model can
-// keep the cursor on screen. It returns -1 when the target is not rendered.
-func (d ApplicationData) LineOfTarget(width, target int) int {
+// TargetLines reports which line each navigable row lands on, so the model can
+// keep the selection and the viewport agreeing with each other.
+func (d ApplicationData) TargetLines(width int) map[int]int {
 	_, lines := applicationLines(nil, d, width)
-	if line, ok := lines[target]; ok {
-		return line
-	}
-	return -1
+	return lines
 }
 
 // applicationLines renders the view to individual lines, and reports which line

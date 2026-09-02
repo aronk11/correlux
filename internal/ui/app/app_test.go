@@ -85,6 +85,18 @@ func keyMsg(keystroke string) tea.KeyPressMsg {
 		key.Code = tea.KeyDown
 	case "backspace":
 		key.Code = tea.KeyBackspace
+	case "left":
+		key.Code = tea.KeyLeft
+	case "right":
+		key.Code = tea.KeyRight
+	case "pgup":
+		key.Code = tea.KeyPgUp
+	case "pgdown":
+		key.Code = tea.KeyPgDown
+	case "home":
+		key.Code = tea.KeyHome
+	case "end":
+		key.Code = tea.KeyEnd
 	default:
 		r, _ := utf8.DecodeRuneInString(rest)
 		key.Code = r
