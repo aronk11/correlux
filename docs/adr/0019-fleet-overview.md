@@ -1,6 +1,6 @@
 # 19. A fleet overview across several kubeconfig contexts, read-only
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-02
 
 ## Context
@@ -93,3 +93,20 @@ answer.
   a much smaller version — one row per cluster, no applications — would deliver
   most of that value for a fraction of the cost. That is the fallback if the
   full version proves too heavy in practice.
+
+## What was built
+
+The first version follows all five rules. The screen has two parts: one row per
+cluster with its own state, and below it every application that is not healthy,
+with the cluster it is not healthy in. Enter on either leaves the overview for
+that cluster — a cluster row opens its dashboard, an application row opens the
+application, in its namespace.
+
+Members are read four at a time, each with its own timeout, and each answer
+appears as it arrives rather than after the slowest cluster. Every total says
+what it covers: "5 applications across 2 of 3" is what a fleet with an
+unreachable member reports, and the member itself is listed with the reason it
+could not be read.
+
+The timed refresh deliberately does not touch this screen. `Ctrl+R` reloads it,
+which is the one moment a user has decided the cost is worth paying.

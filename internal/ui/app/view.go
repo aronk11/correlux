@@ -9,6 +9,7 @@ import (
 
 	"github.com/aronk11/kubeui/internal/config"
 	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/kubeui/internal/domain/fleet"
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
 	"github.com/aronk11/kubeui/internal/kube/resources"
 	"github.com/aronk11/kubeui/internal/ui/async"
@@ -127,6 +128,12 @@ func (m *Model) autoRefreshLabel() string {
 // breadcrumb shows where the user is in the navigation model:
 // cluster, scope, application, object (SPEC 5).
 func (m *Model) breadcrumb() []string {
+	if m.view == viewFleet {
+		// The fleet sits above the cluster: it is the one screen that is not
+		// about the context in the header.
+		return []string{"Fleet", fleetCrumb(m.fleetMembers)}
+	}
+
 	crumbs := []string{"Cluster", m.scopeLabel()}
 	switch m.view {
 	case viewTable:
@@ -264,6 +271,13 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "Enter", Desc: "Objects", Priority: 86},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
+	case viewFleet:
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Clusters", Priority: 90},
+			{Key: "Enter", Desc: "Go there", Priority: 89},
+			{Key: m.keys.Key(ActionRefresh), Desc: "Reload", Priority: 84},
+			{Key: "Esc", Desc: "Back", Priority: 85},
+		}, hints...)
 	case viewLogs:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Scroll", Priority: 90},
@@ -330,6 +344,8 @@ func (m *Model) renderBody() string {
 		content = screens.RenderObject(m.theme, m.objectData(), body.Width, body.Height)
 	case viewLogs:
 		content = screens.RenderLogs(m.theme, m.logsData(), body.Width, body.Height)
+	case viewFleet:
+		content = screens.RenderFleet(m.theme, m.fleetData(), body.Width, body.Height)
 	default:
 		content = screens.RenderOverview(m.theme, m.overviewData(), body.Width, body.Height)
 	}
@@ -586,6 +602,7 @@ func (m *Model) renderHelp(width, height int) string {
 		{"Navigate", [][2]string{
 			{m.keys.Key(ActionPalette), "Command palette — every action, by name"},
 			{m.keys.Key(ActionApplications), "Back to the application dashboard"},
+			{m.keys.Key(ActionFleet), "The fleet: every configured cluster at once, read-only"},
 			{m.keys.Key(ActionContextPicker), "Switch cluster"},
 			{m.keys.Key(ActionNamespacePicker), "Switch namespace"},
 		}},
@@ -683,6 +700,20 @@ func padTo(s string, width int) string {
 		return s + strings.Repeat(" ", gap)
 	}
 	return s
+}
+
+// fleetCrumb summarises the fleet for the breadcrumb: how many clusters, and
+// how many of them have answered.
+func fleetCrumb(members []fleet.Member) string {
+	if len(members) == 0 {
+		return "not configured"
+	}
+	summary := fleet.Summarise(members)
+	if summary.Complete() {
+		return itoa(summary.Clusters) + " " + clusterWord(summary.Clusters)
+	}
+	return itoa(summary.Answered) + " of " + itoa(summary.Clusters) + " " +
+		clusterWord(summary.Clusters) + " answered"
 }
 
 // followHint, previousHint and wrapHint all name what the key will do next,

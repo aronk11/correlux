@@ -10,6 +10,7 @@ import (
 	"github.com/aronk11/kubeui/internal/config"
 	"github.com/aronk11/kubeui/internal/domain/application"
 	"github.com/aronk11/kubeui/internal/domain/diagnosis"
+	"github.com/aronk11/kubeui/internal/domain/fleet"
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
 	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
 	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
@@ -55,6 +56,8 @@ const (
 	viewObject
 	// viewLogs is the output of one or more containers.
 	viewLogs
+	// viewFleet is several clusters at once, read-only.
+	viewFleet
 	// viewOverview is the session and connection summary.
 	viewOverview
 	// viewTable lists the objects of one resource kind.
@@ -143,6 +146,19 @@ type Model struct {
 	logDropped    int
 	logFailed     []string
 	logErr        error
+
+	// The fleet overview. It is read-only and explicitly opted into: the
+	// members are the contexts named in the configuration, plus whatever was
+	// added for this session.
+	fleetMembers    []fleet.Member
+	fleetExtra      []string
+	fleetResults    <-chan fleet.Member
+	fleetGeneration uint64
+	fleetOffset     int
+	fleetCursor     int
+	// pendingApplication is opened once the cluster it belongs to has loaded,
+	// which is how Enter in the fleet view lands on the right screen.
+	pendingApplication string
 	// findings are the diagnoses per application key, computed once per load
 	// rather than on every frame: View must stay a cheap pure function.
 	findings map[string][]diagnosis.Diagnosis
@@ -179,6 +195,7 @@ type Model struct {
 	cancelEvidence   context.CancelFunc
 	cancelObject     context.CancelFunc
 	cancelLogs       context.CancelFunc
+	cancelFleet      context.CancelFunc
 
 	// Geometry.
 	screen        layout.Screen
@@ -224,6 +241,8 @@ type Model struct {
 
 // New builds the root model. It performs no I/O: the first Kubernetes call
 // happens in Init, so the UI paints immediately even against a dead cluster.
+//
+//nolint:gocritic // hugeParam: this is called once, at start-up, by value on purpose
 func New(opts Options) *Model {
 	env := opts.Env
 	if env == nil {
@@ -363,6 +382,12 @@ func (m *Model) OpenObjectForTest(kind, name, namespace string) tea.Cmd {
 func (m *Model) PressForTest(keystroke string) tea.Cmd {
 	_, cmd := m.Update(keyPress(keystroke))
 	return cmd
+}
+
+// OpenFleetForTest opens the fleet overview over the given contexts.
+func (m *Model) OpenFleetForTest(contexts ...string) tea.Cmd {
+	m.cfg.Fleet = contexts
+	return m.openFleet()
 }
 
 // OpenLogsForTest reads the logs of one object.

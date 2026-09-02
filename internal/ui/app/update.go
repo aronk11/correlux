@@ -91,6 +91,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case applicationsLoadedMsg:
 		return m, m.applyApplications(msg)
 
+	case fleetStartedMsg:
+		if msg.gen != m.fleetGeneration {
+			return m, nil
+		}
+		m.fleetResults = msg.results
+		return m, waitForFleet(msg.gen, msg.results)
+
+	case fleetMemberMsg:
+		return m, m.applyFleetMember(msg)
+
 	case logsStartedMsg:
 		if msg.gen != m.logGeneration {
 			return m, nil
@@ -346,6 +356,13 @@ func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
 	m.keepCursorOnApplication(previous)
 	m.rediagnose()
 	m.rebuildCommands()
+
+	if m.pendingApplication != "" {
+		// Chosen in the fleet view, before this cluster had answered.
+		name := m.pendingApplication
+		m.pendingApplication = ""
+		return m.openApplication(name)
+	}
 	return nil
 }
 
@@ -488,6 +505,58 @@ func (m *Model) openSelectedObject() tea.Cmd {
 		return nil
 	}
 	return m.openObject(targets[m.detailCursor])
+}
+
+// handleFleetKey moves through the clusters and what is broken in them.
+func (m *Model) handleFleetKey(keystroke string) (tea.Cmd, bool) {
+	page := max(m.screen.Body.Height-1, 1)
+	switch keystroke {
+	case "up", "k":
+		m.moveFleetCursor(-1)
+	case "down", "j":
+		m.moveFleetCursor(1)
+	case "pgup":
+		m.scrollFleet(-page)
+	case "pgdown", " ":
+		m.scrollFleet(page)
+	case "home", "g":
+		m.fleetCursor, m.fleetOffset = 0, 0
+	case "end", "G":
+		m.scrollFleet(m.fleetData().LineCount(m.screen.Body.Width))
+	case "enter", "right":
+		return m.enterFleetRow(), true
+	default:
+		return nil, false
+	}
+	return nil, true
+}
+
+// moveFleetCursor moves the selection, scrolling when it has nowhere to go.
+func (m *Model) moveFleetCursor(delta int) {
+	data := m.fleetData()
+	targets := m.fleetTargets()
+	lines := data.TargetLines(m.screen.Body.Width)
+	if len(targets) == 0 || !m.onScreen(lines[m.fleetCursor], hasLine(lines, m.fleetCursor), m.fleetOffset) {
+		m.scrollFleet(delta)
+		return
+	}
+	next := clampInt(m.fleetCursor+delta, len(targets)-1)
+	if next == m.fleetCursor {
+		m.scrollFleet(delta)
+		return
+	}
+	m.fleetCursor = next
+	m.keepVisible(lines[m.fleetCursor], data.LineCount(m.screen.Body.Width), &m.fleetOffset)
+}
+
+// scrollFleet moves the viewport and drags the selection along.
+func (m *Model) scrollFleet(delta int) {
+	data := m.fleetData()
+	height := max(m.screen.Body.Height, 1)
+	total := data.LineCount(m.screen.Body.Width)
+	m.fleetOffset = clampInt(m.fleetOffset+delta, max(total-height, 0))
+	m.fleetCursor = m.visibleTarget(data.TargetLines(m.screen.Body.Width), len(m.fleetTargets()),
+		m.fleetCursor, m.fleetOffset)
 }
 
 // handleLogsKey drives the log view.
@@ -740,6 +809,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			if cmd, handled := m.handleLogsKey(keystroke); handled {
 				return cmd
 			}
+		case viewFleet:
+			if cmd, handled := m.handleFleetKey(keystroke); handled {
+				return cmd
+			}
 		}
 	}
 
@@ -790,6 +863,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.backToApplications()
 	case ActionApplications:
 		return m.backToApplications()
+	case ActionFleet:
+		if m.view == viewFleet {
+			m.stopFleet()
+			return m.backToApplications()
+		}
+		return m.openFleet()
 	case ActionWhy:
 		return m.explain()
 	case ActionYAML:
@@ -861,6 +940,10 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 		m.scrollWhy(delta)
 	case viewObject:
 		m.scrollObject(delta)
+	case viewFleet:
+		m.scrollFleet(delta)
+	case viewLogs:
+		m.scrollLogs(delta)
 	}
 	return nil
 }

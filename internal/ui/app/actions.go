@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -21,6 +22,8 @@ const (
 	paletteSwitchNamespace palette.ActionID = "switch.namespace"
 	paletteToggleAllNS     palette.ActionID = "toggle.allnamespaces"
 	paletteOpenApps        palette.ActionID = "open.applications"
+	paletteOpenFleet       palette.ActionID = "open.fleet"
+	paletteFleetEverything palette.ActionID = "fleet.everything"
 	paletteOpenApp         palette.ActionID = "open.application"
 	paletteExplain         palette.ActionID = "explain"
 	paletteToggleYAML      palette.ActionID = "object.yaml"
@@ -86,6 +89,17 @@ func (m *Model) rebuildCommands() {
 			Keywords: []string{"application", "apps", "dashboard", "home", "overview", "health"},
 			Shortcut: m.keys.Key(ActionApplications),
 			Weight:   98,
+			Enabled:  true,
+		},
+		{
+			ID:       "cmd.fleet",
+			Action:   paletteOpenFleet,
+			Title:    "Show the fleet",
+			Subtitle: m.fleetSubtitleForPalette(),
+			Category: "Navigate",
+			Keywords: []string{"fleet", "clusters", "multi", "all clusters", "overview", "tenants"},
+			Shortcut: m.keys.Key(ActionFleet),
+			Weight:   92,
 			Enabled:  true,
 		},
 		{
@@ -213,6 +227,19 @@ func (m *Model) rebuildCommands() {
 			Keywords: []string{"scale", "replicas", "up", "down", "zero", "restart"},
 			Shortcut: m.keys.Key(ActionScale),
 			Weight:   84,
+			Enabled:  true,
+		})
+	}
+
+	if m.view == viewFleet && len(m.fleetContexts()) < len(m.kubeconfig.Contexts) {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.fleet.everything",
+			Action:   paletteFleetEverything,
+			Title:    "Add every context in this kubeconfig to the fleet",
+			Subtitle: "for this session; kubeui will authenticate against all of them",
+			Category: "Navigate",
+			Keywords: []string{"fleet", "every", "all contexts", "add"},
+			Weight:   50,
 			Enabled:  true,
 		})
 	}
@@ -376,6 +403,19 @@ func (m *Model) whySubtitle() string {
 	return "select an application first"
 }
 
+// fleetSubtitleForPalette says what the fleet covers, or that it covers nothing
+// yet — which is the default and needs saying.
+func (m *Model) fleetSubtitleForPalette() string {
+	contexts := m.fleetContexts()
+	if len(contexts) == 0 {
+		return "no clusters configured yet"
+	}
+	if len(contexts) <= 3 {
+		return strings.Join(contexts, ", ")
+	}
+	return itoa(len(contexts)) + " clusters, read-only"
+}
+
 // catalogSubtitle summarises what discovery found, without ever implying an
 // empty cluster while the request is still in flight.
 func (m *Model) catalogSubtitle() string {
@@ -530,6 +570,10 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.openOverlay(overlayNamespaces)
 	case paletteOpenApps:
 		return m.backToApplications()
+	case paletteOpenFleet:
+		return m.openFleet()
+	case paletteFleetEverything:
+		return m.includeEveryContext()
 	case paletteOpenApp:
 		return m.openApplication(cmd.Arg)
 	case paletteExplain:
@@ -579,6 +623,13 @@ func (m *Model) runCommand(id string) tea.Cmd {
 // switchContext moves the session to another cluster. It never writes to the
 // kubeconfig: an external kubectl keeps pointing where the user left it.
 func (m *Model) switchContext(name string) tea.Cmd {
+	return m.switchContextScoped(name, "")
+}
+
+// switchContextScoped is the same move with the namespace decided by the
+// caller, which is what arriving from the fleet needs: the cluster *and* the
+// namespace the thing you clicked on lives in.
+func (m *Model) switchContextScoped(name, namespace string) tea.Cmd {
 	if name == "" || name == m.contextName {
 		return nil
 	}
@@ -590,6 +641,9 @@ func (m *Model) switchContext(name string) tea.Cmd {
 
 	m.contextName = name
 	m.namespace = kctx.Namespace
+	if namespace != "" {
+		m.namespace = namespace
+	}
 	m.allNamespaces = false
 	m.cluster.Reset()
 	m.namespaces.Reset()

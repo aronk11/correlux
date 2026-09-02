@@ -41,6 +41,13 @@ type Config struct {
 	// Refresh controls the timed reload of whatever is on screen.
 	Refresh Refresh `json:"refresh"`
 
+	// Fleet lists the contexts the fleet overview covers, by name.
+	//
+	// It is empty by default and stays that way until somebody fills it in:
+	// kubeui must never discover, on its own, that opening it authenticated
+	// against every production cluster the user has credentials for.
+	Fleet []string `json:"fleet"`
+
 	// Keybindings maps an action name to a keystroke, overriding the defaults.
 	Keybindings map[string]string `json:"keybindings"`
 

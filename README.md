@@ -60,6 +60,7 @@ kubeui version
 |-----|--------|
 | `Ctrl+P` | Command palette — every action, searchable by name |
 | `Ctrl+A` | Back to the application dashboard |
+| `F` | The fleet: every configured cluster at once |
 | `Enter` | Open the application under the cursor |
 | `Ctrl+W` | Why is this unhealthy? |
 | `y` | Show the document the server holds, and back |
@@ -186,6 +187,39 @@ its diff first, is refused if it renames the object or is not valid YAML, and is
 refused by the server if somebody else changed the object while it sat in the
 editor.
 
+### Several clusters at once
+
+`F` opens the fleet: every cluster you named, read in parallel, with what is
+broken in each of them.
+
+```
+Fleet
+3 clusters   1 unreachable   5 applications across 2 of 3   3 not healthy
+
+CLUSTERS
+  CLUSTER        STATE        APPLICATIONS  DETAIL
+  staging        connected    2             1 degraded
+  prod-eu  PROD  connected    3             1 down, 1 degraded
+  sandbox        unreachable  —             connection refused
+
+WHAT IS BROKEN
+  APPLICATION  CLUSTER        HEALTH    PODS  DETAIL
+  payments     prod-eu  PROD  down      0/3   3 CrashLoopBackOff
+  payments     staging        degraded  2/3   1 ImagePullBackOff
+```
+
+It covers the contexts listed under `fleet:` in your config and nothing else —
+kubeui never discovers on its own that opening it authenticated against every
+production cluster you hold credentials for. Adding all of them is a command you
+run, for one session.
+
+The overview is **read-only**. Enter leaves it for the cluster the row is about,
+which is what keeps every action unambiguous: either you are looking at the
+fleet, or you are inside one cluster acting on it
+([ADR 19](docs/adr/0019-fleet-overview.md)). Totals never cover a cluster that
+did not answer, and the timer does not refresh this screen — `Ctrl+R` does, when
+you decide the cost is worth paying.
+
 ### Keeping up with a rollout
 
 `Ctrl+F` reloads the current screen on a timer until you turn it off, and the
@@ -230,6 +264,9 @@ startup:
   context: ""
   namespace: ""
 
+# The clusters the fleet overview (F) covers. Empty means no fleet.
+fleet: []
+
 refresh:
   auto: false # start with the timed reload running
   every: 10s  # floored at 2s
@@ -244,6 +281,7 @@ dangerousActions:
 keybindings:
   palette: ctrl+p
   applications: ctrl+a
+  fleet: F
   why: ctrl+w
   object.yaml: "y"
   edit: e
@@ -282,6 +320,7 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | 3 | Deterministic WHY diagnosis engine | **done** |
 | 4 | Object detail, describe and navigation between objects | **done** |
 | — | Logs at pod, workload and application level | **done** |
+| — | Fleet overview across several clusters, read-only | **done** |
 | — | Exec and clipboard | next |
 | 5 | Safe mutating actions: scale and edit | **done** |
 | — | Further safe actions: delete, restart, cordon | planned |
