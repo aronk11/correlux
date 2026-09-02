@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	"github.com/aronk11/kubeui/internal/kube/metrics"
 	"github.com/aronk11/kubeui/internal/ui/theme"
 )
 
@@ -190,7 +191,7 @@ func metricsCheck(ctx context.Context, s *startup) checkResult {
 	discoveryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	body, err := cs.Discovery().RESTClient().Get().AbsPath("/apis/metrics.k8s.io/v1beta1").DoRaw(discoveryCtx)
+	body, err := cs.Discovery().RESTClient().Get().AbsPath(metrics.GroupPath).DoRaw(discoveryCtx)
 	if err != nil || len(body) == 0 {
 		return checkResult{
 			name:   "metrics",

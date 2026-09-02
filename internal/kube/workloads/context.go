@@ -179,6 +179,25 @@ func fromNode(n *corev1.Node) application.Node {
 			out.Pressure = append(out.Pressure, string(c.Type))
 		}
 	}
+	out.Capacity = capacityOf(n.Status.Capacity)
+	out.Allocatable = capacityOf(n.Status.Allocatable)
+	return out
+}
+
+// capacityOf reads a node's resource list. A node that does not report one of
+// the three leaves it at zero, which the usage view renders as unknown rather
+// than as a full machine.
+func capacityOf(list corev1.ResourceList) application.Capacity {
+	out := application.Capacity{}
+	if cpu, ok := list[corev1.ResourceCPU]; ok {
+		out.CPUMilli = cpu.MilliValue()
+	}
+	if mem, ok := list[corev1.ResourceMemory]; ok {
+		out.MemoryBytes = mem.Value()
+	}
+	if pods, ok := list[corev1.ResourcePods]; ok {
+		out.Pods = pods.Value()
+	}
 	return out
 }
 

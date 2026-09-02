@@ -34,6 +34,7 @@ const (
 	ActionScale           = "scale"
 	ActionEdit            = "edit"
 	ActionLogs            = "logs"
+	ActionUsage           = "usage"
 	ActionFollow          = "logs.follow"
 	ActionTimestamps      = "logs.timestamps"
 	ActionPrevious        = "logs.previous"
@@ -73,6 +74,7 @@ var DefaultBindings = map[string]string{
 	ActionScale:           "S",
 	ActionEdit:            "e",
 	ActionLogs:            "l",
+	ActionUsage:           "u",
 	ActionFollow:          "f",
 	ActionTimestamps:      "t",
 	ActionPrevious:        "p",

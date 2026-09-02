@@ -45,11 +45,13 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 | `internal/kube/discovery` | The catalog of every resource kind the cluster serves, native and custom, tolerant of partially broken discovery. |
 | `internal/kube/resources` | Lists any resource as a server-rendered table, paged and cancellable; reads, updates and scales a single object. |
 | `internal/kube/logs` | Container logs as a bounded, cancellable stream, several containers merged into one. |
+| `internal/kube/metrics` | Reads metrics.k8s.io directly. The API is optional, so every way it can be absent comes back as a reason to show rather than an error. |
 | `internal/kube/workloads` | One bounded, concurrent pass over a scope, converted into a domain snapshot. A kind that cannot be read becomes a gap, not a failure. |
 | `internal/domain/application` | Infers applications from ownership, labels and selectors, and derives their health. Pure; knows nothing about client-go ([ADR 16](adr/0016-application-inference.md)). |
 | `internal/domain/describe` | Turns the document an object came as into the facts worth reading. Works on raw JSON, so an unknown kind is described as well as a Pod is. |
 | `internal/domain/decode` | Renders a document with its base64 values decoded, for reading only. Pure; the fields it decodes come from the document, not from a list of kinds. |
 | `internal/domain/diff` | Line comparison, so an edit can be shown before it is applied. |
+| `internal/domain/usage` | Rolls a snapshot up per node and per application against requests, limits, capacity and whatever the metrics API said. Pure; keeps "no sample", "none set" and zero apart. |
 | `internal/domain/fleet` | The application model one level up: several clusters merged into one answer, with each cluster's own state kept ([ADR 19](adr/0019-fleet-overview.md)). |
 | `internal/domain/diagnosis` | Thirteen deterministic rules that turn evidence into a problem, a cause, the facts behind it and what to check next. Degrades with the evidence available ([ADR 18](adr/0018-evidence-on-demand.md)). |
 | `internal/ui/async` | `Value[T]`: lifecycle plus generation counter for every remote value. |

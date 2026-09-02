@@ -2,6 +2,7 @@ package theme
 
 import (
 	"image/color"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 
@@ -235,4 +236,26 @@ func (t *Theme) Glyph(s Status) string {
 // Badge renders "<glyph> <text>" in the status colour: never colour alone.
 func (t *Theme) Badge(s Status, text string) string {
 	return t.Style(s).Render(t.Glyph(s) + " " + text)
+}
+
+// Bar draws a proportion as a run of glyphs, width characters wide.
+//
+// It illustrates a number; it never carries one. Callers print the percentage
+// next to it, because a bar is unreadable on a screen reader, in a piped
+// capture and to anyone counting blocks — and because a proportion past 100%
+// has nowhere left to grow (ADR 9). Anything over the width is drawn full, and
+// the printed number is what says by how much.
+func (t *Theme) Bar(percent, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	filled := 0
+	if percent > 0 {
+		filled = (percent*width + 50) / 100
+	}
+	if filled > width {
+		filled = width
+	}
+	return strings.Repeat(t.Glyphs.BarFull, filled) +
+		strings.Repeat(t.Glyphs.BarEmpty, width-filled)
 }

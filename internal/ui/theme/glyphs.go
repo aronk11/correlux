@@ -27,6 +27,10 @@ type Glyphs struct {
 	Ellipsis string
 	Prompt   string
 	Prod     string
+	// BarFull and BarEmpty draw a proportion. They are a shape, never a
+	// meaning: the number they illustrate is always printed beside them.
+	BarFull  string
+	BarEmpty string
 }
 
 var unicodeGlyphs = Glyphs{
@@ -41,6 +45,8 @@ var unicodeGlyphs = Glyphs{
 	Ellipsis: "…",
 	Prompt:   "❯",
 	Prod:     "⬤",
+	BarFull:  "█",
+	BarEmpty: "░",
 }
 
 var asciiGlyphs = Glyphs{
@@ -55,6 +61,8 @@ var asciiGlyphs = Glyphs{
 	Ellipsis: "...",
 	Prompt:   ">",
 	Prod:     "#",
+	BarFull:  "#",
+	BarEmpty: ".",
 }
 
 // Env abstracts environment lookup so detection can be tested without
