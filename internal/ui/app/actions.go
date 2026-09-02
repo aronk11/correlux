@@ -409,8 +409,8 @@ func (m *Model) whySubtitle() string {
 		return app.Name + " — " + app.Health.String()
 	}
 	apps := m.applications()
-	if m.appCursor >= 0 && m.appCursor < len(apps) {
-		return apps[m.appCursor].Name + " — " + apps[m.appCursor].Health.String()
+	if m.appPort.Cursor >= 0 && m.appPort.Cursor < len(apps) {
+		return apps[m.appPort.Cursor].Name + " — " + apps[m.appPort.Cursor].Health.String()
 	}
 	return "select an application first"
 }
@@ -470,10 +470,10 @@ func (m *Model) scalableTarget() (objectRef, bool) {
 		ref = m.objectTarget
 	case viewApplication:
 		_, targets := m.applicationView()
-		if m.detailCursor < 0 || m.detailCursor >= len(targets) {
+		if m.detailPort.Cursor < 0 || m.detailPort.Cursor >= len(targets) {
 			return objectRef{}, false
 		}
-		ref = targets[m.detailCursor]
+		ref = targets[m.detailPort.Cursor]
 	default:
 		return objectRef{}, false
 	}
@@ -523,8 +523,8 @@ func (m *Model) openResource(fullName string) tea.Cmd {
 
 	m.resource = res
 	m.view = viewTable
-	m.tableCursor = 0
-	m.tableOffset = 0
+	m.tablePort.Cursor = 0
+	m.tablePort.Offset = 0
 	m.loadingMore = false
 	m.table.Reset()
 	m.rebuildCommands()
@@ -670,7 +670,7 @@ func (m *Model) switchContextScoped(name, namespace string) tea.Cmd {
 	m.stopLogs()
 	m.stopFleet()
 	m.findings = nil
-	m.appCursor, m.appOffset, m.detailOffset, m.detailCursor = 0, 0, 0, 0
+	m.appPort.Cursor, m.appPort.Offset, m.detailPort.Offset, m.detailPort.Cursor = 0, 0, 0, 0
 	m.selectedApp = ""
 	m.objectTarget, m.objectTrail = objectRef{}, nil
 	m.view = viewApplications
@@ -720,7 +720,7 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	m.stopLogs()
 	m.stopFleet()
 	m.findings = nil
-	m.appCursor, m.appOffset, m.detailOffset, m.detailCursor = 0, 0, 0, 0
+	m.appPort.Cursor, m.appPort.Offset, m.detailPort.Offset, m.detailPort.Cursor = 0, 0, 0, 0
 	m.selectedApp = ""
 	m.objectTarget, m.objectTrail = objectRef{}, nil
 	if m.view == viewApplication || m.view == viewWhy || m.view == viewObject || m.view == viewLogs {
@@ -735,8 +735,8 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	// and leaving them on screen under a new heading is precisely the kind of
 	// lie kubeui must not tell.
 	m.table.Reset()
-	m.tableCursor = 0
-	m.tableOffset = 0
+	m.tablePort.Cursor = 0
+	m.tablePort.Offset = 0
 	m.loadingMore = false
 	return tea.Batch(reload, m.loadTable())
 }
