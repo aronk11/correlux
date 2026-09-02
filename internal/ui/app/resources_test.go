@@ -373,3 +373,33 @@ func TestOverviewReportsDiscoveredKinds(t *testing.T) {
 		t.Errorf("the overview must report what discovery found:\n%s", out)
 	}
 }
+
+func TestTheWheelScrollsTheResourceTable(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	m.openResource("pods")
+
+	names := make([]string, 0, 100)
+	for i := 0; i < 100; i++ {
+		names = append(names, "payments-"+itoa(i))
+	}
+	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: podTablePage(names...)})
+
+	m.Update(wheel(false))
+	if m.tableOffset == 0 {
+		t.Fatal("the wheel must scroll a resource table")
+	}
+	if m.tableCursor < m.tableOffset {
+		t.Errorf("cursor %d scrolled off the top of the viewport at offset %d", m.tableCursor, m.tableOffset)
+	}
+
+	for i := 0; i < 60; i++ {
+		m.Update(wheel(false))
+	}
+	if last := len(m.tableRows()) - 1; m.tableCursor > last {
+		t.Errorf("cursor %d is past the last row %d", m.tableCursor, last)
+	}
+	if m.tableOffset > len(m.tableRows()) {
+		t.Errorf("the viewport scrolled past the end of the table, offset %d", m.tableOffset)
+	}
+}
