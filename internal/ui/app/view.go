@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/aronk11/kubeui/internal/config"
+	"github.com/aronk11/kubeui/internal/domain/application"
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
 	"github.com/aronk11/kubeui/internal/kube/resources"
 	"github.com/aronk11/kubeui/internal/ui/async"
@@ -105,17 +106,58 @@ func (m *Model) headerData() components.HeaderData {
 	return d
 }
 
-// breadcrumb shows where the user is in the navigation model.
+// breadcrumb shows where the user is in the navigation model:
+// cluster, scope, application, object (SPEC 5).
 func (m *Model) breadcrumb() []string {
 	crumbs := []string{"Cluster", m.scopeLabel()}
-	if m.view == viewTable {
+	switch m.view {
+	case viewTable:
 		label := m.resource.Kind()
 		if table := m.table.Get(); table != nil {
 			label += "  " + m.rowCountLabel(table)
 		}
 		return append(crumbs, label)
+	case viewApplication:
+		crumbs = append(crumbs, "Applications")
+		if a, ok := m.currentApplication(); ok {
+			return append(crumbs, a.Name)
+		}
+		return append(crumbs, m.selectedApp)
+	case viewOverview:
+		return append(crumbs, "Session")
+	default:
+		return append(crumbs, "Applications  "+m.applicationsLabel())
 	}
-	return append(crumbs, "Overview")
+}
+
+// applicationsLabel counts the dashboard the way an operator triages it: how
+// many are broken first, and never a bare number while the list is still
+// loading.
+func (m *Model) applicationsLabel() string {
+	switch m.apps.State() {
+	case async.Idle, async.Loading:
+		return "loading…"
+	case async.Failed:
+		return "unavailable"
+	}
+	counts := application.Summarise(m.applications())
+	if counts.Total == 0 {
+		return "none"
+	}
+	parts := []string{itoa(counts.Total) + " total"}
+	if counts.Down > 0 {
+		parts = append(parts, itoa(counts.Down)+" down")
+	}
+	if counts.Degraded > 0 {
+		parts = append(parts, itoa(counts.Degraded)+" degraded")
+	}
+	if counts.Healthy > 0 {
+		parts = append(parts, itoa(counts.Healthy)+" healthy")
+	}
+	if counts.Unknown > 0 {
+		parts = append(parts, itoa(counts.Unknown)+" unknown")
+	}
+	return strings.Join(parts, ", ")
 }
 
 // rowCountLabel is honest about paging: "500 of 4213" beats a bare "500" that
@@ -146,11 +188,23 @@ func (m *Model) statusData() components.StatusData {
 		{Key: m.keys.Key(ActionHelp), Desc: "Help"},
 		{Key: m.keys.Key(ActionQuit), Desc: "Quit"},
 	}
-	if m.view == viewTable {
+	switch m.view {
+	case viewTable:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Rows"},
 			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide)},
-			{Key: "Esc", Desc: "Overview"},
+			{Key: "Esc", Desc: "Applications"},
+		}, hints...)
+	case viewApplications:
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Applications"},
+			{Key: "Enter", Desc: "Open"},
+			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide)},
+		}, hints...)
+	case viewApplication:
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Scroll"},
+			{Key: "Esc", Desc: "Applications"},
 		}, hints...)
 	}
 	if m.overlay != overlayNone {
@@ -166,9 +220,14 @@ func (m *Model) statusData() components.StatusData {
 func (m *Model) renderBody() string {
 	body := m.screen.Body
 	var content string
-	if m.view == viewTable {
+	switch m.view {
+	case viewTable:
 		content = screens.RenderTable(m.theme, m.tableData(), body.Width, body.Height)
-	} else {
+	case viewApplications:
+		content = screens.RenderTable(m.theme, m.applicationsData(), body.Width, body.Height)
+	case viewApplication:
+		content = screens.RenderApplication(m.theme, m.applicationData(), body.Width, body.Height)
+	default:
 		content = screens.RenderOverview(m.theme, m.overviewData(), body.Width, body.Height)
 	}
 	return padBlock(content, body.Width, body.Height)
@@ -251,9 +310,9 @@ func rowStatus(cells []string) theme.Status {
 	return theme.StatusUnknown
 }
 
-// overviewData assembles the Phase 1 body: what kubeui knows for certain about
-// the session, and an explicit list of what it cannot do yet. An honest gap is
-// better than a plausible-looking placeholder.
+// overviewData assembles the session view: what kubeui knows for certain about
+// this connection. It is no longer the first screen — applications are — but it
+// remains the place that answers "what am I actually connected to?".
 func (m *Model) overviewData() screens.OverviewData {
 	kctx := m.currentContext()
 	info := m.cluster.Get()
@@ -320,10 +379,13 @@ func (m *Model) overviewData() screens.OverviewData {
 		{Label: "Terminal", Value: terminalLabel(m.caps, m.screen)},
 	}
 
+	session.Fields = append(session.Fields, screens.Field{
+		Label: "Applications", Value: m.applicationsLabel(),
+	})
+
 	return screens.OverviewData{
 		Panels: []screens.Panel{connection, session, environment},
 		Roadmap: []string{
-			"Application-first dashboard (Phase 2)",
 			"WHY diagnosis engine (Phase 3)",
 			"Logs, exec and object detail (Phase 4)",
 		},
@@ -413,8 +475,14 @@ func (m *Model) renderHelp(width, height int) string {
 	}{
 		{"Navigate", [][2]string{
 			{m.keys.Key(ActionPalette), "Command palette — every action, by name"},
+			{m.keys.Key(ActionApplications), "Back to the application dashboard"},
 			{m.keys.Key(ActionContextPicker), "Switch cluster"},
 			{m.keys.Key(ActionNamespacePicker), "Switch namespace"},
+		}},
+		{"In the application dashboard", [][2]string{
+			{"↑ ↓ / j k", "Move between applications"},
+			{"Enter", "Open the application: its workloads, pods and network"},
+			{"Esc", "Back to the dashboard"},
 		}},
 		{"Cluster", [][2]string{
 			{m.keys.Key(ActionResourcePicker), "Browse resource kinds, including custom resources"},

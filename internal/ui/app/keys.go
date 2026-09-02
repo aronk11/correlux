@@ -22,6 +22,8 @@ const (
 	ActionContextPicker   = "context.picker"
 	ActionNamespacePicker = "namespace.picker"
 	ActionResourcePicker  = "resource.picker"
+	ActionApplications    = "applications"
+	ActionOverview        = "overview"
 	ActionToggleWide      = "table.wide"
 	ActionAllNamespaces   = "namespace.all"
 	ActionRefresh         = "refresh"
@@ -47,6 +49,7 @@ var DefaultBindings = map[string]string{
 	ActionContextPicker:   "ctrl+k",
 	ActionNamespacePicker: "ctrl+o",
 	ActionResourcePicker:  "ctrl+b",
+	ActionApplications:    "ctrl+a",
 	ActionToggleWide:      "w",
 	ActionRefresh:         "ctrl+r",
 	ActionClose:           "esc",

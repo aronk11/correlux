@@ -35,8 +35,13 @@ const (
 type viewKind int
 
 const (
+	// viewApplications is the dashboard kubeui opens on: what is deployed here
+	// and what state it is in. It is the zero value because it is home.
+	viewApplications viewKind = iota
+	// viewApplication is one application and the objects it is made of.
+	viewApplication
 	// viewOverview is the session and connection summary.
-	viewOverview viewKind = iota
+	viewOverview
 	// viewTable lists the objects of one resource kind.
 	viewTable
 )
@@ -77,6 +82,16 @@ type Model struct {
 	namespaces async.Value[kubeclient.NamespaceList]
 	catalog    async.Value[*kubediscovery.Catalog]
 	table      async.Value[*resources.Table]
+	apps       async.Value[applicationList]
+
+	// The application dashboard.
+	appCursor int
+	appOffset int
+	// selectedApp is the application the detail view shows, addressed by key
+	// rather than by index: a reload re-sorts the list, and a cursor position
+	// would then follow the ranking instead of the application.
+	selectedApp  string
+	detailOffset int
 
 	// The resource browser.
 	view        viewKind
@@ -91,6 +106,7 @@ type Model struct {
 	cancelNamespaces context.CancelFunc
 	cancelCatalog    context.CancelFunc
 	cancelTable      context.CancelFunc
+	cancelApps       context.CancelFunc
 
 	// Geometry.
 	screen        layout.Screen
@@ -192,6 +208,7 @@ func (m *Model) Init() tea.Cmd {
 		m.probeCluster(),
 		m.loadNamespaces(),
 		m.loadCatalog(),
+		m.loadApplications(),
 		expireMessage(m.messageSeq, 8*time.Second),
 	)
 }
@@ -229,3 +246,6 @@ func (m *Model) OpenResourceForTest(name string) tea.Cmd { return m.openResource
 
 // SwitchNamespaceForTest changes the active scope from an integration test.
 func (m *Model) SwitchNamespaceForTest(namespace string) tea.Cmd { return m.switchNamespace(namespace) }
+
+// OpenApplicationForTest opens one application's detail view by name.
+func (m *Model) OpenApplicationForTest(name string) tea.Cmd { return m.openApplication(name) }

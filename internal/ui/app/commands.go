@@ -10,6 +10,7 @@ import (
 	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
 	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
 	"github.com/aronk11/kubeui/internal/kube/resources"
+	"github.com/aronk11/kubeui/internal/kube/workloads"
 )
 
 // Messages carrying the result of asynchronous work. Every one of them is
@@ -40,6 +41,12 @@ type tableLoadedMsg struct {
 	// append is true when this page extends the table instead of replacing it.
 	append bool
 	err    error
+}
+
+type applicationsLoadedMsg struct {
+	gen  uint64
+	list applicationList
+	err  error
 }
 
 type kubeconfigReloadedMsg struct {
@@ -147,6 +154,38 @@ func (m *Model) fetchTable(gen uint64, continueToken string, appendPage bool) te
 		defer cancel()
 		table, err := factory.ListTable(ctx, name, res, opts)
 		return tableLoadedMsg{gen: gen, table: table, append: appendPage, err: err}
+	}
+}
+
+// loadApplications reads the active scope and groups it into applications.
+//
+// It is one command rather than nine, because the user asked one question —
+// "what is deployed here and is it healthy?" — and a dashboard that fills in
+// kind by kind is a dashboard that is never quite finished.
+func (m *Model) loadApplications() tea.Cmd {
+	if m.cancelApps != nil {
+		m.cancelApps()
+	}
+	gen := m.apps.Start()
+
+	ctx, cancel := context.WithTimeout(context.Background(), m.factory.Timeout())
+	m.cancelApps = cancel
+
+	factory := m.factory
+	name := m.contextName
+	opts := workloads.Options{}
+	if !m.allNamespaces {
+		opts.Namespace = m.namespace
+	}
+
+	return func() tea.Msg {
+		defer cancel()
+		apps, snapshot, err := factory.Applications(ctx, name, opts)
+		return applicationsLoadedMsg{
+			gen:  gen,
+			list: applicationList{Apps: apps, Snapshot: snapshot},
+			err:  err,
+		}
 	}
 }
 
