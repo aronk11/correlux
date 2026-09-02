@@ -32,7 +32,9 @@ func TestDumpRealFrames(t *testing.T) {
 		{name: "overview"},
 		{name: "pods", namespace: "kubeui-load-000", resource: "pods"},
 		{name: "widgets", namespace: "kubeui-load-000", resource: "widgets"},
-		{name: "pods-all-namespaces", resource: "pods"},
+		// The context default namespace is empty: this frame is the honest
+		// empty state, which is worth reviewing too.
+		{name: "pods-empty-scope", resource: "pods"},
 		{name: "resource-picker", key: "ctrl+b"},
 	}
 
