@@ -159,10 +159,26 @@ func classify(s state) (Health, string) {
 	case s.desired > 0 && s.ready == 0:
 		return Down, replicaSummary(s.ready, s.desired) + note
 	case s.ready < s.desired, s.notReady > 0, s.problems:
-		return Degraded, replicaSummary(s.ready, s.desired) + note
+		// A workload can report every replica ready while a pod underneath it
+		// is not — the controller's status lags, or a node stopped reporting.
+		// Saying "3 of 3 pods ready" next to a degraded badge would read as a
+		// bug in kubeui rather than a state of the cluster.
+		summary := replicaSummary(s.ready, s.desired)
+		if s.ready >= s.desired && s.notReady > 0 {
+			summary += ", " + itoa(int(s.notReady)) + notReadyPhrase(s.notReady)
+		}
+		return Degraded, summary + note
 	default:
 		return Healthy, replicaSummary(s.ready, s.desired) + note
 	}
+}
+
+// notReadyPhrase completes "…, 2 pods not ready" without a plural slip.
+func notReadyPhrase(n int32) string {
+	if n == 1 {
+		return " pod not ready"
+	}
+	return " pods not ready"
 }
 
 func replicaSummary(ready, desired int32) string {

@@ -105,7 +105,16 @@ func TestHealthMatchesWhatTheClusterReports(t *testing.T) {
 				t.Errorf("%s is down with %d pods ready", a.Key(), a.ReadyPods)
 			}
 		case application.Degraded:
-			if a.ReadyPods == a.DesiredPods && len(a.Problems) == 0 {
+			// Degradation has three possible sources, and a workload whose
+			// status claims every replica is ready while a pod underneath it is
+			// not is the one a hand-written fixture never produces.
+			unready := 0
+			for i := range a.Pods {
+				if !a.Pods[i].Ready && !a.Pods[i].Terminal() {
+					unready++
+				}
+			}
+			if a.ReadyPods == a.DesiredPods && len(a.Problems) == 0 && unready == 0 {
 				t.Errorf("%s is degraded with nothing wrong with it", a.Key())
 			}
 		}
