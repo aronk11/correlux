@@ -135,3 +135,57 @@ func (o *Object) Controller() (OwnerRef, bool) {
 	}
 	return OwnerRef{}, false
 }
+
+// Update replaces an object with an edited document.
+//
+// The document is sent with the resourceVersion it was read at, which is what
+// makes the server refuse an edit written against a version somebody else has
+// already replaced. Losing an edit silently is worse than being told to try
+// again.
+func Update(
+	ctx context.Context,
+	client rest.Interface,
+	target Target,
+	namespace, name string,
+	document []byte,
+) (*Object, error) {
+	if name == "" {
+		return nil, errors.New("no object name given")
+	}
+	body, err := yaml.YAMLToJSON(document)
+	if err != nil {
+		return nil, fmt.Errorf("this is not valid YAML: %w", err)
+	}
+
+	raw, err := client.Put().
+		AbsPath(objectPath(target, namespace, name)).
+		SetHeader("Accept", "application/json").
+		SetHeader("Content-Type", "application/json").
+		Body(body).
+		DoRaw(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return decodeObject(target, raw)
+}
+
+// Identity reads the kind, name and namespace out of an edited document, so an
+// edit that renames the object — or changes its kind — can be refused before it
+// is sent somewhere it does not belong.
+func Identity(document []byte) (kind, name, namespace string, err error) {
+	body, err := yaml.YAMLToJSON(document)
+	if err != nil {
+		return "", "", "", fmt.Errorf("this is not valid YAML: %w", err)
+	}
+	var doc struct {
+		Kind     string `json:"kind"`
+		Metadata struct {
+			Name      string `json:"name"`
+			Namespace string `json:"namespace"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return "", "", "", fmt.Errorf("this is not a Kubernetes object: %w", err)
+	}
+	return doc.Kind, doc.Metadata.Name, doc.Metadata.Namespace, nil
+}

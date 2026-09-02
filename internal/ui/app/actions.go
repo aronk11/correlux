@@ -24,6 +24,7 @@ const (
 	paletteExplain         palette.ActionID = "explain"
 	paletteToggleYAML      palette.ActionID = "object.yaml"
 	paletteScale           palette.ActionID = "scale"
+	paletteEdit            palette.ActionID = "edit"
 	paletteOpenResources   palette.ActionID = "open.resources"
 	paletteOpenResource    palette.ActionID = "open.resource"
 	paletteToggleWide      palette.ActionID = "toggle.wide"
@@ -197,6 +198,21 @@ func (m *Model) rebuildCommands() {
 			Shortcut: m.keys.Key(ActionScale),
 			Weight:   84,
 			Enabled:  true,
+		})
+	}
+
+	if m.view == viewObject && !m.objectTarget.empty() {
+		cmds = append(cmds, palette.Command{
+			ID:             "cmd.edit",
+			Action:         paletteEdit,
+			Title:          "Edit " + m.objectTarget.label(),
+			Subtitle:       "opens " + editorName() + ", then shows what changed",
+			Category:       "Change",
+			Keywords:       []string{"edit", "change", "yaml", "manifest", "apply", "patch"},
+			Shortcut:       m.keys.Key(ActionEdit),
+			Weight:         83,
+			Enabled:        m.object.State() == async.Ready,
+			DisabledReason: "the object is still loading",
 		})
 	}
 
@@ -516,6 +532,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return nil
 	case paletteScale:
 		return m.scaleTarget()
+	case paletteEdit:
+		return m.editObject(m.objectTarget)
 	case paletteBackToOverview:
 		return m.backToOverview()
 	case paletteSwitchContext:
