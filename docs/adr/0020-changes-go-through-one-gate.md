@@ -1,13 +1,13 @@
-# 20. Every change goes through one gate, and kubeui never edits for you
+# 20. Every change goes through one gate, and Correlux never edits for you
 
 - Status: accepted
 - Date: 2026-09-02
 
 ## Context
 
-kubeui can now change a cluster: a replica count, a whole document. That crosses
-the line the product had stayed behind until this point, and the way it crosses
-it decides whether people trust the tool during an incident.
+Correlux can now change a cluster: a replica count, a whole document. That
+crosses the line the product had stayed behind until this point, and the way it
+crosses it decides whether people trust the tool during an incident.
 
 Two questions had to be answered.
 
@@ -20,7 +20,7 @@ not in the question.
 **Who provides the editor?** A terminal UI that edits YAML has to implement one:
 cursor movement, indentation, search, undo. Every one of those is a decision
 somebody has already made in their own editor, and the worst possible time to
-discover kubeui's version is while changing a production Deployment.
+discover Correlux's version is while changing a production Deployment.
 
 ## Decision
 
@@ -43,10 +43,10 @@ Consequences are shown *before* the commitment, not after: the replica prompt
 updates its note as the number is typed, so "this removes 2 replicas" is on
 screen while the user still has a finger over Enter.
 
-**No editor.** `e` writes the document to a temporary file and hands the terminal
-to `$KUBE_EDITOR`, `$EDITOR` or `vi`, exactly as `kubectl edit` does. kubeui
-takes the terminal back when the editor exits, compares what came back, and
-shows the difference. The file is removed either way: a Kubernetes object
+**No editor.** `e` writes the document to a temporary file and hands the
+terminal to `$KUBE_EDITOR`, `$EDITOR` or `vi`, exactly as `kubectl edit` does.
+Correlux takes the terminal back when the editor exits, compares what came back,
+and shows the difference. The file is removed either way: a Kubernetes object
 routinely carries secrets, and leaving one in the temp directory is not
 something a tool should do quietly.
 
@@ -67,11 +67,11 @@ rather than quietly overwriting them.
 - Two keystrokes to change a replica count, three in production. That is
   deliberate friction, and it is smaller than the friction of the outage it
   prevents.
-- kubeui inherits every editor's strengths and none of their bugs. It also
-  inherits one failure mode: an `$EDITOR` that does not block — a GUI editor
-  without `--wait` — returns immediately and kubeui sees no change. The message
-  then says nothing changed, which is true and mildly annoying.
-- A conflict is reported, not merged. kubeui does not attempt a three-way merge:
-  telling somebody their edit was written against an old version is honest, and
-  a merge that silently resolves a conflict is how two people's changes become
-  one person's change.
+- Correlux inherits every editor's strengths and none of their bugs. It also
+inherits one failure mode: an `$EDITOR` that does not block — a GUI editor
+without `--wait` — returns immediately and Correlux sees no change. The message
+then says nothing changed, which is true and mildly annoying.
+- A conflict is reported, not merged. Correlux does not attempt a three-way
+  merge: telling somebody their edit was written against an old version is
+  honest, and a merge that silently resolves a conflict is how two people's
+  changes become one person's change.

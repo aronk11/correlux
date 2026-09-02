@@ -1,6 +1,6 @@
 // Package buildinfo exposes the version information stamped into the binary at
-// build time. Values are overridden with -ldflags -X; when kubeui is built with
-// `go install`, they fall back to the module's VCS metadata.
+// build time. Values are overridden with -ldflags -X; when Correlux is built
+// with `go install`, they fall back to the module's VCS metadata.
 package buildinfo
 
 import (
@@ -55,9 +55,10 @@ func Get() Info {
 	return i
 }
 
-// String renders a one-line summary, e.g. "kubeui v0.1.0 (abc1234) darwin/arm64".
+// String renders a one-line summary, e.g. "correlux v0.1.0 (abc1234)
+// darwin/arm64".
 func (i Info) String() string {
-	s := "kubeui " + i.Version
+	s := "correlux " + i.Version
 	if i.Commit != "" {
 		c := i.Commit
 		if len(c) > 7 {

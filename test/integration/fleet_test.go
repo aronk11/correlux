@@ -8,7 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/ui/app"
+	"github.com/aronk11/correlux/internal/ui/app"
 )
 
 // drainFleet walks the chain of fleet messages: opening the overview starts one

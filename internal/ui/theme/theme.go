@@ -6,7 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/aronk11/kubeui/internal/config"
+	"github.com/aronk11/correlux/internal/config"
 )
 
 // Capabilities describes what the current terminal can do.
@@ -32,8 +32,8 @@ func DetectCapabilities(env Env) Capabilities {
 	}
 }
 
-// Theme holds every style kubeui renders with. It is rebuilt (cheaply) whenever
-// capabilities change; styles are never constructed in render paths.
+// Theme holds every style Correlux renders with. It is rebuilt (cheaply)
+// whenever capabilities change; styles are never constructed in render paths.
 type Theme struct {
 	Caps   Capabilities
 	Glyphs Glyphs
@@ -132,7 +132,7 @@ func New(caps Capabilities, pref config.Theme) *Theme {
 
 	if !caps.Color && !caps.Attributes {
 		// Plain text: a file, a pipe or a CI log. Emit no escape sequences at
-		// all, so `kubeui doctor > report.txt` stays readable.
+		// all, so `correlux doctor > report.txt` stays readable.
 		for _, style := range []*lipgloss.Style{
 			&t.Base, &t.Panel, &t.PanelTitle, &t.Header, &t.StatusBar, &t.Key, &t.KeyDesc,
 			&t.Muted, &t.Emphasis, &t.Title, &t.Healthy, &t.Warning, &t.Critical, &t.Info,

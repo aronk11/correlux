@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aronk11/kubeui/internal/config"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/config"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 func plainTheme() *theme.Theme {

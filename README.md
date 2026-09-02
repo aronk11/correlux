@@ -1,8 +1,8 @@
-# kubeui
+# Correlux
 
 **Don't show me Kubernetes. Show me what matters.**
 
-kubeui is a terminal-native Kubernetes operations UI for macOS, Linux and
+Correlux is a terminal-native Kubernetes operations UI for macOS, Linux and
 Windows. It runs against your existing kubeconfig — no server, no agent, no CRD,
 no container, no browser.
 
@@ -17,7 +17,7 @@ types.
 > unhealthy application from the cluster's own evidence; and a resource browser
 > that lists **every** kind the cluster serves — custom resources included —
 > with the API server's own columns. Logs and exec are next. See
-> [the roadmap](#roadmap). Nothing in the UI is a mock-up: if kubeui does not
+> [the roadmap](#roadmap). Nothing in the UI is a mock-up: if Correlux does not
 > know something yet, it says so.
 
 ## Why
@@ -30,28 +30,28 @@ in your head. You want one screen that answers:
 - **Why** is it broken?
 - What can I safely do about it?
 
-That last question is the one kubeui optimises for. The primary metric is the
+That last question is the one Correlux optimises for. The primary metric is the
 time from *"something is wrong"* to *"I know why"*.
 
 ## Install
 
 ```bash
-go install github.com/aronk11/kubeui/cmd/kubeui@latest
+go install github.com/aronk11/correlux/cmd/correlux@latest
 ```
 
-Or download a binary from the [releases page](https://github.com/aronk11/kubeui/releases)
-and put it on your `PATH`. Pre-built binaries are static: there is nothing else
-to install.
+Or download a binary from the
+[releases page](https://github.com/aronk11/correlux/releases) and put it on your
+`PATH`. Pre-built binaries are static: there is nothing else to install.
 
 ## Use
 
 ```bash
-kubeui                              # start in your current context
-kubeui --context prod-eu            # start somewhere specific
-kubeui -n payments                  # start in a namespace
-kubeui -A                           # start scoped to all namespaces
-kubeui doctor                       # why doesn't it work here?
-kubeui version
+correlux                              # start in your current context
+correlux --context prod-eu            # start somewhere specific
+correlux -n payments                  # start in a namespace
+correlux -A                           # start scoped to all namespaces
+correlux doctor                       # why doesn't it work here?
+correlux version
 ```
 
 ### Keys
@@ -95,7 +95,7 @@ STATUS      APPLICATION  PODS   AGE    DETAIL
 ✓ healthy   frontend     6/6    9d
 ```
 
-Kubernetes has no application object, so kubeui infers one: pods are walked up
+Kubernetes has no application object, so Correlux infers one: pods are walked up
 their owner references to the controller that owns them, workloads sharing an
 `app.kubernetes.io/instance` label are one release, services join by selector
 and ingresses through the service they route to. Nothing has to be installed,
@@ -131,7 +131,7 @@ Thirteen rules cover crash loops, image pulls, missing config, OOM kills,
 unschedulable pods, failing probes, missing replicas, services without
 endpoints, ingresses without a backend, unhealthy nodes and unbound volumes.
 Each one reads what the cluster reported and stops there: where the cluster did
-not say why, kubeui says so and lowers its confidence rather than inventing a
+not say why, Correlux says so and lowers its confidence rather than inventing a
 plausible cause. Every finding carries the evidence it rests on, attributed to
 the object that stated it.
 
@@ -150,9 +150,9 @@ by.
 
 Each object is described from the document it came as — a pod by its containers,
 their images, states, restarts and limits; a workload by its replicas and pod
-template — and `y` shows that document unabridged. A kind kubeui has never heard
-of is described from its own status and conditions, which is where a custom
-controller reports itself anyway.
+template — and `y` shows that document unabridged. A kind Correlux has never
+heard of is described from its own status and conditions, which is where a
+custom controller reports itself anyway.
 
 `b` decodes the base64 in that document, which is what makes a Secret readable
 without copying a blob out to `base64 -d`:
@@ -231,7 +231,7 @@ wherever the name sits.
 /pay  2 of 4213 loaded rows   Ctrl+P Commands   Ctrl+K Cluster   ? Help
 ```
 
-It is a filter, not a query: kubeui narrows the rows it has rather than asking
+It is a filter, not a query: Correlux narrows the rows it has rather than asking
 the server a different question, and the bar says how much it is showing — with
 `loaded` when the table is paged and rows below have not been fetched. The order
 never changes; a filtered list is the same list with fewer rows.
@@ -288,11 +288,11 @@ WHAT IS BROKEN
 
 Everything unusual is on that one screen, not only what has failed: a node that
 is merely cordoned is named too, because it is the reason a rollout will not
-land there, and a kind kubeui was not allowed to read is counted rather than
+land there, and a kind Correlux was not allowed to read is counted rather than
 passed over in silence.
 
 It covers the contexts listed under `fleet:` in your config and nothing else —
-kubeui never discovers on its own that opening it authenticated against every
+Correlux never discovers on its own that opening it authenticated against every
 production cluster you hold credentials for. Adding all of them is a command you
 run, for one session.
 
@@ -301,9 +301,9 @@ pods, deployments, or a custom resource — as one table:
 
 ```
 Fleet → Deployment → 69 deployments   from 3 of 4 clusters   not listed in prod-ap: connection refused
-CLUSTER           NAMESPACE        NAME     READY  UP-TO-DATE  AVAILABLE  AGE
-kind-kubeui-test  kube-system      coredns  2/2    2           2          3h59m
-kind-kubeui-test  kubeui-load-000  app-00   0/3    3           0          3h18m
+CLUSTER             NAMESPACE          NAME     READY  UP-TO-DATE  AVAILABLE  AGE
+kind-correlux-test  kube-system        coredns  2/2    2           2          3h59m
+kind-correlux-test  correlux-load-000  app-00   0/3    3           0          3h18m
 ```
 
 The columns are the API server's own, merged by name: a cluster running an older
@@ -320,9 +320,9 @@ you decide the cost is worth paying.
 
 ### Helm, Flux and Argo CD
 
-kubeui recognises their handwriting. Nothing is installed and nothing is asked
-of them: the workloads those tools create carry labels and annotations saying so,
-and an application reads them.
+Correlux recognises their handwriting. Nothing is installed and nothing is asked
+of them: the workloads those tools create carry labels and annotations saying
+so, and an application reads them.
 
 ```
 DELIVERED BY
@@ -347,10 +347,10 @@ server is the user's decision, not a default
 
 ### Custom resources are not second-class
 
-kubeui asks the API server to render every resource table, using the same
+Correlux asks the API server to render every resource table, using the same
 `Table` content type `kubectl get` uses. A CustomResourceDefinition that
 declares `additionalPrinterColumns` shows exactly those columns — with the same
-`-o wide` behaviour — and kubeui contains no code for it
+`-o wide` behaviour — and Correlux contains no code for it
 ([ADR 13](docs/adr/0013-server-side-tables.md)).
 
 The same applies when a cluster is half broken: if an aggregated API server is
@@ -359,19 +359,20 @@ showing nothing.
 
 ### Switching context is session-local
 
-kubeui **never writes to your kubeconfig**. Changing cluster or namespace inside
-kubeui affects kubeui only; the `kubectl` in your other terminal keeps pointing
-exactly where you left it ([ADR 7](docs/adr/0007-session-local-context-switching.md)).
+Correlux **never writes to your kubeconfig**. Changing cluster or namespace
+inside Correlux affects Correlux only; the `kubectl` in your other terminal
+keeps pointing exactly where you left it
+([ADR 7](docs/adr/0007-session-local-context-switching.md)).
 
 Because of that, the active context is always on screen, and production contexts
 carry a `PROD` badge — in text, not only in colour.
 
 ## Configuration
 
-Optional. kubeui runs correctly with no config file.
+Optional. Correlux runs correctly with no config file.
 
-- Linux/macOS: `~/.config/kubeui/config.yaml` (`$XDG_CONFIG_HOME` is honoured)
-- Windows: `%APPDATA%\kubeui\config.yaml`
+- Linux/macOS: `~/.config/correlux/config.yaml` (`$XDG_CONFIG_HOME` is honoured)
+- Windows: `%APPDATA%\correlux\config.yaml`
 
 ```yaml
 theme: auto # auto | dark | light
@@ -422,7 +423,7 @@ keybindings:
 Information is never carried by colour alone: every state is a glyph *and* a
 word (`✓ healthy`, `⚠ degraded`, `✖ down`). `NO_COLOR`, `CLICOLOR=0` and
 `TERM=dumb` are honoured, the glyph set falls back to ASCII when the terminal
-cannot do better (or when `KUBEUI_ASCII=1` is set), everything is keyboard
+cannot do better (or when `CORRELUX_ASCII=1` is set), everything is keyboard
 reachable, and key bindings are configurable.
 See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 
@@ -451,7 +452,7 @@ The full product specification is in [SPEC.md](SPEC.md).
 
 ## Non-goals
 
-kubeui is a terminal operations interface. It is not a web dashboard, a hosted
+Correlux is a terminal operations interface. It is not a web dashboard, a hosted
 service, an operator, a `kubectl` replacement, a Helm replacement, a GitOps
 system, a monitoring backend, or an AI-first product. AI, when it arrives, is an
 optional explanation layer over a deterministic engine
@@ -471,7 +472,7 @@ task run:kind
 
 The load generator can fill a local cluster with thousands of pods, deployments,
 services and custom resources without starting a single container, which is how
-kubeui's large-cluster claims are measured rather than asserted
+Correlux's large-cluster claims are measured rather than asserted
 ([ADR 14](docs/adr/0014-load-testing-with-kind.md)).
 
 Architecture and the reasoning behind it: [docs/architecture.md](docs/architecture.md)

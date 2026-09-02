@@ -6,11 +6,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/kube/logs"
-	"github.com/aronk11/kubeui/internal/ui/async"
-	"github.com/aronk11/kubeui/internal/ui/palette"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/kube/logs"
+	"github.com/aronk11/correlux/internal/ui/async"
+	"github.com/aronk11/correlux/internal/ui/palette"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // Palette action identifiers. Direct actions carry their target in Command.Arg,
@@ -194,7 +194,7 @@ func (m *Model) rebuildCommands() {
 		{
 			ID:       "cmd.quit",
 			Action:   paletteQuit,
-			Title:    "Quit kubeui",
+			Title:    "Quit Correlux",
 			Category: "Help",
 			Keywords: []string{"exit", "close"},
 			Shortcut: m.keys.Key(ActionQuit),
@@ -252,7 +252,7 @@ func (m *Model) rebuildCommands() {
 			ID:       "cmd.fleet.everything",
 			Action:   paletteFleetEverything,
 			Title:    "Add every context in this kubeconfig to the fleet",
-			Subtitle: "for this session; kubeui will authenticate against all of them",
+			Subtitle: "for this session; Correlux will authenticate against all of them",
 			Category: "Navigate",
 			Keywords: []string{"fleet", "every", "all contexts", "add"},
 			Weight:   50,
@@ -522,7 +522,7 @@ func (m *Model) scaleSubtitle(ref objectRef) string {
 // yamlTitle names what the command will do next.
 func yamlTitle(showing bool) string {
 	if showing {
-		return "Show what kubeui knows about this object"
+		return "Show what Correlux knows about this object"
 	}
 	return "Show the document the server holds"
 }
@@ -779,7 +779,7 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	}
 	// Reset rather than refresh: the loaded rows belong to the previous scope,
 	// and leaving them on screen under a new heading is precisely the kind of
-	// lie kubeui must not tell.
+	// lie Correlux must not tell.
 	m.table.Reset()
 	m.tablePort.Cursor = 0
 	m.tablePort.Offset = 0

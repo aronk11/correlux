@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 // serviceWithoutEndpoints reports a service that routes to nothing.
@@ -22,7 +22,7 @@ import (
 func serviceWithoutEndpoints(in *Input) []Diagnosis {
 	if len(in.Context.Endpoints) == 0 && len(in.Context.Gaps) > 0 {
 		// Endpoints could not be read at all; saying "no endpoints" would be a
-		// statement about kubeui's permissions, not about the cluster.
+		// statement about Correlux's permissions, not about the cluster.
 		return nil
 	}
 

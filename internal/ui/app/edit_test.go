@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aronk11/kubeui/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/kube/resources"
 )
 
 const editableYAML = `apiVersion: apps/v1
@@ -41,7 +41,7 @@ func openEditableObject(t *testing.T, m *Model) {
 }
 
 // edited simulates the user's editor: it writes the given document to the file
-// kubeui prepared and reports the editor as having exited cleanly.
+// Correlux prepared and reports the editor as having exited cleanly.
 func edited(t *testing.T, m *Model, document string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "edited.yaml")
@@ -191,7 +191,7 @@ func TestAnEditSendsTheServersDocumentEvenWhileTheValuesAreDecoded(t *testing.T)
 	if path == "" {
 		t.Fatal("e must have prepared a document for the editor")
 	}
-	buffer, err := os.ReadFile(path) //nolint:gosec // the path kubeui just wrote
+	buffer, err := os.ReadFile(path) //nolint:gosec // the path Correlux just wrote
 	if err != nil {
 		t.Fatalf("read the edit buffer: %v", err)
 	}
@@ -218,6 +218,6 @@ func TestEditingRequiresTheObjectToBeOpen(t *testing.T) {
 	// On the application screen, with nothing fetched yet.
 	m.editObject(objectRef{Kind: "Deployment", Name: "payments", Namespace: "default"})
 	if out := plainView(m); !strings.Contains(out, "first") {
-		t.Errorf("kubeui must not edit a document it has not read:\n%s", out)
+		t.Errorf("Correlux must not edit a document it has not read:\n%s", out)
 	}
 }

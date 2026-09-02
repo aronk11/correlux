@@ -127,7 +127,7 @@ func TestInvalidateRebuildsOneContextAndResetRebuildsAll(t *testing.T) {
 	}
 }
 
-func TestEveryRequestIsBoundedAndIdentifiesKubeui(t *testing.T) {
+func TestEveryRequestIsBoundedAndIdentifiesCorrelux(t *testing.T) {
 	f := newFactory(t, Options{Timeout: 3 * time.Second})
 
 	cfg, err := f.RESTConfig("staging")
@@ -141,7 +141,7 @@ func TestEveryRequestIsBoundedAndIdentifiesKubeui(t *testing.T) {
 		t.Errorf("Timeout() = %v, want the same value the commands bound themselves by", f.Timeout())
 	}
 	if cfg.UserAgent != UserAgent {
-		t.Errorf("user agent = %q, want kubeui to be identifiable in an audit log", cfg.UserAgent)
+		t.Errorf("user agent = %q, want correlux to be identifiable in an audit log", cfg.UserAgent)
 	}
 	if cfg.QPS != DefaultQPS || cfg.Burst != DefaultBurst {
 		t.Errorf("qps/burst = %v/%d, want the configured rate limit", cfg.QPS, cfg.Burst)

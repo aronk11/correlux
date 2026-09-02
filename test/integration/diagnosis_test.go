@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/domain/diagnosis"
-	"github.com/aronk11/kubeui/internal/kube/workloads"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/diagnosis"
+	"github.com/aronk11/correlux/internal/kube/workloads"
 )
 
 // budgetEvidence is what the evidence behind one explanation may cost. It is

@@ -6,13 +6,13 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/domain/decode"
-	"github.com/aronk11/kubeui/internal/domain/describe"
-	"github.com/aronk11/kubeui/internal/kube/resources"
-	"github.com/aronk11/kubeui/internal/ui/async"
-	"github.com/aronk11/kubeui/internal/ui/screens"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/decode"
+	"github.com/aronk11/correlux/internal/domain/describe"
+	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/ui/async"
+	"github.com/aronk11/correlux/internal/ui/screens"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // objectRef addresses one object the way the user sees it: a kind, a name and
@@ -22,7 +22,7 @@ type objectRef struct {
 	Kind      string
 	Name      string
 	Namespace string
-	// Resource is the fully qualified name ("widgets.load.kubeui.dev") when the
+	// Resource is the fully qualified name ("widgets.load.Correlux.dev") when the
 	// caller knows it. Two groups may serve the same kind, and a browser that
 	// listed one of them must open that one.
 	Resource string
@@ -125,8 +125,8 @@ func (m *Model) backFromObject() tea.Cmd {
 	return m.backToApplications()
 }
 
-// toggleObjectYAML switches between what kubeui knows about an object and what
-// the server actually holds.
+// toggleObjectYAML switches between what Correlux knows about an object and
+// what the server actually holds.
 func (m *Model) toggleObjectYAML() {
 	m.objectYAML = !m.objectYAML
 	m.objectPort.Offset = 0
@@ -209,7 +209,7 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 
 	sections := []screens.DetailSection{m.identitySection(obj)}
 	// What the object itself reports, read out of the document rather than out
-	// of a type kubeui was compiled with.
+	// of a type Correlux was compiled with.
 	for _, section := range describe.Object(obj.Kind, obj.Raw) {
 		sections = append(sections, screens.DetailSection{
 			Title:   section.Title,
@@ -307,7 +307,7 @@ type child struct {
 }
 
 // childrenOf finds what this object owns, from the snapshot the dashboard
-// already holds. It is deliberately limited to the loaded scope: kubeui does
+// already holds. It is deliberately limited to the loaded scope: Correlux does
 // not go looking through the cluster to answer a question nobody asked.
 func (m *Model) childrenOf(obj *resources.Object) []child {
 	if obj.UID == "" {

@@ -5,10 +5,10 @@ import (
 
 	"github.com/sahilm/fuzzy"
 
-	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
-	"github.com/aronk11/kubeui/internal/ui/async"
-	"github.com/aronk11/kubeui/internal/ui/components"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	kubediscovery "github.com/aronk11/correlux/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/ui/async"
+	"github.com/aronk11/correlux/internal/ui/components"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // allNamespacesLabel is what the cluster-wide row is matched against, so that

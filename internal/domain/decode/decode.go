@@ -3,8 +3,8 @@
 //
 // A Secret is the reason this exists: every value under `data` is base64, so
 // the document the server holds is unreadable, and reading it means copying a
-// blob out of the terminal into `base64 -d`. That errand is exactly what kubeui
-// is for.
+// blob out of the terminal into `base64 -d`. That errand is exactly what
+// Correlux is for.
 //
 // The scope is decided by the document rather than by a list of kinds: the
 // fields that hold encoded values are `data` and `binaryData`, whatever the

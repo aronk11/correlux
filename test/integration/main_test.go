@@ -1,6 +1,6 @@
 //go:build integration
 
-// Package integration exercises kubeui against a real Kubernetes API server.
+// Package integration exercises Correlux against a real Kubernetes API server.
 //
 // The unit tests prove that the code does what it says; these prove that what
 // it says is true of an actual cluster — that discovery really finds CRDs, that
@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
-	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
+	"github.com/aronk11/correlux/internal/kube/kubeconfig"
 )
 
 // testTimeout bounds any single API interaction in the suite.
@@ -33,10 +33,10 @@ type cluster struct {
 var shared *cluster
 
 func TestMain(m *testing.M) {
-	path := os.Getenv("KUBEUI_TEST_KUBECONFIG")
+	path := os.Getenv("CORRELUX_TEST_KUBECONFIG")
 	if path == "" {
 		// Refusing to run is better than silently testing nothing.
-		println("integration tests need KUBEUI_TEST_KUBECONFIG; run `task test:integration`")
+		println("integration tests need CORRELUX_TEST_KUBECONFIG; run `task test:integration`")
 		os.Exit(1)
 	}
 

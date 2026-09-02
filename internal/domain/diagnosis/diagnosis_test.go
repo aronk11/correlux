@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 var now = time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC)

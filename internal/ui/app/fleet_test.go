@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aronk11/kubeui/internal/config"
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/domain/fleet"
-	"github.com/aronk11/kubeui/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/config"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/fleet"
+	"github.com/aronk11/correlux/internal/kube/resources"
 )
 
 // fleetModel builds a model whose fleet covers the given contexts. They exist
@@ -48,7 +48,7 @@ func TestTheFleetIsEmptyUntilItIsConfigured(t *testing.T) {
 		t.Errorf("an unconfigured fleet must say so rather than showing nothing:\n%s", out)
 	}
 	if len(m.fleetMembers) != 0 {
-		t.Error("kubeui must not reach for a cluster nobody named")
+		t.Error("Correlux must not reach for a cluster nobody named")
 	}
 }
 
@@ -366,7 +366,7 @@ func TestNodesThatCannotBeListedAreNotSilence(t *testing.T) {
 	answer(m, member)
 
 	if out := plainView(m); !strings.Contains(out, "nodes not readable") {
-		t.Errorf("a permission kubeui does not have must be said, not omitted:\n%s", out)
+		t.Errorf("a permission Correlux does not have must be said, not omitted:\n%s", out)
 	}
 }
 

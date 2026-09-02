@@ -5,7 +5,7 @@
 
 ## Context
 
-kubeui shows health. Health is exactly the kind of information that tools tend
+Correlux shows health. Health is exactly the kind of information that tools tend
 to encode as a red or green cell — which is unreadable for a colour-blind user,
 invisible in a monochrome terminal, and lost entirely when the output is piped
 into a file, a ticket or a CI log.
@@ -20,7 +20,8 @@ a `TERM=dumb` environment cannot render `✓` and will show a replacement box.
 - Colour support is detected and can be switched off: `NO_COLOR` (any value),
   `CLICOLOR=0` and `TERM=dumb` are honoured.
 - The symbol set falls back to pure ASCII (`OK`, `!`, `X`, `>`) when the locale
-  or terminal does not indicate UTF-8 support, or when `KUBEUI_ASCII=1` is set.
+  or terminal does not indicate UTF-8 support, or when `CORRELUX_ASCII=1` is
+  set.
 - Text attributes (bold, reverse) are a separate capability from colour: a
   monochrome terminal still gets structure, while a pipe or a file gets plain
   text with no escape sequences at all.

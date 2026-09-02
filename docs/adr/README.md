@@ -1,7 +1,8 @@
 # Architecture Decision Records
 
-Why kubeui is built the way it is. See [ADR 1](0001-record-architecture-decisions.md)
-for the process; the format is Michael Nygard's: context, decision, consequences.
+Why Correlux is built the way it is. See
+[ADR 1](0001-record-architecture-decisions.md) for the process; the format is
+Michael Nygard's: context, decision, consequences.
 
 | # | Decision | Status |
 |---|----------|--------|
@@ -11,7 +12,7 @@ for the process; the format is Michael Nygard's: context, decision, consequences
 | [4](0004-layered-architecture.md) | The domain layer must not know that a terminal exists | accepted |
 | [5](0005-explicit-async-state.md) | Remote data carries an explicit lifecycle and a generation counter | accepted |
 | [6](0006-lazy-scoped-loading.md) | No global cache at startup: load lazily, within the active scope | accepted |
-| [7](0007-session-local-context-switching.md) | Switching context inside kubeui never writes to the kubeconfig | accepted |
+| [7](0007-session-local-context-switching.md) | Switching context inside Correlux never writes to the kubeconfig | accepted |
 | [8](0008-production-safety.md) | Production contexts are classified heuristically and guarded by default | accepted |
 | [9](0009-accessibility-and-terminal-capabilities.md) | Never encode meaning in colour alone; degrade to ASCII | accepted |
 | [10](0010-deterministic-diagnosis-before-ai.md) | The diagnosis engine is deterministic; AI is an optional explanation layer | accepted |
@@ -20,11 +21,11 @@ for the process; the format is Michael Nygard's: context, decision, consequences
 | [13](0013-server-side-tables.md) | Resources are rendered from the API server's own tables | accepted |
 | [14](0014-load-testing-with-kind.md) | Load is tested on a real API server, with pods that never run | accepted |
 | [15](0015-signed-commits.md) | Every commit is signed | accepted |
-| [16](0016-application-inference.md) | Applications are inferred from the cluster, not declared to kubeui | accepted |
+| [16](0016-application-inference.md) | Applications are inferred from the cluster, not declared to Correlux | accepted |
 | [17](0017-timed-refresh-not-watches.md) | The screen reloads on a timer the user turns on, not on watches | accepted |
 | [18](0018-evidence-on-demand.md) | A diagnosis is built from evidence fetched on demand, not from a cache | accepted |
 | [19](0019-fleet-overview.md) | A fleet overview across several kubeconfig contexts, read-only | accepted |
-| [20](0020-changes-go-through-one-gate.md) | Every change goes through one gate, and kubeui never edits for you | accepted |
+| [20](0020-changes-go-through-one-gate.md) | Every change goes through one gate, and Correlux never edits for you | accepted |
 
 ## Adding one
 

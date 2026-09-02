@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/kube/logs"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/kube/logs"
 )
 
 // feedLogs delivers a batch the way the reader goroutine would.

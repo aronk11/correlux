@@ -4,8 +4,8 @@
 // The UI must never confuse "still loading" with "nothing there": those two
 // states look identical if you only track a slice's length, and mistaking one
 // for the other is how a dashboard ends up claiming a cluster is empty while
-// its first request is still in flight. Every remote value in kubeui therefore
-// carries an explicit state.
+// its first request is still in flight. Every remote value in Correlux
+// therefore carries an explicit state.
 package async
 
 import "time"

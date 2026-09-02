@@ -86,4 +86,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/aronk11/kubeui
+        - github.com/aronk11/correlux

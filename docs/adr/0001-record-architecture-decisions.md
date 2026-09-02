@@ -5,7 +5,7 @@
 
 ## Context
 
-kubeui is meant to be maintained for years, by people who were not in the room
+Correlux is meant to be maintained for years, by people who were not in the room
 when its shape was decided. The expensive questions in a Kubernetes tool are not
 "which function goes where" but "why does switching context not write to the
 kubeconfig?", "why is there no informer cache at startup?", "why is the

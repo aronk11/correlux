@@ -5,13 +5,13 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // ObjectData is one Kubernetes object on screen.
 //
 // It has two modes and they answer different questions. The details are what
-// kubeui knows about the object and where it can take you next; the YAML is
+// Correlux knows about the object and where it can take you next; the YAML is
 // what the server actually holds, unedited and unabridged.
 type ObjectData struct {
 	Kind      string

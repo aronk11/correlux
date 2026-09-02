@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 // brokenApplication is one application with a real failure in it: three pods
@@ -50,7 +50,7 @@ func TestWhyExplainsTheApplicationUnderTheCursor(t *testing.T) {
 		"WHY",               // the section a user is looking for
 		"WHAT TO CHECK",     // and what to do next
 		"kubectl logs",      // with the command that shows it
-		"confidence: high",  // and how sure kubeui is
+		"confidence: high",  // and how sure Correlux is
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the WHY view must contain %q:\n%s", want, out)
@@ -178,7 +178,7 @@ func TestAHealthyApplicationHasNoWhyCommand(t *testing.T) {
 
 	for _, c := range m.registry.Commands() {
 		if strings.HasPrefix(c.Title, "Why is api") {
-			t.Error("kubeui must not offer to explain an application that is fine")
+			t.Error("Correlux must not offer to explain an application that is fine")
 		}
 	}
 }

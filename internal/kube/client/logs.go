@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 
-	"github.com/aronk11/kubeui/internal/kube/logs"
+	"github.com/aronk11/correlux/internal/kube/logs"
 )
 
 // Tail streams the logs of one or more containers.

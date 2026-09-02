@@ -7,16 +7,16 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/aronk11/kubeui/internal/config"
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/domain/fleet"
-	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
-	"github.com/aronk11/kubeui/internal/kube/resources"
-	"github.com/aronk11/kubeui/internal/ui/async"
-	"github.com/aronk11/kubeui/internal/ui/components"
-	"github.com/aronk11/kubeui/internal/ui/layout"
-	"github.com/aronk11/kubeui/internal/ui/screens"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/config"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/fleet"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
+	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/ui/async"
+	"github.com/aronk11/correlux/internal/ui/components"
+	"github.com/aronk11/correlux/internal/ui/layout"
+	"github.com/aronk11/correlux/internal/ui/screens"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // View renders the frame. It is a pure function of the model: nothing is
@@ -25,14 +25,14 @@ func (m *Model) View() tea.View {
 	var v tea.View
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
-	v.WindowTitle = "kubeui — " + m.contextName
+	v.WindowTitle = "Correlux — " + m.contextName
 
 	if m.quitting {
 		v.SetContent("")
 		return v
 	}
 	if !m.ready {
-		v.SetContent("Starting kubeui…")
+		v.SetContent("Starting Correlux…")
 		return v
 	}
 	if m.screen.TooSmall {
@@ -61,7 +61,7 @@ func (m *Model) View() tea.View {
 }
 
 func (m *Model) renderTooSmall() string {
-	msg := "kubeui needs at least " +
+	msg := "Correlux needs at least " +
 		itoa(layout.MinWidth) + "x" + itoa(layout.MinHeight) + " — this terminal is " +
 		itoa(m.screen.Width) + "x" + itoa(m.screen.Height)
 	return m.theme.Warning.Render(msg)
@@ -500,9 +500,9 @@ func rowStatus(cells []string) theme.Status {
 	return theme.StatusUnknown
 }
 
-// overviewData assembles the session view: what kubeui knows for certain about
-// this connection. It is no longer the first screen — applications are — but it
-// remains the place that answers "what am I actually connected to?".
+// overviewData assembles the session view: what Correlux knows for certain
+// about this connection. It is no longer the first screen — applications are —
+// but it remains the place that answers "what am I actually connected to?".
 func (m *Model) overviewData() screens.OverviewData {
 	kctx := m.currentContext()
 	info := m.cluster.Get()

@@ -217,7 +217,7 @@ func TestACronJobIsDescribedByItsSchedule(t *testing.T) {
 }
 
 func TestAnUnknownKindIsStillDescribed(t *testing.T) {
-	// A custom resource kubeui has never heard of: its status is what its
+	// A custom resource Correlux has never heard of: its status is what its
 	// author wanted anybody to see.
 	sections := Object("Widget", []byte(`{
       "kind": "Widget",

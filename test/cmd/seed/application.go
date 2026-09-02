@@ -18,8 +18,8 @@ import (
 )
 
 // health decides what a seeded application looks like. A cluster where
-// everything is green is not a useful test cluster: kubeui exists to show what
-// is broken, so the seeder produces a realistic mix.
+// everything is green is not a useful test cluster: Correlux exists to show
+// what is broken, so the seeder produces a realistic mix.
 type health int
 
 const (
@@ -290,7 +290,7 @@ func podTemplate(app string, podLabels map[string]string) corev1.PodTemplateSpec
 			// makes the API server remove the object immediately.
 			TerminationGracePeriodSeconds: ptr(int64(0)),
 			Tolerations: []corev1.Toleration{
-				{Key: "kubeui.dev/synthetic", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "correlux.dev/synthetic", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
 				// The node has no kubelet, so the node lifecycle controller will
 				// eventually mark it unreachable. Without these tolerations it
 				// would evict the load five minutes into a benchmark.
@@ -334,7 +334,7 @@ func seedPod(
 }
 
 // setPodStatus writes the status a kubelet would have written. This is what
-// makes the seeded cluster useful for testing kubeui's health rendering: pods
+// makes the seeded cluster useful for testing Correlux's health rendering: pods
 // are Running, CrashLoopBackOff or OOMKilled because their status says so.
 func setPodStatus(ctx context.Context, c *clients, namespace, name, app string, state health) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
