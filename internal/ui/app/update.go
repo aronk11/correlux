@@ -83,6 +83,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resPicker.Refresh()
 		return m, nil
 
+	case applicationsLoadedMsg:
+		return m, m.applyApplications(msg)
+
 	case tableLoadedMsg:
 		return m, m.applyTablePage(msg)
 
@@ -156,6 +159,25 @@ func (m *Model) applyTablePage(msg tableLoadedMsg) tea.Cmd {
 	return nil
 }
 
+// applyApplications stores a freshly grouped dashboard, keeping the cursor on
+// the application it was on rather than on the row number it was at.
+func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
+	if msg.err != nil {
+		if m.apps.Fail(msg.gen, msg.err) {
+			m.notice(applicationsNotice(msg.err), theme.StatusCritical)
+			return m.expireNotice()
+		}
+		return nil
+	}
+	previous := m.cursorApplicationKey()
+	if !m.apps.Succeed(msg.gen, msg.list) {
+		return nil
+	}
+	m.keepCursorOnApplication(previous)
+	m.rebuildCommands()
+	return nil
+}
+
 // tableRows returns the rows currently loaded.
 func (m *Model) tableRows() []resources.Row {
 	if t := m.table.Get(); t != nil {
@@ -171,7 +193,7 @@ func (m *Model) moveTableCursor(delta int) tea.Cmd {
 	if len(rows) == 0 {
 		return nil
 	}
-	m.tableCursor = clampInt(m.tableCursor+delta, 0, len(rows)-1)
+	m.tableCursor = clampInt(m.tableCursor+delta, len(rows)-1)
 
 	visible := max(m.screen.Body.Height-1, 1)
 	if m.tableCursor < m.tableOffset {
@@ -180,7 +202,7 @@ func (m *Model) moveTableCursor(delta int) tea.Cmd {
 	if m.tableCursor >= m.tableOffset+visible {
 		m.tableOffset = m.tableCursor - visible + 1
 	}
-	m.tableOffset = clampInt(m.tableOffset, 0, max(len(rows)-visible, 0))
+	m.tableOffset = clampInt(m.tableOffset, max(len(rows)-visible, 0))
 
 	// Prefetch the next page a screen before the end, so scrolling stays smooth
 	// on a resource with thousands of objects.
@@ -210,9 +232,73 @@ func (m *Model) handleTableKey(keystroke string) (tea.Cmd, bool) {
 	return nil, false
 }
 
-func clampInt(v, lo, hi int) int {
-	if v < lo {
-		return lo
+// handleApplicationsKey handles the dashboard's own keys.
+func (m *Model) handleApplicationsKey(keystroke string) (tea.Cmd, bool) {
+	visible := m.applicationsVisible()
+	switch keystroke {
+	case "up", "k":
+		m.moveAppCursor(-1)
+	case "down", "j":
+		m.moveAppCursor(1)
+	case "pgup":
+		m.moveAppCursor(-visible)
+	case "pgdown", " ":
+		m.moveAppCursor(visible)
+	case "home", "g":
+		m.moveAppCursor(-len(m.applications()))
+	case "end", "G":
+		m.moveAppCursor(len(m.applications()))
+	case "enter", "right", "l":
+		return m.openSelectedApplication(), true
+	default:
+		return nil, false
+	}
+	return nil, true
+}
+
+// handleApplicationKey scrolls the detail view.
+func (m *Model) handleApplicationKey(keystroke string) (tea.Cmd, bool) {
+	page := max(m.screen.Body.Height-1, 1)
+	switch keystroke {
+	case "up", "k":
+		m.scrollDetail(-1)
+	case "down", "j":
+		m.scrollDetail(1)
+	case "pgup":
+		m.scrollDetail(-page)
+	case "pgdown", " ":
+		m.scrollDetail(page)
+	case "home", "g":
+		m.detailOffset = 0
+	case "end", "G":
+		m.scrollDetail(m.detailLines())
+	case "left", "h":
+		return m.backToApplications(), true
+	default:
+		return nil, false
+	}
+	return nil, true
+}
+
+// detailLines is how many lines the open application renders to, which is what
+// bounds scrolling.
+func (m *Model) detailLines() int {
+	return m.applicationData().LineCount(m.screen.Body.Width)
+}
+
+// scrollDetail moves the detail viewport, never past the last screenful: a view
+// scrolled into empty space looks broken.
+func (m *Model) scrollDetail(delta int) {
+	height := max(m.screen.Body.Height, 1)
+	limit := max(m.detailLines()-height, 0)
+	m.detailOffset = clampInt(m.detailOffset+delta, limit)
+}
+
+// clampInt keeps v inside [0, hi]: every position kubeui tracks is an index
+// into a list, and those start at zero.
+func clampInt(v, hi int) int {
+	if v < 0 {
+		return 0
 	}
 	if v > hi {
 		return hi
@@ -231,9 +317,20 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 
-	if m.overlay == overlayNone && m.view == viewTable {
-		if cmd, handled := m.handleTableKey(keystroke); handled {
-			return cmd
+	if m.overlay == overlayNone {
+		switch m.view {
+		case viewTable:
+			if cmd, handled := m.handleTableKey(keystroke); handled {
+				return cmd
+			}
+		case viewApplications:
+			if cmd, handled := m.handleApplicationsKey(keystroke); handled {
+				return cmd
+			}
+		case viewApplication:
+			if cmd, handled := m.handleApplicationKey(keystroke); handled {
+				return cmd
+			}
 		}
 	}
 
@@ -256,7 +353,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case ActionResourcePicker:
 		return m.openOverlay(overlayResources)
 	case ActionToggleWide:
-		if m.view == viewTable {
+		// Both table-shaped views hide the same secondary columns, and one
+		// toggle for both is one thing to learn instead of two.
+		if m.view == viewTable || m.view == viewApplications {
 			return m.toggleWide()
 		}
 		return nil
@@ -267,7 +366,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.closeOverlay()
 			return nil
 		}
-		return m.backToOverview()
+		return m.backToApplications()
+	case ActionApplications:
+		return m.backToApplications()
 	}
 	return nil
 }

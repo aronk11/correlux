@@ -16,6 +16,8 @@ const (
 	paletteSwitchContext   palette.ActionID = "switch.context"
 	paletteSwitchNamespace palette.ActionID = "switch.namespace"
 	paletteToggleAllNS     palette.ActionID = "toggle.allnamespaces"
+	paletteOpenApps        palette.ActionID = "open.applications"
+	paletteOpenApp         palette.ActionID = "open.application"
 	paletteOpenResources   palette.ActionID = "open.resources"
 	paletteOpenResource    palette.ActionID = "open.resource"
 	paletteToggleWide      palette.ActionID = "toggle.wide"
@@ -66,6 +68,17 @@ func (m *Model) rebuildCommands() {
 			Enabled:  true,
 		},
 		{
+			ID:       "cmd.applications",
+			Action:   paletteOpenApps,
+			Title:    "Show applications",
+			Subtitle: m.applicationsLabel(),
+			Category: "Navigate",
+			Keywords: []string{"application", "apps", "dashboard", "home", "overview", "health"},
+			Shortcut: m.keys.Key(ActionApplications),
+			Weight:   98,
+			Enabled:  true,
+		},
+		{
 			ID:       "cmd.resources",
 			Action:   paletteOpenResources,
 			Title:    "Browse resources",
@@ -74,6 +87,16 @@ func (m *Model) rebuildCommands() {
 			Keywords: []string{"resource", "kind", "crd", "custom", "api", "objects"},
 			Shortcut: m.keys.Key(ActionResourcePicker),
 			Weight:   90,
+			Enabled:  true,
+		},
+		{
+			ID:       "cmd.session",
+			Action:   paletteBackToOverview,
+			Title:    "Show session and connection details",
+			Subtitle: m.contextName,
+			Category: "Cluster",
+			Keywords: []string{"session", "connection", "server", "version", "kubeconfig", "diagnostics"},
+			Weight:   65,
 			Enabled:  true,
 		},
 		{
@@ -118,25 +141,30 @@ func (m *Model) rebuildCommands() {
 		},
 	}
 
-	if m.view == viewTable {
+	if m.view == viewTable || m.view == viewApplications {
 		cmds = append(cmds,
 			palette.Command{
 				ID:       "cmd.wide",
 				Action:   paletteToggleWide,
 				Title:    wideTitle(m.tableWide),
-				Subtitle: m.resource.Kind(),
+				Subtitle: m.wideSubject(),
 				Category: "View",
 				Keywords: []string{"wide", "columns", "-o wide", "details"},
 				Shortcut: m.keys.Key(ActionToggleWide),
 				Weight:   80,
 				Enabled:  true,
 			},
+		)
+	}
+
+	if m.view == viewTable {
+		cmds = append(cmds,
 			palette.Command{
-				ID:       "cmd.overview",
-				Action:   paletteBackToOverview,
-				Title:    "Back to the overview",
+				ID:       "cmd.back",
+				Action:   paletteOpenApps,
+				Title:    "Back to the applications",
 				Category: "Navigate",
-				Keywords: []string{"overview", "home", "back"},
+				Keywords: []string{"applications", "home", "back"},
 				Shortcut: "Esc",
 				Weight:   75,
 				Enabled:  true,
@@ -168,6 +196,25 @@ func (m *Model) rebuildCommands() {
 				Enabled:  true,
 			})
 		}
+	}
+
+	// Every application is its own command, so "open payments" is one keystroke
+	// and a search away, without stepping through the dashboard.
+	for _, a := range m.applications() {
+		if m.view == viewApplication && a.Key() == m.selectedApp {
+			continue
+		}
+		cmds = append(cmds, palette.Command{
+			ID:       "app." + a.Key(),
+			Action:   paletteOpenApp,
+			Arg:      a.Key(),
+			Title:    "Open " + a.Name,
+			Subtitle: a.Health.String() + "  " + a.Summary,
+			Category: "Applications",
+			Keywords: []string{"application", a.Name, a.Namespace, a.Health.String()},
+			Weight:   58,
+			Enabled:  true,
+		})
 	}
 
 	// Direct jumps: every context is its own command.
@@ -238,6 +285,14 @@ func (m *Model) catalogSubtitle() string {
 		subtitle += ", " + itoa(len(catalog.Failures)) + " group(s) unavailable"
 	}
 	return subtitle
+}
+
+// wideSubject names what the wide toggle applies to on the current screen.
+func (m *Model) wideSubject() string {
+	if m.view == viewTable {
+		return m.resource.Kind()
+	}
+	return "Applications"
 }
 
 func wideTitle(wide bool) string {
@@ -319,6 +374,10 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.openOverlay(overlayContexts)
 	case paletteOpenNamespaces:
 		return m.openOverlay(overlayNamespaces)
+	case paletteOpenApps:
+		return m.backToApplications()
+	case paletteOpenApp:
+		return m.openApplication(cmd.Arg)
 	case paletteOpenResources:
 		return m.openOverlay(overlayResources)
 	case paletteOpenResource:
@@ -366,7 +425,10 @@ func (m *Model) switchContext(name string) tea.Cmd {
 	m.namespaces.Reset()
 	m.catalog.Reset()
 	m.table.Reset()
-	m.view = viewOverview
+	m.apps.Reset()
+	m.appCursor, m.appOffset, m.detailOffset = 0, 0, 0
+	m.selectedApp = ""
+	m.view = viewApplications
 	m.nsPicker.Reset()
 	m.resPicker.Reset()
 	m.rebuildCommands()
@@ -379,7 +441,13 @@ func (m *Model) switchContext(name string) tea.Cmd {
 	}
 	m.notice(label, status)
 
-	return tea.Batch(m.probeCluster(), m.loadNamespaces(), m.loadCatalog(), m.expireNotice())
+	return tea.Batch(
+		m.probeCluster(),
+		m.loadNamespaces(),
+		m.loadCatalog(),
+		m.loadApplications(),
+		m.expireNotice(),
+	)
 }
 
 // switchNamespace changes the active scope.
@@ -400,8 +468,17 @@ func (m *Model) switchNamespace(ns string) tea.Cmd {
 // reloadScopedViews refetches whatever the active scope changes. Rows for the
 // previous namespace must never linger under a new heading.
 func (m *Model) reloadScopedViews() tea.Cmd {
+	// The dashboard is always scoped, so it always reloads.
+	m.apps.Reset()
+	m.appCursor, m.appOffset, m.detailOffset = 0, 0, 0
+	m.selectedApp = ""
+	if m.view == viewApplication {
+		m.view = viewApplications
+	}
+	reload := m.loadApplications()
+
 	if m.view != viewTable || !m.resource.Namespaced {
-		return nil
+		return reload
 	}
 	// Reset rather than refresh: the loaded rows belong to the previous scope,
 	// and leaving them on screen under a new heading is precisely the kind of
@@ -410,7 +487,7 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	m.tableCursor = 0
 	m.tableOffset = 0
 	m.loadingMore = false
-	return m.loadTable()
+	return tea.Batch(reload, m.loadTable())
 }
 
 func (m *Model) toggleAllNamespaces() tea.Cmd {
@@ -424,10 +501,14 @@ func (m *Model) setAllNamespaces(on bool) tea.Cmd {
 	return tea.Batch(m.reloadScopedViews(), m.expireNotice())
 }
 
-// refresh re-probes the cluster and reloads namespaces.
+// refresh re-probes the cluster and reloads everything the current screen shows.
 func (m *Model) refresh() tea.Cmd {
 	m.notice("Refreshing…", theme.StatusUnknown)
-	return tea.Batch(m.probeCluster(), m.loadNamespaces(), m.expireNotice())
+	cmds := []tea.Cmd{m.probeCluster(), m.loadNamespaces(), m.loadApplications(), m.expireNotice()}
+	if m.view == viewTable {
+		cmds = append(cmds, m.loadTable())
+	}
+	return tea.Batch(cmds...)
 }
 
 func firstOr(list []string, fallback string) string {

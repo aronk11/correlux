@@ -229,8 +229,8 @@ func TestEscapeLeavesTheTableView(t *testing.T) {
 	m.openResource("pods")
 
 	press(t, m, "esc")
-	if m.view != viewOverview {
-		t.Error("esc must return to the overview")
+	if m.view != viewApplications {
+		t.Error("esc must return to the application dashboard, which is home")
 	}
 }
 
@@ -335,9 +335,17 @@ func TestClusterScopedResourceIgnoresNamespaceScope(t *testing.T) {
 	if m.resource.Namespaced {
 		t.Fatal("nodes are cluster scoped")
 	}
-	// Switching namespace must not refetch a cluster-scoped resource.
-	if cmd := m.reloadScopedViews(); cmd != nil {
+	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: podTablePage("kind-control-plane")})
+
+	// Switching namespace reloads the dashboard, which is always scoped, but
+	// must not refetch a table whose objects have no namespace.
+	before := m.table.Generation()
+	m.reloadScopedViews()
+	if m.table.Generation() != before {
 		t.Error("a cluster-scoped table must not be reloaded when the namespace changes")
+	}
+	if len(m.tableRows()) == 0 {
+		t.Error("its rows must stay on screen")
 	}
 }
 
@@ -359,6 +367,7 @@ func TestPaletteOffersEveryDiscoveredKind(t *testing.T) {
 func TestOverviewReportsDiscoveredKinds(t *testing.T) {
 	m := newTestModel(t)
 	loadCatalogInto(m, testCatalog())
+	m.backToOverview()
 
 	if out := view(m); !strings.Contains(out, "4 listable, 1 custom") {
 		t.Errorf("the overview must report what discovery found:\n%s", out)
