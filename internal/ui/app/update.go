@@ -46,8 +46,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.handleKey(msg)
 
 	case tea.MouseWheelMsg:
-		m.handleWheel(msg)
-		return m, nil
+		return m, m.handleWheel(msg)
 
 	case tea.MouseClickMsg:
 		return m, m.handleClick(msg)
@@ -373,16 +372,77 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (m *Model) handleWheel(msg tea.MouseWheelMsg) {
-	sel := m.activeSelector()
-	if sel == nil {
-		return
-	}
+// wheelStep is how far one notch of the wheel moves. Three lines is what
+// terminals and editors have settled on; one is sluggish on a long list.
+const wheelStep = 3
+
+// handleWheel scrolls whatever is under the pointer: the open overlay if there
+// is one, otherwise the view itself. A list that cannot be scrolled with the
+// wheel feels broken in a terminal that has one.
+func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
+	delta := wheelStep
 	switch msg.Mouse().Button {
 	case tea.MouseWheelUp:
-		sel.ScrollBy(-1)
+		delta = -wheelStep
 	case tea.MouseWheelDown:
-		sel.ScrollBy(1)
+	default:
+		// Horizontal wheels exist; kubeui has nothing to scroll sideways.
+		return nil
+	}
+
+	if sel := m.activeSelector(); sel != nil {
+		sel.ScrollBy(delta)
+		return nil
+	}
+	switch m.view {
+	case viewTable:
+		return m.scrollTable(delta)
+	case viewApplications:
+		m.scrollApplications(delta)
+	case viewApplication:
+		m.scrollDetail(delta)
+	}
+	return nil
+}
+
+// scrollTable moves the viewport rather than the selection, and drags the
+// cursor along only when it would otherwise scroll off the screen — the row a
+// user picked must not change because they looked further down the list.
+func (m *Model) scrollTable(delta int) tea.Cmd {
+	rows := m.tableRows()
+	if len(rows) == 0 {
+		return nil
+	}
+	visible := max(m.screen.Body.Height-1, 1)
+	m.tableOffset = clampInt(m.tableOffset+delta, max(len(rows)-visible, 0))
+	m.tableCursor = clampInt(m.tableCursor, len(rows)-1)
+	if m.tableCursor < m.tableOffset {
+		m.tableCursor = m.tableOffset
+	}
+	if m.tableCursor >= m.tableOffset+visible {
+		m.tableCursor = m.tableOffset + visible - 1
+	}
+	// Scrolling towards the end pulls the next page in, exactly as the keys do.
+	if m.tableOffset+visible >= len(rows) {
+		return m.loadMoreRows()
+	}
+	return nil
+}
+
+// scrollApplications moves the dashboard viewport.
+func (m *Model) scrollApplications(delta int) {
+	apps := m.applications()
+	if len(apps) == 0 {
+		return
+	}
+	visible := m.applicationsVisible()
+	m.appOffset = clampInt(m.appOffset+delta, max(len(apps)-visible, 0))
+	m.appCursor = clampInt(m.appCursor, len(apps)-1)
+	if m.appCursor < m.appOffset {
+		m.appCursor = m.appOffset
+	}
+	if m.appCursor >= m.appOffset+visible {
+		m.appCursor = m.appOffset + visible - 1
 	}
 }
 

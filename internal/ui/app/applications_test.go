@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/aronk11/kubeui/internal/domain/application"
 )
 
@@ -216,5 +218,67 @@ func TestAgeIsRenderedTheWayKubectlDoes(t *testing.T) {
 	}
 	if got := formatAge(time.Time{}, now); got != "—" {
 		t.Errorf("an unknown age must render as a dash, got %q", got)
+	}
+}
+
+// wheel builds a mouse wheel event, the way a terminal reports one.
+func wheel(up bool) tea.MouseWheelMsg {
+	button := tea.MouseWheelDown
+	if up {
+		button = tea.MouseWheelUp
+	}
+	return tea.MouseWheelMsg{Button: button}
+}
+
+func TestTheWheelScrollsTheDashboard(t *testing.T) {
+	// The model is 120x40 from newTestModel; a resize would be debounced and
+	// not yet applied, so the fixture is sized to overflow that instead.
+	m := newTestModel(t)
+
+	apps := make([]application.Application, 0, 80)
+	for i := 0; i < 80; i++ {
+		apps = append(apps, testApplication("app-"+itoa(i), application.Healthy, 1, 1))
+	}
+	loadApplicationsInto(m, apps...)
+
+	m.Update(wheel(false))
+	if m.appOffset == 0 {
+		t.Fatal("the wheel must scroll the dashboard")
+	}
+	// The cursor is dragged along only as far as it must be to stay visible.
+	if m.appCursor < m.appOffset {
+		t.Errorf("cursor %d scrolled off the top of the viewport at offset %d", m.appCursor, m.appOffset)
+	}
+
+	m.Update(wheel(true))
+	if m.appOffset != 0 {
+		t.Errorf("scrolling back up must return to the top, offset is %d", m.appOffset)
+	}
+}
+
+func TestTheWheelScrollsTheOpenApplication(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, testApplication("payments", application.Degraded, 1, 60))
+	press(t, m, "enter")
+
+	m.Update(wheel(false))
+	if m.detailOffset == 0 {
+		t.Fatal("a detail view longer than the screen must scroll")
+	}
+	m.Update(wheel(true))
+	if m.detailOffset != 0 {
+		t.Errorf("scrolling back must reach the top, offset is %d", m.detailOffset)
+	}
+}
+
+func TestTheWheelDoesNotScrollPastTheEnd(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
+
+	for i := 0; i < 20; i++ {
+		m.Update(wheel(false))
+	}
+	if m.appOffset != 0 {
+		t.Errorf("a list that fits on screen must not scroll at all, offset is %d", m.appOffset)
 	}
 }
