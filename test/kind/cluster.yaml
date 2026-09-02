@@ -1,0 +1,24 @@
+# The cluster kubeui's integration and load tests run against.
+#
+# One control plane is enough: the load generator never actually runs a
+# container. It attaches pods to a node object that has no kubelet behind it, so
+# ten thousand pods cost the API server and etcd exactly what ten thousand pods
+# cost in production, and cost the laptop nothing.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: kubeui-test
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          extraArgs:
+            # The load tests page through large collections; the defaults are
+            # tuned for a single small cluster and throttle the seeder.
+            max-requests-inflight: "800"
+            max-mutating-requests-inflight: "400"
+        etcd:
+          local:
+            extraArgs:
+              quota-backend-bytes: "4294967296"
