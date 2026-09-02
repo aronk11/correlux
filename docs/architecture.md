@@ -7,10 +7,13 @@ How kubeui is put together today. The *why* lives in [the ADRs](adr/README.md).
 ```
 kubeconfig ──▶ kube/kubeconfig ──▶ kube/client (REST config, clientset, probes)
                                           │
-                                          ├──▶ kube/workloads   one bounded pass over a scope
-                                          │            │
+                                          ├──▶ kube/workloads   two bounded passes over a scope
+                                          │            │         (objects; evidence on demand)
                                           │            ▼
                                           │    domain/application   grouping + health (pure)
+                                          │            │
+                                          │            ▼
+                                          │    domain/diagnosis     rules → problem, cause, evidence
                                           │
                                           │  cancellable, generation-tagged
                                           ▼
@@ -43,12 +46,13 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 | `internal/kube/resources` | Lists any resource as a server-rendered table, paged and cancellable. |
 | `internal/kube/workloads` | One bounded, concurrent pass over a scope, converted into a domain snapshot. A kind that cannot be read becomes a gap, not a failure. |
 | `internal/domain/application` | Infers applications from ownership, labels and selectors, and derives their health. Pure; knows nothing about client-go ([ADR 16](adr/0016-application-inference.md)). |
+| `internal/domain/diagnosis` | Thirteen deterministic rules that turn evidence into a problem, a cause, the facts behind it and what to check next. Degrades with the evidence available ([ADR 18](adr/0018-evidence-on-demand.md)). |
 | `internal/ui/async` | `Value[T]`: lifecycle plus generation counter for every remote value. |
 | `internal/ui/layout` | Screen geometry and the resize debouncer. Pure arithmetic. |
 | `internal/ui/theme` | Colours, glyphs, terminal capability detection. |
 | `internal/ui/palette` | Command registry and fuzzy ranking. No UI dependency. |
 | `internal/ui/components` | Reusable widgets: input, selector, header, status bar. |
-| `internal/ui/screens` | Full-window views (application dashboard, application detail, resource table, session); data in, string out. |
+| `internal/ui/screens` | Full-window views (application dashboard, application detail, WHY, resource table, session); data in, string out. |
 | `internal/ui/app` | The Bubble Tea model: keys, overlays, commands, rendering. |
 
 ## Start-up sequence
@@ -109,6 +113,8 @@ Two layers, with different jobs.
   and path construction are covered without a cluster.
 - `domain/application` is tested by writing down objects and the grouping they
   must produce: every inference rule is one table-free test.
+- `domain/diagnosis` has a test per rule, including what each one does *without*
+  evidence: a rule that cannot support a cause must say less, not guess.
 - `kube/workloads` uses the fake clientset, including the denied-kind and
   page-budget paths.
 - `ui/app` is tested by driving the model with synthetic key and message events
@@ -124,6 +130,8 @@ tag, against a seeded kind cluster):
 - Applications inferred from the seeded cluster own their real pods and
   services, no ReplicaSet is presented as a workload, and health agrees with the
   replica counts the cluster reports.
+- The rules are run against the states a kubelet really writes, and every
+  unhealthy application must produce a finding with evidence behind it.
 - A deliberately broken aggregated API degrades discovery to a partial result
   instead of an empty screen.
 - The application is driven end to end against the live cluster: commands are
