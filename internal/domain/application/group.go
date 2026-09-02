@@ -64,10 +64,10 @@ func Group(s Snapshot) []Application {
 		}
 	}
 
-	for _, p := range s.Pods {
-		root := ix.root(p.Meta)
+	for i := range s.Pods {
+		root := ix.root(s.Pods[i].Meta)
 		if g := group(root.Namespace, appName(root)); g != nil {
-			g.Pods = append(g.Pods, p)
+			g.Pods = append(g.Pods, s.Pods[i])
 		}
 	}
 
@@ -130,8 +130,8 @@ func (a *Application) metas() []Meta {
 	for _, w := range a.Workloads {
 		out = append(out, w.Meta)
 	}
-	for _, p := range a.Pods {
-		out = append(out, p.Meta)
+	for i := range a.Pods {
+		out = append(out, a.Pods[i].Meta)
 	}
 	for _, s := range a.Services {
 		out = append(out, s.Meta)
@@ -160,8 +160,8 @@ func attachService(groups map[string]*Application, svc Service) *Application {
 			continue
 		}
 		count := 0
-		for _, p := range g.Pods {
-			if selects(svc.Selector, p.Labels) {
+		for i := range g.Pods {
+			if selects(svc.Selector, g.Pods[i].Labels) {
 				count++
 			}
 		}

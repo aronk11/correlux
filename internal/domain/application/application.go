@@ -13,7 +13,10 @@
 // down the objects and the expected grouping.
 package application
 
-import "time"
+import (
+	"sort"
+	"time"
+)
 
 // OwnerRef is the part of an owner reference that grouping needs.
 type OwnerRef struct {
@@ -80,11 +83,52 @@ type Pod struct {
 	Reason   string
 	Restarts int32
 	Node     string
+	// Containers carry the detail a diagnosis reasons about: which container,
+	// which exit code, what the kubelet said about it.
+	Containers []Container
+	// Scheduled is false while no node has accepted the pod; the reason and
+	// message then carry the scheduler's own verdict.
+	Scheduled        bool
+	ScheduledReason  string
+	ScheduledMessage string
+	// Claims are the PersistentVolumeClaims the pod mounts, in the order the
+	// spec lists them.
+	Claims []string
+}
+
+// Container is one container's state inside a pod.
+//
+// Both the current and the previous state are kept: a container in
+// CrashLoopBackOff is *waiting* right now, and the only thing that explains why
+// is how its last run ended.
+type Container struct {
+	Name  string
+	Image string
+	Ready bool
+	// Init marks an init container, which blocks everything after it.
+	Init     bool
+	Restarts int32
+	// State is "running", "waiting" or "terminated".
+	State   string
+	Reason  string
+	Message string
+	// ExitCode is meaningful only for a terminated container.
+	ExitCode int32
+	// LastReason and LastExitCode describe the previous run of a container that
+	// has restarted.
+	LastReason   string
+	LastExitCode int32
+	// OOMKilled is true when this container, or its previous run, was killed
+	// for exceeding its memory limit.
+	OOMKilled bool
 }
 
 // Terminal reports whether the pod has finished and is not expected to run
 // again, which is the normal end state for a Job's pods.
-func (p Pod) Terminal() bool { return p.Phase == "Succeeded" }
+//
+// The receiver is a pointer only because a Pod is several hundred bytes and
+// this is called once per pod per render.
+func (p *Pod) Terminal() bool { return p.Phase == "Succeeded" }
 
 // Service is one service and the pods it selects.
 type Service struct {
@@ -100,6 +144,121 @@ type Ingress struct {
 	Meta
 	Hosts    []string
 	Backends []string
+}
+
+// Event is one Kubernetes event, reduced to what an explanation needs.
+//
+// Events are the cluster's own account of what happened, and kubeui shows them
+// as such: quoted, attributed and never rewritten into something the cluster
+// did not say (SPEC 13).
+type Event struct {
+	Meta
+	// Type is "Normal" or "Warning".
+	Type    string
+	Reason  string
+	Message string
+	Count   int32
+	// About identifies the object the event is about.
+	About ObjectRef
+	// LastSeen is when the event last occurred.
+	LastSeen time.Time
+}
+
+// ObjectRef points at an object an event or a diagnosis is about.
+type ObjectRef struct {
+	Kind string
+	Name string
+	UID  string
+}
+
+// EndpointSet is how many addresses one service currently routes to. Zero ready
+// endpoints is the most common reason a healthy-looking application serves
+// nothing at all.
+type EndpointSet struct {
+	Service   string
+	Namespace string
+	Ready     int
+	NotReady  int
+}
+
+// Node is the state of one node an application's pods run on.
+type Node struct {
+	Meta
+	Ready         bool
+	Unschedulable bool
+	// Pressure names the pressure conditions that are currently true
+	// (MemoryPressure, DiskPressure, PIDPressure).
+	Pressure []string
+	// Reason and Message come from the Ready condition when it is not true.
+	Reason  string
+	Message string
+}
+
+// Claim is a PersistentVolumeClaim's binding state.
+type Claim struct {
+	Meta
+	// Phase is Pending, Bound or Lost.
+	Phase        string
+	StorageClass string
+	Volume       string
+}
+
+// Context is the extra evidence a diagnosis needs.
+//
+// It is deliberately separate from Snapshot: the dashboard refreshes on a timer
+// and must stay cheap, while events, endpoints, nodes and claims are fetched
+// for one application at the moment someone asks why it is broken (ADR 6).
+type Context struct {
+	// Scope is the namespace the context covers.
+	Scope     string
+	Events    []Event
+	Endpoints []EndpointSet
+	Nodes     []Node
+	Claims    []Claim
+	Gaps      []Gap
+	FetchedAt time.Time
+}
+
+// Node returns the node with the given name.
+func (c Context) Node(name string) (Node, bool) {
+	for _, n := range c.Nodes {
+		if n.Name == name {
+			return n, true
+		}
+	}
+	return Node{}, false
+}
+
+// EndpointsFor returns the endpoint counts of one service.
+func (c Context) EndpointsFor(namespace, service string) (EndpointSet, bool) {
+	for _, e := range c.Endpoints {
+		if e.Namespace == namespace && e.Service == service {
+			return e, true
+		}
+	}
+	return EndpointSet{}, false
+}
+
+// ClaimByName returns one PersistentVolumeClaim.
+func (c Context) ClaimByName(namespace, name string) (Claim, bool) {
+	for _, claim := range c.Claims {
+		if claim.Namespace == namespace && claim.Name == name {
+			return claim, true
+		}
+	}
+	return Claim{}, false
+}
+
+// EventsAbout returns the events about one object, newest first.
+func (c Context) EventsAbout(uid, name string) []Event {
+	var out []Event
+	for _, e := range c.Events {
+		if (uid != "" && e.About.UID == uid) || (e.About.UID == "" && e.About.Name == name) {
+			out = append(out, e)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].LastSeen.After(out[j].LastSeen) })
+	return out
 }
 
 // Gap records something the snapshot could not read: a kind the user may not

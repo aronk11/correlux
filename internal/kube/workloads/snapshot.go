@@ -18,7 +18,6 @@ package workloads
 import (
 	"context"
 	"strconv"
-	"sync"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -70,214 +69,151 @@ func (o Options) maxPages() int {
 // would be a lie.
 func Collect(ctx context.Context, cs kubernetes.Interface, opts Options) (application.Snapshot, error) {
 	snap := application.Snapshot{Scope: opts.Namespace, FetchedAt: time.Now()}
+	var g group
 
-	var (
-		mu        sync.Mutex
-		wg        sync.WaitGroup
-		firstErr  error
-		attempted int
-	)
-
-	// collect runs one kind's listing. Recording the result under the mutex
-	// keeps the snapshot free of races without serialising the requests.
-	collect := func(kind string, list func(context.Context) (bool, error)) {
-		attempted++
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			truncated, err := list(ctx)
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil {
-				snap.Gaps = append(snap.Gaps, application.Gap{Kind: kind, Reason: gapReason(err)})
-				if firstErr == nil {
-					firstErr = err
-				}
-				return
-			}
-			if truncated {
-				snap.Truncated = true
-			}
-		}()
-	}
-
-	add := func(f func()) { mu.Lock(); defer mu.Unlock(); f() }
-
-	collect("Deployment", func(ctx context.Context) (bool, error) {
-		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, int, error) {
+	g.run("Deployment", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			l, err := cs.AppsV1().Deployments(opts.Namespace).List(ctx, o)
 			if err != nil {
-				return "", 0, err
+				return "", err
 			}
-			add(func() {
+			g.collect(func() {
 				for i := range l.Items {
 					snap.Workloads = append(snap.Workloads, fromDeployment(&l.Items[i]))
 				}
 			})
-			return l.Continue, len(l.Items), nil
+			return l.Continue, nil
 		})
 	})
 
-	collect("StatefulSet", func(ctx context.Context) (bool, error) {
-		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, int, error) {
+	g.run("StatefulSet", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			l, err := cs.AppsV1().StatefulSets(opts.Namespace).List(ctx, o)
 			if err != nil {
-				return "", 0, err
+				return "", err
 			}
-			add(func() {
+			g.collect(func() {
 				for i := range l.Items {
 					snap.Workloads = append(snap.Workloads, fromStatefulSet(&l.Items[i]))
 				}
 			})
-			return l.Continue, len(l.Items), nil
+			return l.Continue, nil
 		})
 	})
 
-	collect("DaemonSet", func(ctx context.Context) (bool, error) {
-		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, int, error) {
+	g.run("DaemonSet", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			l, err := cs.AppsV1().DaemonSets(opts.Namespace).List(ctx, o)
 			if err != nil {
-				return "", 0, err
+				return "", err
 			}
-			add(func() {
+			g.collect(func() {
 				for i := range l.Items {
 					snap.Workloads = append(snap.Workloads, fromDaemonSet(&l.Items[i]))
 				}
 			})
-			return l.Continue, len(l.Items), nil
+			return l.Continue, nil
 		})
 	})
 
-	collect("CronJob", func(ctx context.Context) (bool, error) {
-		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, int, error) {
+	g.run("CronJob", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			l, err := cs.BatchV1().CronJobs(opts.Namespace).List(ctx, o)
 			if err != nil {
-				return "", 0, err
+				return "", err
 			}
-			add(func() {
+			g.collect(func() {
 				for i := range l.Items {
 					snap.Workloads = append(snap.Workloads, fromCronJob(&l.Items[i]))
 				}
 			})
-			return l.Continue, len(l.Items), nil
+			return l.Continue, nil
 		})
 	})
 
-	collect("Job", func(ctx context.Context) (bool, error) {
-		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, int, error) {
+	g.run("Job", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			l, err := cs.BatchV1().Jobs(opts.Namespace).List(ctx, o)
 			if err != nil {
-				return "", 0, err
+				return "", err
 			}
-			add(func() {
+			g.collect(func() {
 				for i := range l.Items {
 					snap.Workloads = append(snap.Workloads, fromJob(&l.Items[i]))
 				}
 			})
-			return l.Continue, len(l.Items), nil
+			return l.Continue, nil
 		})
 	})
 
 	// ReplicaSets are never shown as workloads: they exist here only so a pod
 	// can be walked up to the Deployment that owns it.
-	collect("ReplicaSet", func(ctx context.Context) (bool, error) {
-		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, int, error) {
+	g.run("ReplicaSet", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			l, err := cs.AppsV1().ReplicaSets(opts.Namespace).List(ctx, o)
 			if err != nil {
-				return "", 0, err
+				return "", err
 			}
-			add(func() {
+			g.collect(func() {
 				for i := range l.Items {
 					snap.Owners = append(snap.Owners, meta("ReplicaSet", l.Items[i].ObjectMeta))
 				}
 			})
-			return l.Continue, len(l.Items), nil
+			return l.Continue, nil
 		})
 	})
 
-	collect("Pod", func(ctx context.Context) (bool, error) {
-		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, int, error) {
+	g.run("Pod", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			l, err := cs.CoreV1().Pods(opts.Namespace).List(ctx, o)
 			if err != nil {
-				return "", 0, err
+				return "", err
 			}
-			add(func() {
+			g.collect(func() {
 				for i := range l.Items {
 					snap.Pods = append(snap.Pods, fromPod(&l.Items[i]))
 				}
 			})
-			return l.Continue, len(l.Items), nil
+			return l.Continue, nil
 		})
 	})
 
-	collect("Service", func(ctx context.Context) (bool, error) {
-		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, int, error) {
+	g.run("Service", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			l, err := cs.CoreV1().Services(opts.Namespace).List(ctx, o)
 			if err != nil {
-				return "", 0, err
+				return "", err
 			}
-			add(func() {
+			g.collect(func() {
 				for i := range l.Items {
 					snap.Services = append(snap.Services, fromService(&l.Items[i]))
 				}
 			})
-			return l.Continue, len(l.Items), nil
+			return l.Continue, nil
 		})
 	})
 
-	collect("Ingress", func(ctx context.Context) (bool, error) {
-		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, int, error) {
+	g.run("Ingress", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			l, err := cs.NetworkingV1().Ingresses(opts.Namespace).List(ctx, o)
 			if err != nil {
-				return "", 0, err
+				return "", err
 			}
-			add(func() {
+			g.collect(func() {
 				for i := range l.Items {
 					snap.Ingresses = append(snap.Ingresses, fromIngress(&l.Items[i]))
 				}
 			})
-			return l.Continue, len(l.Items), nil
+			return l.Continue, nil
 		})
 	})
 
-	wg.Wait()
-
-	if len(snap.Gaps) == attempted && firstErr != nil {
-		// Nothing at all was readable. That is a broken connection, not a
-		// cluster without applications.
-		return application.Snapshot{}, firstErr
+	gaps, truncated, err := g.wait()
+	if err != nil {
+		return application.Snapshot{}, err
 	}
-	sortGaps(snap.Gaps)
+	snap.Gaps, snap.Truncated = gaps, truncated
 	return snap, nil
-}
-
-// page walks a resource's pages until the server runs out of them or the budget
-// does, and reports whether anything was left behind.
-func page(
-	ctx context.Context,
-	opts Options,
-	fetch func(context.Context, metav1.ListOptions) (string, int, error),
-) (bool, error) {
-	list := metav1.ListOptions{Limit: opts.pageSize()}
-	for i := 0; i < opts.maxPages(); i++ {
-		next, _, err := fetch(ctx, list)
-		if err != nil {
-			return false, err
-		}
-		if next == "" {
-			return false, nil
-		}
-		list.Continue = next
-	}
-	return true, nil
-}
-
-func sortGaps(gaps []application.Gap) {
-	for i := 1; i < len(gaps); i++ {
-		for j := i; j > 0 && gaps[j].Kind < gaps[j-1].Kind; j-- {
-			gaps[j], gaps[j-1] = gaps[j-1], gaps[j]
-		}
-	}
 }
 
 func meta(kind string, m metav1.ObjectMeta) application.Meta {

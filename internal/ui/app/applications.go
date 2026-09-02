@@ -309,7 +309,8 @@ func (m *Model) applicationData() screens.ApplicationData {
 		Columns: []string{"Name", "Phase", "Ready", "Restarts", "Node", "State"},
 		Empty:   "no pods",
 	}
-	for _, p := range a.Pods {
+	for i := range a.Pods {
+		p := &a.Pods[i]
 		row := screens.DetailRow{Cells: []string{
 			p.Name, p.Phase, readyLabel(p.Ready), itoa(int(p.Restarts)), orNone(p.Node), orNone(p.Reason),
 		}}
