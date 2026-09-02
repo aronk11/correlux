@@ -243,10 +243,10 @@ func (m *Model) applyTablePage(msg tableLoadedMsg) tea.Cmd {
 // cursor back on the object rather than on the row number.
 func (m *Model) cursorRowKey() string {
 	rows := m.tableRows()
-	if m.tableCursor < 0 || m.tableCursor >= len(rows) {
+	if m.tablePort.Cursor < 0 || m.tablePort.Cursor >= len(rows) {
 		return ""
 	}
-	return rows[m.tableCursor].Namespace + "/" + rows[m.tableCursor].Name
+	return rows[m.tablePort.Cursor].Namespace + "/" + rows[m.tablePort.Cursor].Name
 }
 
 // keepCursorOnRow restores the cursor after a table was replaced. A refresh
@@ -254,27 +254,17 @@ func (m *Model) cursorRowKey() string {
 // the name keeps the selection where the user left it, and a deleted object
 // leaves the cursor at the same place in the list rather than at the top.
 func (m *Model) keepCursorOnRow(previous string) {
-	rows := m.tableRows()
-	if len(rows) == 0 || previous == "" {
-		m.tableCursor, m.tableOffset = 0, 0
-		return
-	}
-	for i := range rows {
-		if rows[i].Namespace+"/"+rows[i].Name == previous {
-			m.tableCursor = i
-			break
+	rows := m.visibleRows()
+	found := -1
+	if previous != "" {
+		for i := range rows {
+			if rows[i].Namespace+"/"+rows[i].Name == previous {
+				found = i
+				break
+			}
 		}
 	}
-	m.tableCursor = clampInt(m.tableCursor, len(rows)-1)
-
-	visible := max(m.screen.Body.Height-1, 1)
-	if m.tableCursor < m.tableOffset {
-		m.tableOffset = m.tableCursor
-	}
-	if m.tableCursor >= m.tableOffset+visible {
-		m.tableOffset = m.tableCursor - visible + 1
-	}
-	m.tableOffset = clampInt(m.tableOffset, max(len(rows)-visible, 0))
+	m.tablePort.KeepCursor(found, len(rows), m.rowsPerScreen())
 }
 
 // handleAutoRefreshTick runs one timed reload and schedules the next.
@@ -393,27 +383,21 @@ func (m *Model) tableRows() []resources.Row {
 // reaches the end of what is loaded.
 func (m *Model) moveTableCursor(delta int) tea.Cmd {
 	rows := m.visibleRows()
-	if len(rows) == 0 {
-		return nil
-	}
-	m.tableCursor = clampInt(m.tableCursor+delta, len(rows)-1)
-
-	visible := max(m.screen.Body.Height-1, 1)
-	if m.tableCursor < m.tableOffset {
-		m.tableOffset = m.tableCursor
-	}
-	if m.tableCursor >= m.tableOffset+visible {
-		m.tableOffset = m.tableCursor - visible + 1
-	}
-	m.tableOffset = clampInt(m.tableOffset, max(len(rows)-visible, 0))
+	m.tablePort.MoveCursor(delta, len(rows), m.rowsPerScreen())
 
 	// Prefetch the next page a screen before the end, so scrolling stays smooth
 	// on a resource with thousands of objects.
-	if m.tableCursor >= len(rows)-visible {
+	if len(rows) > 0 && m.tablePort.Cursor >= len(rows)-m.rowsPerScreen() {
 		return m.loadMoreRows()
 	}
 	return nil
 }
+
+// rowsPerScreen is how many rows fit under a table's column header.
+func (m *Model) rowsPerScreen() int { return max(m.screen.Body.Height-1, 1) }
+
+// bodyHeight is how many lines a view that has no header may draw.
+func (m *Model) bodyHeight() int { return max(m.screen.Body.Height, 1) }
 
 // handleTableKey handles the keys that only exist in the resource browser.
 func (m *Model) handleTableKey(keystroke string) (tea.Cmd, bool) {
@@ -478,7 +462,7 @@ func (m *Model) handleApplicationKey(keystroke string) (tea.Cmd, bool) {
 	case "pgdown", " ":
 		m.scrollDetail(page)
 	case "home", "g":
-		m.detailCursor, m.detailOffset = 0, 0
+		m.detailPort.Cursor, m.detailPort.Offset = 0, 0
 	case "end", "G":
 		m.scrollDetail(m.detailLines())
 	case "enter", "right":
@@ -495,31 +479,17 @@ func (m *Model) handleApplicationKey(keystroke string) (tea.Cmd, bool) {
 // has nowhere left to go.
 func (m *Model) moveDetailCursor(delta int) {
 	data, targets := m.applicationView()
-	lines := data.TargetLines(m.screen.Body.Width)
-	if len(targets) == 0 || !m.onScreen(lines[m.detailCursor], hasLine(lines, m.detailCursor), m.detailOffset) {
-		// Nothing to select, or the selection is not on screen because the
-		// page was scrolled away from it: the arrows move the page.
-		m.scrollDetail(delta)
-		return
-	}
-	next := clampInt(m.detailCursor+delta, len(targets)-1)
-	if next == m.detailCursor {
-		// At either end: keep moving the page so the rows below the last
-		// selectable one — the events — are still reachable.
-		m.scrollDetail(delta)
-		return
-	}
-	m.detailCursor = next
-	m.keepVisible(lines[m.detailCursor], data.LineCount(m.screen.Body.Width), &m.detailOffset)
+	m.detailPort.MoveTarget(delta, data.TargetLines(m.screen.Body.Width), len(targets),
+		data.LineCount(m.screen.Body.Width), m.bodyHeight())
 }
 
 // openSelectedObject opens whatever the detail cursor is on.
 func (m *Model) openSelectedObject() tea.Cmd {
 	_, targets := m.applicationView()
-	if m.detailCursor < 0 || m.detailCursor >= len(targets) {
+	if m.detailPort.Cursor < 0 || m.detailPort.Cursor >= len(targets) {
 		return nil
 	}
-	return m.openObject(targets[m.detailCursor])
+	return m.openObject(targets[m.detailPort.Cursor])
 }
 
 // handleFleetKey moves through the clusters and what is broken in them.
@@ -535,7 +505,7 @@ func (m *Model) handleFleetKey(keystroke string) (tea.Cmd, bool) {
 	case "pgdown", " ":
 		m.scrollFleet(page)
 	case "home", "g":
-		m.fleetCursor, m.fleetOffset = 0, 0
+		m.fleetPort.Cursor, m.fleetPort.Offset = 0, 0
 	case "end", "G":
 		m.scrollFleet(m.fleetData().LineCount(m.screen.Body.Width))
 	case "enter", "right":
@@ -549,29 +519,15 @@ func (m *Model) handleFleetKey(keystroke string) (tea.Cmd, bool) {
 // moveFleetCursor moves the selection, scrolling when it has nowhere to go.
 func (m *Model) moveFleetCursor(delta int) {
 	data := m.fleetData()
-	targets := m.fleetTargets()
-	lines := data.TargetLines(m.screen.Body.Width)
-	if len(targets) == 0 || !m.onScreen(lines[m.fleetCursor], hasLine(lines, m.fleetCursor), m.fleetOffset) {
-		m.scrollFleet(delta)
-		return
-	}
-	next := clampInt(m.fleetCursor+delta, len(targets)-1)
-	if next == m.fleetCursor {
-		m.scrollFleet(delta)
-		return
-	}
-	m.fleetCursor = next
-	m.keepVisible(lines[m.fleetCursor], data.LineCount(m.screen.Body.Width), &m.fleetOffset)
+	m.fleetPort.MoveTarget(delta, data.TargetLines(m.screen.Body.Width), len(m.fleetTargets()),
+		data.LineCount(m.screen.Body.Width), m.bodyHeight())
 }
 
 // scrollFleet moves the viewport and drags the selection along.
 func (m *Model) scrollFleet(delta int) {
 	data := m.fleetData()
-	height := max(m.screen.Body.Height, 1)
-	total := data.LineCount(m.screen.Body.Width)
-	m.fleetOffset = clampInt(m.fleetOffset+delta, max(total-height, 0))
-	m.fleetCursor = m.visibleTarget(data.TargetLines(m.screen.Body.Width), len(m.fleetTargets()),
-		m.fleetCursor, m.fleetOffset)
+	m.fleetPort.ScrollTargets(delta, data.TargetLines(m.screen.Body.Width), len(m.fleetTargets()),
+		data.LineCount(m.screen.Body.Width), m.bodyHeight())
 }
 
 // handleFleetResourceKey moves through one kind across the fleet.
@@ -614,7 +570,7 @@ func (m *Model) handleLogsKey(keystroke string) (tea.Cmd, bool) {
 		m.scrollLogs(page)
 	case "home", "g":
 		m.logFollow = false
-		m.logOffset = 0
+		m.logPort.Offset = 0
 	case "end", "G":
 		m.logFollow = true
 		m.scrollLogs(0)
@@ -639,7 +595,7 @@ func (m *Model) handleObjectKey(keystroke string) (tea.Cmd, bool) {
 	case "pgdown", " ":
 		m.scrollObject(page)
 	case "home", "g":
-		m.objectCursor, m.objectOffset = 0, 0
+		m.objectPort.Cursor, m.objectPort.Offset = 0, 0
 	case "end", "G":
 		m.scrollObject(m.objectLines())
 	case "enter", "right":
@@ -656,28 +612,22 @@ func (m *Model) handleObjectKey(keystroke string) (tea.Cmd, bool) {
 // nothing to select, so it scrolls.
 func (m *Model) moveObjectCursor(delta int) {
 	data, targets := m.objectView()
-	lines := data.TargetLines(m.screen.Body.Width)
-	if m.objectYAML || len(targets) == 0 ||
-		!m.onScreen(lines[m.objectCursor], hasLine(lines, m.objectCursor), m.objectOffset) {
+	if m.objectYAML {
+		// The document has nothing to select; the keys scroll it.
 		m.scrollObject(delta)
 		return
 	}
-	next := clampInt(m.objectCursor+delta, len(targets)-1)
-	if next == m.objectCursor {
-		m.scrollObject(delta)
-		return
-	}
-	m.objectCursor = next
-	m.keepVisible(lines[m.objectCursor], data.LineCount(m.screen.Body.Width), &m.objectOffset)
+	m.objectPort.MoveTarget(delta, data.TargetLines(m.screen.Body.Width), len(targets),
+		data.LineCount(m.screen.Body.Width), m.bodyHeight())
 }
 
 // openSelectedRelation follows the owner or child under the cursor.
 func (m *Model) openSelectedRelation() tea.Cmd {
 	_, targets := m.objectView()
-	if m.objectCursor < 0 || m.objectCursor >= len(targets) {
+	if m.objectPort.Cursor < 0 || m.objectPort.Cursor >= len(targets) {
 		return nil
 	}
-	return m.openObject(targets[m.objectCursor])
+	return m.openObject(targets[m.objectPort.Cursor])
 }
 
 func (m *Model) objectLines() int {
@@ -687,26 +637,8 @@ func (m *Model) objectLines() int {
 // scrollObject moves the object viewport, dragging the selection along.
 func (m *Model) scrollObject(delta int) {
 	data, targets := m.objectView()
-	height := max(m.screen.Body.Height, 1)
-	total := data.LineCount(m.screen.Body.Width)
-	m.objectOffset = clampInt(m.objectOffset+delta, max(total-height, 0))
-	m.objectCursor = m.visibleTarget(data.TargetLines(m.screen.Body.Width), len(targets),
-		m.objectCursor, m.objectOffset)
-}
-
-// keepVisible scrolls a viewport just far enough to show a line.
-func (m *Model) keepVisible(line, total int, offset *int) {
-	if line < 0 {
-		return
-	}
-	height := max(m.screen.Body.Height, 1)
-	if line < *offset {
-		*offset = line
-	}
-	if line >= *offset+height {
-		*offset = line - height + 1
-	}
-	*offset = clampInt(*offset, max(total-height, 0))
+	m.objectPort.ScrollTargets(delta, data.TargetLines(m.screen.Body.Width), len(targets),
+		data.LineCount(m.screen.Body.Width), m.bodyHeight())
 }
 
 // handleWhyKey scrolls the explanation. Nothing here needs to fetch anything:
@@ -723,13 +655,13 @@ func (m *Model) handleWhyKey(keystroke string) bool {
 	case "pgdown", " ":
 		m.scrollWhy(page)
 	case "home", "g":
-		m.whyOffset = 0
+		m.whyPort.Offset = 0
 	case "end", "G":
 		m.scrollWhy(m.whyLines())
 	case "left", "h", "enter":
 		// Enter goes to the objects the explanation is about.
 		m.view = viewApplication
-		m.detailOffset = 0
+		m.detailPort.Offset = 0
 		m.rebuildCommands()
 	default:
 		return false
@@ -751,58 +683,10 @@ func (m *Model) detailLines() int {
 // arrow key is pressed, which reads as "scrolling does not work here".
 func (m *Model) scrollDetail(delta int) {
 	data, targets := m.applicationView()
-	height := max(m.screen.Body.Height, 1)
-	total := data.LineCount(m.screen.Body.Width)
-	m.detailOffset = clampInt(m.detailOffset+delta, max(total-height, 0))
-	m.detailCursor = m.visibleTarget(data.TargetLines(m.screen.Body.Width), len(targets),
-		m.detailCursor, m.detailOffset)
+	m.detailPort.ScrollTargets(delta, data.TargetLines(m.screen.Body.Width), len(targets),
+		data.LineCount(m.screen.Body.Width), m.bodyHeight())
 }
 
-// visibleTarget returns the selection to use once the viewport has moved: the
-// one in hand while it is still on screen, otherwise the nearest one that is.
-// When the page shows no selectable row at all — a screenful of events — the
-// selection stays where it was and the arrows keep scrolling.
-func (m *Model) visibleTarget(lines map[int]int, count, cursor, offset int) int {
-	if count == 0 {
-		return 0
-	}
-	cursor = clampInt(cursor, count-1)
-	if m.onScreen(lines[cursor], hasLine(lines, cursor), offset) {
-		return cursor
-	}
-
-	first, last, found := 0, 0, false
-	for i := 0; i < count; i++ {
-		if !m.onScreen(lines[i], hasLine(lines, i), offset) {
-			continue
-		}
-		if !found {
-			first, found = i, true
-		}
-		last = i
-	}
-	if !found {
-		return cursor
-	}
-	if line, ok := lines[cursor]; ok && line < offset {
-		return first
-	}
-	return last
-}
-
-// onScreen reports whether a line is inside the viewport.
-func (m *Model) onScreen(line int, known bool, offset int) bool {
-	height := max(m.screen.Body.Height, 1)
-	return known && line >= offset && line < offset+height
-}
-
-func hasLine(lines map[int]int, target int) bool {
-	_, ok := lines[target]
-	return ok
-}
-
-// clampInt keeps v inside [0, hi]: every position kubeui tracks is an index
-// into a list, and those start at zero.
 func clampInt(v, hi int) int {
 	if v < 0 {
 		return 0
@@ -1015,20 +899,10 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 // user picked must not change because they looked further down the list.
 func (m *Model) scrollTable(delta int) tea.Cmd {
 	rows := m.visibleRows()
-	if len(rows) == 0 {
-		return nil
-	}
-	visible := max(m.screen.Body.Height-1, 1)
-	m.tableOffset = clampInt(m.tableOffset+delta, max(len(rows)-visible, 0))
-	m.tableCursor = clampInt(m.tableCursor, len(rows)-1)
-	if m.tableCursor < m.tableOffset {
-		m.tableCursor = m.tableOffset
-	}
-	if m.tableCursor >= m.tableOffset+visible {
-		m.tableCursor = m.tableOffset + visible - 1
-	}
+	m.tablePort.ScrollRows(delta, len(rows), m.rowsPerScreen())
+
 	// Scrolling towards the end pulls the next page in, exactly as the keys do.
-	if m.tableOffset+visible >= len(rows) {
+	if len(rows) > 0 && m.tablePort.Offset+m.rowsPerScreen() >= len(rows) {
 		return m.loadMoreRows()
 	}
 	return nil
@@ -1036,19 +910,7 @@ func (m *Model) scrollTable(delta int) tea.Cmd {
 
 // scrollApplications moves the dashboard viewport.
 func (m *Model) scrollApplications(delta int) {
-	apps := m.applications()
-	if len(apps) == 0 {
-		return
-	}
-	visible := m.applicationsVisible()
-	m.appOffset = clampInt(m.appOffset+delta, max(len(apps)-visible, 0))
-	m.appCursor = clampInt(m.appCursor, len(apps)-1)
-	if m.appCursor < m.appOffset {
-		m.appCursor = m.appOffset
-	}
-	if m.appCursor >= m.appOffset+visible {
-		m.appCursor = m.appOffset + visible - 1
-	}
+	m.appPort.ScrollRows(delta, len(m.visibleApplications()), m.rowsPerScreen())
 }
 
 func (m *Model) handleClick(msg tea.MouseClickMsg) tea.Cmd {

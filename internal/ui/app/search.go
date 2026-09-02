@@ -84,10 +84,10 @@ func (m *Model) handleSearchKey(keystroke, text string) bool {
 // resetCursors puts every filtered list back at the top: the row that was under
 // the cursor is usually not in the result.
 func (m *Model) resetCursors() {
-	m.tableCursor, m.tableOffset = 0, 0
-	m.appCursor, m.appOffset = 0, 0
-	m.fleetTableCursor, m.fleetTableOffset = 0, 0
-	m.fleetCursor, m.fleetOffset = 0, 0
+	m.tablePort.Cursor, m.tablePort.Offset = 0, 0
+	m.appPort.Cursor, m.appPort.Offset = 0, 0
+	m.fleetTablePort.Cursor, m.fleetTablePort.Offset = 0, 0
+	m.fleetPort.Cursor, m.fleetPort.Offset = 0, 0
 }
 
 // matches returns the indices of the rows a query keeps, in their original
