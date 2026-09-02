@@ -39,20 +39,20 @@ func nodeUnhealthy(in *Input) []Diagnosis {
 		switch {
 		case !node.Ready:
 			severity = Critical
-			problem = podsPhrase(len(pods)) + " run on node " + name + ", which is not ready"
+			problem = podsPhrase(len(pods)) + agree(len(pods), " runs", " run") + " on node " + name + ", which is not ready"
 			cause = "the node stopped reporting as ready"
 			if node.Message != "" {
 				cause = node.Message
 			}
 		case len(node.Pressure) > 0:
-			problem = podsPhrase(len(pods)) + " run on node " + name + ", which is under " +
-				strings.Join(node.Pressure, " and ")
+			problem = podsPhrase(len(pods)) + agree(len(pods), " runs", " run") + " on node " + name +
+				", which is under " + strings.Join(node.Pressure, " and ")
 			cause = "the node is short of a resource and may evict pods to recover it"
 		default:
 			// Cordoned: nothing is wrong yet, but no replacement pod will land
 			// here, which is worth knowing during a rollout.
 			severity = Info
-			problem = podsPhrase(len(pods)) + " run on node " + name + ", which is cordoned"
+			problem = podsPhrase(len(pods)) + agree(len(pods), " runs", " run") + " on node " + name + ", which is cordoned"
 			cause = "the node is marked unschedulable, so replacements will be placed elsewhere"
 		}
 

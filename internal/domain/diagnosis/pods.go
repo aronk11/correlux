@@ -50,7 +50,7 @@ func crashLoop(in *Input) []Diagnosis {
 		Rule:       "pod.crashloop",
 		Severity:   Critical,
 		Subject:    podRef(first.pod),
-		Problem:    podsPhrase(countPods(hits)) + " restart in a loop",
+		Problem:    podsPhrase(countPods(hits)) + agree(countPods(hits), " restarts", " restart") + " in a loop",
 		Cause:      cause,
 		Confidence: confidence,
 		Chain:      chain(in.App, "Pods", "CrashLoopBackOff", crashChainTail(hits)),
@@ -145,7 +145,7 @@ func imagePull(in *Input) []Diagnosis {
 		Rule:       "pod.imagepull",
 		Severity:   Critical,
 		Subject:    podRef(first.pod),
-		Problem:    podsPhrase(countPods(hits)) + " cannot pull their image",
+		Problem:    podsPhrase(countPods(hits)) + " cannot pull " + agree(countPods(hits), "its", "their") + " image",
 		Cause:      cause,
 		Confidence: confidence,
 		Chain:      chain(in.App, "Pods", first.container.Reason),
@@ -214,7 +214,7 @@ func containerConfig(in *Input) []Diagnosis {
 		Rule:       "pod.configerror",
 		Severity:   Critical,
 		Subject:    podRef(first.pod),
-		Problem:    podsPhrase(countPods(hits)) + " cannot start their container",
+		Problem:    podsPhrase(countPods(hits)) + " cannot start " + agree(countPods(hits), "its", "their") + " container",
 		Cause:      cause,
 		Confidence: confidence,
 		Chain:      chain(in.App, "Pods", first.container.Reason),
@@ -246,10 +246,11 @@ func outOfMemory(in *Input) []Diagnosis {
 
 	first := hits[0]
 	d := Diagnosis{
-		Rule:       "pod.oomkilled",
-		Severity:   Warning,
-		Subject:    podRef(first.pod),
-		Problem:    podsPhrase(countPods(hits)) + " have been killed for exceeding their memory limit",
+		Rule:     "pod.oomkilled",
+		Severity: Warning,
+		Subject:  podRef(first.pod),
+		Problem: podsPhrase(countPods(hits)) + agree(countPods(hits), " has", " have") +
+			" been killed for exceeding " + agree(countPods(hits), "its", "their") + " memory limit",
 		Cause:      "the container's memory use reached its limit and the kernel killed it",
 		Confidence: High,
 		Chain:      chain(in.App, "Pods", "OOMKilled"),
@@ -350,10 +351,11 @@ func podFailed(in *Input) []Diagnosis {
 		}
 	}
 	d := Diagnosis{
-		Rule:       "pod.failed",
-		Severity:   Critical,
-		Subject:    podRef(pods[0]),
-		Problem:    podsPhrase(len(pods)) + " have failed and are not running",
+		Rule:     "pod.failed",
+		Severity: Critical,
+		Subject:  podRef(pods[0]),
+		Problem: podsPhrase(len(pods)) + agree(len(pods), " has", " have") + " failed and " +
+			agree(len(pods), "is", "are") + " not running",
 		Cause:      cause,
 		Confidence: confidence,
 		Chain:      chain(in.App, "Pods", "Failed"),
@@ -392,10 +394,11 @@ func notReady(in *Input) []Diagnosis {
 		}
 	}
 	d := Diagnosis{
-		Rule:       "pod.notready",
-		Severity:   Warning,
-		Subject:    podRef(pods[0]),
-		Problem:    podsPhrase(len(pods)) + " are running but not ready, so nothing routes to them",
+		Rule:     "pod.notready",
+		Severity: Warning,
+		Subject:  podRef(pods[0]),
+		Problem: podsPhrase(len(pods)) + agree(len(pods), " is", " are") +
+			" running but not ready, so nothing routes to " + agree(len(pods), "it", "them"),
 		Cause:      cause,
 		Confidence: confidence,
 		Chain:      chain(in.App, "Pods", "not ready"),
