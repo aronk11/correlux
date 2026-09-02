@@ -354,22 +354,31 @@ func setPodStatusOnce(ctx context.Context, c *clients, namespace, name, app stri
 	ready := true
 	restarts := int32(0)
 
+	var lastState corev1.ContainerState
+
 	switch state {
 	case degraded:
+		containerState = corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{
+			Reason:  "ImagePullBackOff",
+			Message: "Back-off pulling image",
+		}}
+		ready = false
+		restarts = 3
+	case down:
+		// A pod being OOM-killed in a loop stays in phase Running with a
+		// container waiting to restart; that is both what a real cluster looks
+		// like and what keeps the ReplicaSet controller from treating the pod
+		// as gone and creating a replacement the scheduler can never place.
 		containerState = corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{
 			Reason:  "CrashLoopBackOff",
 			Message: "back-off 5m0s restarting failed container",
 		}}
-		ready = false
-		restarts = 7
-	case down:
-		containerState = corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{
+		lastState = corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{
 			Reason:     "OOMKilled",
 			ExitCode:   137,
 			StartedAt:  now,
 			FinishedAt: now,
 		}}
-		phase = corev1.PodFailed
 		ready = false
 		restarts = 12
 	}
@@ -385,11 +394,12 @@ func setPodStatusOnce(ctx context.Context, c *clients, namespace, name, app stri
 			{Type: corev1.ContainersReady, Status: conditionStatus(ready), LastTransitionTime: now},
 		},
 		ContainerStatuses: []corev1.ContainerStatus{{
-			Name:         app,
-			Image:        "registry.k8s.io/pause:3.10",
-			Ready:        ready,
-			RestartCount: restarts,
-			State:        containerState,
+			Name:                 app,
+			Image:                "registry.k8s.io/pause:3.10",
+			Ready:                ready,
+			RestartCount:         restarts,
+			State:                containerState,
+			LastTerminationState: lastState,
 		}},
 	}
 	_, err = c.core.CoreV1().Pods(namespace).UpdateStatus(ctx, pod, metav1.UpdateOptions{})

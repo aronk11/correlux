@@ -127,7 +127,11 @@ func TestUnhealthyPodsAreVisibleInTheTable(t *testing.T) {
 	drain(t, m, m.OpenResourceForTest("pods"))
 
 	out := frame(m)
-	if !strings.Contains(out, "CrashLoopBackOff") && !strings.Contains(out, "OOMKilled") && !strings.Contains(out, "Error") {
-		t.Errorf("the seeded breakage must be visible:\n%s", out)
+	broken := []string{"CrashLoopBackOff", "ImagePullBackOff", "OOMKilled", "Error"}
+	for _, state := range broken {
+		if strings.Contains(out, state) {
+			return
+		}
 	}
+	t.Errorf("the seeded breakage must be visible, expected one of %v:\n%s", broken, out)
 }

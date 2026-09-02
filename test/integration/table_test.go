@@ -215,7 +215,7 @@ func TestSeededHealthMixIsVisible(t *testing.T) {
 	for _, row := range table.Rows {
 		for _, cell := range row.Cells {
 			switch cell {
-			case "Running", "CrashLoopBackOff", "OOMKilled", "Error":
+			case "Running", "CrashLoopBackOff", "ImagePullBackOff", "OOMKilled", "Error":
 				states[cell]++
 			}
 		}
@@ -223,7 +223,7 @@ func TestSeededHealthMixIsVisible(t *testing.T) {
 	if states["Running"] == 0 {
 		t.Error("the seeded cluster must contain healthy pods")
 	}
-	if states["CrashLoopBackOff"]+states["OOMKilled"]+states["Error"] == 0 {
+	if states["CrashLoopBackOff"]+states["ImagePullBackOff"]+states["OOMKilled"]+states["Error"] == 0 {
 		t.Errorf("the seeded cluster must contain unhealthy pods, saw %v", states)
 	}
 	t.Logf("seeded pod states: %v", states)
