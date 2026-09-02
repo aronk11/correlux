@@ -217,3 +217,37 @@ func TestSwitchingScopeClosesTheInspector(t *testing.T) {
 			m.view, m.objectTarget)
 	}
 }
+
+func TestTheObjectViewDescribesWhatTheDocumentSays(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	openDetail(t, m)
+	press(t, m, "enter")
+
+	obj := podObject("payments-7d8f-0", "payments-7d8f")
+	obj.Raw = []byte(`{
+	  "kind": "Pod",
+	  "spec": {"nodeName": "node-1", "containers": [
+	    {"name": "payments", "image": "registry/payments:1.4",
+	     "resources": {"limits": {"memory": "256Mi"}}}]},
+	  "status": {"phase": "Running", "qosClass": "Burstable",
+	    "containerStatuses": [{"name": "payments", "ready": false, "restartCount": 12,
+	      "state": {"waiting": {"reason": "CrashLoopBackOff"}}}],
+	    "conditions": [{"type": "Ready", "status": "False", "reason": "ContainersNotReady"}]}
+	}`)
+	loadObjectInto(m, obj)
+
+	out := plainView(m)
+	for _, want := range []string{
+		"CONTAINERS",            // the section that answers "what is running"
+		"registry/payments:1.4", // and with what
+		"waiting: CrashLoopBackOff",
+		"memory=256Mi", // the limit that explains an OOM kill
+		"CONDITIONS",
+		"ContainersNotReady",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the description must contain %q:\n%s", want, out)
+		}
+	}
+}
