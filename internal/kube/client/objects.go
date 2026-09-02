@@ -37,3 +37,19 @@ func (f *Factory) Scale(
 	target := resources.Target{GVR: res.GVR, Namespaced: res.Namespaced}
 	return resources.Scale(ctx, cs.Discovery().RESTClient(), target, namespace, name, replicas)
 }
+
+// UpdateObject replaces an object with an edited document.
+func (f *Factory) UpdateObject(
+	ctx context.Context,
+	contextName string,
+	res discovery.Resource,
+	namespace, name string,
+	document []byte,
+) (*resources.Object, error) {
+	cs, err := f.Clientset(contextName)
+	if err != nil {
+		return nil, err
+	}
+	target := resources.Target{GVR: res.GVR, Namespaced: res.Namespaced}
+	return resources.Update(ctx, cs.Discovery().RESTClient(), target, namespace, name, document)
+}

@@ -105,6 +105,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case scaledMsg:
 		return m, m.applyScaled(msg)
 
+	case editFinishedMsg:
+		return m, m.applyEditedBuffer(msg)
+
+	case editedMsg:
+		return m, m.applyEdited(msg)
+
 	case evidenceLoadedMsg:
 		if m.evidence.Accepts(msg.gen) {
 			m.evidenceLoading = false
@@ -679,6 +685,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case ActionScale:
 		return m.scaleTarget()
+	case ActionEdit:
+		if m.view == viewObject {
+			return m.editObject(m.objectTarget)
+		}
+		return nil
 	}
 	return nil
 }

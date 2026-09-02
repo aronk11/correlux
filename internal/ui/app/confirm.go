@@ -5,6 +5,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/aronk11/kubeui/internal/domain/diff"
+
 	"github.com/aronk11/kubeui/internal/ui/components"
 	"github.com/aronk11/kubeui/internal/ui/theme"
 )
@@ -22,6 +24,8 @@ type pendingAction struct {
 	// is the context name, because the mistake this guards against is acting on
 	// the right object in the wrong cluster.
 	Challenge string
+	// Diff shows what a change does to a document, when the change is one.
+	Diff []diff.Line
 	// Danger marks an action worth colouring as such.
 	Danger bool
 	// Run performs the change once the user has agreed to it.
@@ -91,6 +95,13 @@ func (m *Model) renderConfirm(width, height int) string {
 		b.WriteString("\n" + m.theme.Base.Width(width).Render(line))
 	}
 
+	if len(action.Diff) > 0 {
+		b.WriteString("\n")
+		for _, line := range m.diffLines(action.Diff, width, height) {
+			b.WriteString("\n" + line)
+		}
+	}
+
 	b.WriteString("\n\n" + m.theme.Muted.Render("Cluster") + "  " + m.contextBadge())
 
 	if action.Challenge != "" {
@@ -101,6 +112,31 @@ func (m *Model) renderConfirm(width, height int) string {
 
 	b.WriteString("\n\n" + m.theme.Muted.Render("Enter apply   Esc cancel"))
 	return clipTo(b.String(), width, height)
+}
+
+// diffLines renders the change itself, bounded to what the overlay can show.
+// A preview that scrolls off the bottom of a confirmation is a preview nobody
+// read.
+func (m *Model) diffLines(lines []diff.Line, width, height int) []string {
+	budget := max(height-9, 3)
+	out := make([]string, 0, budget+1)
+
+	for _, line := range lines {
+		if len(out) == budget {
+			out = append(out, m.theme.Muted.Render("…"+itoa(len(lines)-budget)+" more lines; press Esc and use "+
+				m.keys.Key(ActionYAML)+" to read the whole document"))
+			break
+		}
+		switch line.Op {
+		case diff.Add:
+			out = append(out, m.theme.Healthy.Render(clipTo("+ "+line.Text, width, 1)))
+		case diff.Remove:
+			out = append(out, m.theme.Critical.Render(clipTo("- "+line.Text, width, 1)))
+		case diff.Keep:
+			out = append(out, m.theme.Muted.Render(clipTo("  "+line.Text, width, 1)))
+		}
+	}
+	return out
 }
 
 // contextBadge renders the cluster a change would hit, marked when it is

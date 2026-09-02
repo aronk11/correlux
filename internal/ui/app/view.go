@@ -258,9 +258,12 @@ func (m *Model) statusData() components.StatusData {
 			{Key: m.keys.Key(ActionYAML), Desc: yamlHint(m.objectYAML), Priority: 87},
 			{Key: "Esc", Desc: "Back", Priority: 85},
 		}
+		object = append(object, components.KeyHint{
+			Key: m.keys.Key(ActionEdit), Desc: "Edit", Priority: 86,
+		})
 		if _, ok := m.scalableTarget(); ok {
 			object = append(object, components.KeyHint{
-				Key: m.keys.Key(ActionScale), Desc: "Scale", Priority: 86,
+				Key: m.keys.Key(ActionScale), Desc: "Scale", Priority: 84,
 			})
 		}
 		hints = append(object, hints...)
@@ -571,6 +574,7 @@ func (m *Model) renderHelp(width, height int) string {
 			{"Enter", "Open the object under the cursor, or follow the relation"},
 			{m.keys.Key(ActionYAML), "Show the document the server holds, and back"},
 			{m.keys.Key(ActionScale), "Scale the selected workload, after confirming the blast radius"},
+			{m.keys.Key(ActionEdit), "Edit the open object in $EDITOR, then review what changed"},
 			{"Esc", "Back the way you came in"},
 		}},
 		{"Cluster", [][2]string{

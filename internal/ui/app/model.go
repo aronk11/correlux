@@ -176,6 +176,11 @@ type Model struct {
 	// promptAccept turns the typed value into the next step, usually a
 	// confirmation.
 	promptAccept func(*Model, string) tea.Cmd
+
+	// The document handed to the user's editor, and what it looked like before
+	// they touched it.
+	editPath     string
+	editOriginal string
 	ctxPicker    *components.Selector
 	nsPicker     *components.Selector
 	resPicker    *components.Selector
