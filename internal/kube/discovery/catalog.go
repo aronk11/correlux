@@ -177,7 +177,12 @@ func IsBuiltinGroup(group string) bool {
 // means by "deployments", and it tolerates partial failure: a group that cannot
 // be reached is recorded in Failures and the rest of the catalog is returned.
 func BuildCatalog(dc discovery.DiscoveryInterface) (*Catalog, error) {
-	lists, err := dc.ServerPreferredResources()
+	// ServerGroupsAndResources rather than ServerPreferredResources, which
+	// filters subresources out before kubeui ever sees them — and a
+	// "deployments/scale" is the only honest answer to "can this be scaled?".
+	// The preferred version is then chosen here, from the groups the same call
+	// returns.
+	groups, lists, err := dc.ServerGroupsAndResources()
 
 	catalog := &Catalog{Failures: map[string]string{}, FetchedAt: time.Now()}
 	if err != nil {
@@ -190,20 +195,8 @@ func BuildCatalog(dc discovery.DiscoveryInterface) (*Catalog, error) {
 		}
 	}
 
-	// Subresources are addressed through their parent, but they say what can be
-	// done to it: a "deployments/scale" is why a Deployment can be scaled.
-	scalable := map[string]bool{}
-	for _, list := range lists {
-		if list == nil {
-			continue
-		}
-		for i := range list.APIResources {
-			name := list.APIResources[i].Name
-			if parent, ok := strings.CutSuffix(name, "/scale"); ok {
-				scalable[list.GroupVersion+"/"+parent] = true
-			}
-		}
-	}
+	preferred := preferredVersions(groups)
+	scalable := scaleSubresources(lists)
 
 	for _, list := range lists {
 		if list == nil {
@@ -216,6 +209,12 @@ func BuildCatalog(dc discovery.DiscoveryInterface) (*Catalog, error) {
 			catalog.Failures[list.GroupVersion] = parseErr.Error()
 			continue
 		}
+		// One version per group: the one the server prefers, which is what a
+		// user means by "deployments".
+		if want, known := preferred[gv.Group]; known && want != gv.Version {
+			continue
+		}
+
 		for i := range list.APIResources {
 			r := toResource(gv, list.APIResources[i])
 			// Subresources ("pods/log") are addressed through their parent.
@@ -235,6 +234,42 @@ func BuildCatalog(dc discovery.DiscoveryInterface) (*Catalog, error) {
 		return a.GVR.Resource < b.GVR.Resource
 	})
 	return catalog, nil
+}
+
+// preferredVersions maps each group to the version the server prefers.
+func preferredVersions(groups []*metav1.APIGroup) map[string]string {
+	out := make(map[string]string, len(groups))
+	for _, g := range groups {
+		if g == nil {
+			continue
+		}
+		version := g.PreferredVersion.Version
+		if version == "" && len(g.Versions) > 0 {
+			version = g.Versions[0].Version
+		}
+		if version != "" {
+			out[g.Name] = version
+		}
+	}
+	return out
+}
+
+// scaleSubresources collects the kinds the server serves a scale subresource
+// for. A CustomResourceDefinition that declares one is in here beside the
+// Deployments, which is the whole point of reading it from the server.
+func scaleSubresources(lists []*metav1.APIResourceList) map[string]bool {
+	out := map[string]bool{}
+	for _, list := range lists {
+		if list == nil {
+			continue
+		}
+		for i := range list.APIResources {
+			if parent, ok := strings.CutSuffix(list.APIResources[i].Name, "/scale"); ok {
+				out[list.GroupVersion+"/"+parent] = true
+			}
+		}
+	}
+	return out
 }
 
 func toResource(gv schema.GroupVersion, api metav1.APIResource) Resource {

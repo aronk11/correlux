@@ -152,9 +152,12 @@ func Update(
 	if name == "" {
 		return nil, errors.New("no object name given")
 	}
-	body, err := yaml.YAMLToJSON(document)
+	// Strict: a duplicate key in an edited document is a mistake, and the
+	// lenient reading silently keeps the last one — which means half of
+	// somebody's edit disappearing without a word.
+	body, err := yaml.YAMLToJSONStrict(document)
 	if err != nil {
-		return nil, fmt.Errorf("this is not valid YAML: %w", err)
+		return nil, fmt.Errorf("this document cannot be applied: %w", err)
 	}
 
 	raw, err := client.Put().
@@ -173,7 +176,7 @@ func Update(
 // edit that renames the object — or changes its kind — can be refused before it
 // is sent somewhere it does not belong.
 func Identity(document []byte) (kind, name, namespace string, err error) {
-	body, err := yaml.YAMLToJSON(document)
+	body, err := yaml.YAMLToJSONStrict(document)
 	if err != nil {
 		return "", "", "", fmt.Errorf("this is not valid YAML: %w", err)
 	}
