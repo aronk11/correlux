@@ -5,6 +5,7 @@ import (
 
 	"github.com/sahilm/fuzzy"
 
+	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
 	"github.com/aronk11/kubeui/internal/ui/async"
 	"github.com/aronk11/kubeui/internal/ui/components"
 	"github.com/aronk11/kubeui/internal/ui/theme"
@@ -177,4 +178,91 @@ func containsString(list []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// filterResources lists the resource kinds the cluster serves. Custom resources
+// are badged so a user can tell at a glance what came from a CRD, and the list
+// is searchable by kind, plural name, short name and API group — the four
+// things people actually remember.
+func (m *Model) filterResources(query string) []components.Item {
+	catalog := m.catalog.Get()
+
+	switch m.catalog.State() {
+	case async.Idle, async.Loading:
+		return []components.Item{{
+			ID:       "__loading",
+			Title:    "Discovering resource kinds…",
+			Disabled: true,
+		}}
+	case async.Failed:
+		if catalog == nil {
+			return []components.Item{{
+				ID:       "__error",
+				Title:    "Could not discover resource kinds",
+				Subtitle: shortError(m.catalog.Err()),
+				Disabled: true,
+			}}
+		}
+	}
+	if catalog == nil || catalog.Len() == 0 {
+		return []components.Item{{
+			ID:       "__empty",
+			Title:    "The server returned no listable resources",
+			Disabled: true,
+		}}
+	}
+
+	items := make([]components.Item, 0, catalog.Len()+1)
+	if catalog.Partial() {
+		items = append(items, components.Item{
+			ID:       "__partial",
+			Title:    itoa(len(catalog.Failures)) + " API group(s) could not be discovered",
+			Subtitle: firstFailure(catalog),
+			Disabled: true,
+		})
+	}
+
+	// Rank by the searchable label so "deploy" finds Deployments and "acme"
+	// finds every kind in that group.
+	labels := make([]string, 0, catalog.Len())
+	for _, r := range catalog.Resources {
+		labels = append(labels, r.Kind()+" "+r.FullName()+" "+strings.Join(r.ShortNames, " "))
+	}
+
+	order := make([]int, 0, len(labels))
+	if strings.TrimSpace(query) == "" {
+		for i := range labels {
+			order = append(order, i)
+		}
+	} else {
+		for _, res := range fuzzy.Find(query, labels) {
+			order = append(order, res.Index)
+		}
+	}
+
+	for _, idx := range order {
+		r := catalog.Resources[idx]
+		item := components.Item{
+			ID:       r.FullName(),
+			Title:    r.Kind(),
+			Subtitle: r.GroupVersion(),
+			Right:    r.Plural(),
+		}
+		if !r.Builtin {
+			item.Badge = "CRD"
+			item.BadgeStatus = theme.StatusWarning
+		}
+		if !r.Namespaced {
+			item.Subtitle += "  cluster-scoped"
+		}
+		items = append(items, item)
+	}
+	return items
+}
+
+func firstFailure(catalog *kubediscovery.Catalog) string {
+	for gv, msg := range catalog.Failures {
+		return gv + ": " + msg
+	}
+	return ""
 }

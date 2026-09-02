@@ -16,6 +16,8 @@ func (m *Model) activeSelector() *components.Selector {
 		return m.ctxPicker
 	case overlayNamespaces:
 		return m.nsPicker
+	case overlayResources:
+		return m.resPicker
 	default:
 		return nil
 	}
@@ -43,6 +45,14 @@ func (m *Model) openOverlay(kind overlayKind) tea.Cmd {
 		// picker is a good moment to try again.
 		if !m.namespaces.HasValue() {
 			return m.loadNamespaces()
+		}
+	case overlayResources:
+		m.resPicker.Reset()
+		if m.view == viewTable {
+			m.resPicker.SelectID(m.resource.FullName())
+		}
+		if !m.catalog.HasValue() {
+			return m.loadCatalog()
 		}
 	}
 	return nil
@@ -100,6 +110,9 @@ func (m *Model) confirmSelection() tea.Cmd {
 	case overlayNamespaces:
 		m.closeOverlay()
 		return m.switchNamespace(item.ID)
+	case overlayResources:
+		m.closeOverlay()
+		return m.openResource(item.ID)
 	}
 	m.closeOverlay()
 	return nil
@@ -118,6 +131,11 @@ func (m *Model) overlayRect() layout.Rect {
 		return layout.Overlay(m.screen, layout.OverlayOptions{
 			WidthRatio: 0.6, HeightRatio: 0.55,
 			MinWidth: 40, MaxWidth: 84, MinHeight: 8, MaxHeight: 20,
+		})
+	case overlayResources:
+		return layout.Overlay(m.screen, layout.OverlayOptions{
+			WidthRatio: 0.6, HeightRatio: 0.65,
+			MinWidth: 44, MaxWidth: 88, MinHeight: 10, MaxHeight: 24,
 		})
 	case overlayHelp:
 		return layout.Overlay(m.screen, layout.OverlayOptions{
