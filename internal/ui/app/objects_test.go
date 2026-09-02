@@ -69,6 +69,63 @@ func TestTheDetailViewSelectsItsObjects(t *testing.T) {
 	}
 }
 
+// managedApplication has a row in every section of the detail view: a Flux
+// object that can be opened, a service and an ingress, so the order the rows
+// are numbered in can be compared with the order they are drawn in.
+func managedApplication() application.Application {
+	a := testApplication("payments", application.Degraded, 2, 3)
+	a.Manager = application.Manager{
+		Tool: "Flux", Kind: "Kustomization", Name: "payments", Namespace: "flux-system",
+	}
+	a.Ingresses = []application.Ingress{{
+		Meta:  application.Meta{Kind: "Ingress", Name: "payments", Namespace: "default"},
+		Hosts: []string{"payments.example.com"},
+	}}
+	return a
+}
+
+// TestTheTargetsAreNumberedInTheOrderTheyAreDrawn is the rule behind ↓: the
+// next target is the next row down the screen. The numbering used to follow the
+// order the sections were built in, so the delivery row — built before the
+// network section and drawn after it — took the cursor past everything in
+// between.
+func TestTheTargetsAreNumberedInTheOrderTheyAreDrawn(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, managedApplication())
+	press(t, m, "enter")
+
+	data, targets := m.applicationView()
+	lines := data.TargetLines(m.screen.Body.Width)
+	if len(lines) != len(targets) {
+		t.Fatalf("%d rows are drawn for %d targets", len(lines), len(targets))
+	}
+	if !opensKind(targets, "Kustomization") {
+		t.Fatal("the delivery row must be navigable, or this proves nothing")
+	}
+
+	previous := -1
+	for i := range targets {
+		line, drawn := lines[i]
+		if !drawn {
+			t.Fatalf("target %d, %s, is numbered but never drawn", i, targets[i].label())
+		}
+		if line <= previous {
+			t.Errorf("target %d, %s, is drawn on line %d, above target %d on line %d",
+				i, targets[i].label(), line, i-1, previous)
+		}
+		previous = line
+	}
+}
+
+func opensKind(targets []objectRef, kind string) bool {
+	for _, ref := range targets {
+		if ref.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
 func TestEnterOpensTheSelectedObject(t *testing.T) {
 	m := newTestModel(t)
 	loadCatalogInto(m, testCatalog())

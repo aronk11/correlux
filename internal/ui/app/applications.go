@@ -257,17 +257,57 @@ func (m *Model) applicationData() screens.ApplicationData {
 	return d
 }
 
+// detailRow is one row of the detail view before its targets are numbered: it
+// names the object the row opens, not an index into a list that does not exist
+// until every section is in place.
+type detailRow struct {
+	Cells  []string
+	Status theme.Status
+	// Ref is what the row opens. An empty ref is a row to read rather than
+	// somewhere to go.
+	Ref objectRef
+}
+
+// detailSection is a section of those rows.
+type detailSection struct {
+	Title   string
+	Columns []string
+	Empty   string
+	Rows    []detailRow
+}
+
+// numberTargets numbers the navigable rows in the order the sections are drawn,
+// and returns the objects those numbers index.
+//
+// The numbering comes from the finished list of sections rather than from the
+// code that fills them, because the two orders are not the same one: a number
+// handed out while a section is being built follows the order the sections
+// happen to be written in, and the cursor then moves down the list in an order
+// nobody can see on screen.
+func numberTargets(sections []detailSection) ([]screens.DetailSection, []objectRef) {
+	rendered := make([]screens.DetailSection, 0, len(sections))
+	var targets []objectRef
+	for _, section := range sections {
+		out := screens.DetailSection{Title: section.Title, Columns: section.Columns, Empty: section.Empty}
+		for _, row := range section.Rows {
+			target := -1
+			if !row.Ref.empty() {
+				targets = append(targets, row.Ref)
+				target = len(targets) - 1
+			}
+			out.Rows = append(out.Rows, screens.DetailRow{Cells: row.Cells, Status: row.Status, Target: target})
+		}
+		rendered = append(rendered, out)
+	}
+	return rendered, targets
+}
+
 // applicationView assembles the detail view and, in the same pass, the list of
 // objects its rows point at. One function for both, because a cursor that
 // indexes a list built somewhere else is a bug waiting for the first time the
 // two disagree.
 func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 	d := screens.ApplicationData{Offset: m.detailPort.Offset, Selected: m.detailPort.Cursor}
-	var targets []objectRef
-	target := func(ref objectRef) int {
-		targets = append(targets, ref)
-		return len(targets) - 1
-	}
 
 	switch m.apps.State() {
 	case async.Idle, async.Loading:
@@ -303,7 +343,7 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 	}
 
 	now := time.Now()
-	workloads := screens.DetailSection{
+	workloads := detailSection{
 		Title:   "Workloads",
 		Columns: []string{"Kind", "Name", "Ready", "Age"},
 		Empty:   "no workload owns these pods",
@@ -313,9 +353,9 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		if w.Replicated {
 			ready = itoa(int(w.Ready)) + "/" + itoa(int(w.Desired))
 		}
-		row := screens.DetailRow{
-			Cells:  []string{w.Kind, w.Name, ready, formatAge(w.CreatedAt, now)},
-			Target: target(objectRef{Kind: w.Kind, Name: w.Name, Namespace: w.Namespace}),
+		row := detailRow{
+			Cells: []string{w.Kind, w.Name, ready, formatAge(w.CreatedAt, now)},
+			Ref:   objectRef{Kind: w.Kind, Name: w.Name, Namespace: w.Namespace},
 		}
 		switch {
 		case w.Replicated && w.Desired > 0 && w.Ready == 0:
@@ -326,18 +366,18 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		workloads.Rows = append(workloads.Rows, row)
 	}
 
-	pods := screens.DetailSection{
+	pods := detailSection{
 		Title:   "Pods",
 		Columns: []string{"Name", "Phase", "Ready", "Restarts", "Node", "State"},
 		Empty:   "no pods",
 	}
 	for i := range a.Pods {
 		p := &a.Pods[i]
-		row := screens.DetailRow{
+		row := detailRow{
 			Cells: []string{
 				p.Name, p.Phase, readyLabel(p.Ready), itoa(int(p.Restarts)), orNone(p.Node), orNone(p.Reason),
 			},
-			Target: target(objectRef{Kind: "Pod", Name: p.Name, Namespace: p.Namespace}),
+			Ref: objectRef{Kind: "Pod", Name: p.Name, Namespace: p.Namespace},
 		}
 		switch {
 		case p.Reason != "" && !p.Terminal():
@@ -348,27 +388,24 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		pods.Rows = append(pods.Rows, row)
 	}
 
-	delivery := screens.DetailSection{
+	delivery := detailSection{
 		Title:   "Delivered by",
 		Columns: []string{"Tool", "Object", "Namespace"},
 		Empty:   "nothing claims this application: no Helm release, Flux object or Argo CD application",
 	}
 	if a.Manager.Known() {
-		row := screens.DetailRow{
-			Cells:  []string{a.Manager.Tool, deliveryObject(a.Manager), orNone(a.Manager.Namespace)},
-			Target: -1,
+		row := detailRow{
+			Cells: []string{a.Manager.Tool, deliveryObject(a.Manager), orNone(a.Manager.Namespace)},
 		}
 		// The Flux and Argo objects are real resources: opening one shows its
 		// reconciliation conditions like any other object.
 		if a.Manager.Kind != "" {
-			row.Target = target(objectRef{
-				Kind: a.Manager.Kind, Name: a.Manager.Name, Namespace: a.Manager.Namespace,
-			})
+			row.Ref = objectRef{Kind: a.Manager.Kind, Name: a.Manager.Name, Namespace: a.Manager.Namespace}
 		}
 		delivery.Rows = append(delivery.Rows, row)
 	}
 
-	network := screens.DetailSection{
+	network := detailSection{
 		Title:   "Network",
 		Columns: []string{"Kind", "Name", "Detail"},
 		Empty:   "no service or ingress belongs to this application",
@@ -378,26 +415,29 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		if len(s.Ports) > 0 {
 			detail += "  " + strings.Join(s.Ports, ",")
 		}
-		network.Rows = append(network.Rows, screens.DetailRow{
-			Cells:  []string{"Service", s.Name, detail},
-			Target: target(objectRef{Kind: "Service", Name: s.Name, Namespace: s.Namespace}),
+		network.Rows = append(network.Rows, detailRow{
+			Cells: []string{"Service", s.Name, detail},
+			Ref:   objectRef{Kind: "Service", Name: s.Name, Namespace: s.Namespace},
 		})
 	}
 	for _, i := range a.Ingresses {
-		network.Rows = append(network.Rows, screens.DetailRow{
-			Cells:  []string{"Ingress", i.Name, strings.Join(i.Hosts, ", ")},
-			Target: target(objectRef{Kind: "Ingress", Name: i.Name, Namespace: i.Namespace}),
+		network.Rows = append(network.Rows, detailRow{
+			Cells: []string{"Ingress", i.Name, strings.Join(i.Hosts, ", ")},
+			Ref:   objectRef{Kind: "Ingress", Name: i.Name, Namespace: i.Namespace},
 		})
 	}
 
-	d.Sections = []screens.DetailSection{workloads, pods, network, delivery, m.eventsSection(&a, now)}
+	sections, targets := numberTargets([]detailSection{
+		workloads, pods, network, delivery, m.eventsSection(&a, now),
+	})
+	d.Sections = sections
 	return d, targets
 }
 
 // eventsSection shows what the cluster said about this application, which is
 // the difference between "the pod is not ready" and "the probe is refused".
-func (m *Model) eventsSection(a *application.Application, now time.Time) screens.DetailSection {
-	section := screens.DetailSection{
+func (m *Model) eventsSection(a *application.Application, now time.Time) detailSection {
+	section := detailSection{
 		Title:   "Recent events",
 		Columns: []string{"Age", "Type", "Object", "Reason", "Message"},
 	}
@@ -432,12 +472,11 @@ func (m *Model) eventsSection(a *application.Application, now time.Time) screens
 
 	for i := range events {
 		e := &events[i]
-		row := screens.DetailRow{
+		// No ref: an event is something to read, not somewhere to go.
+		row := detailRow{
 			Cells: []string{
 				formatAge(e.LastSeen, now), e.Type, e.About.Kind + "/" + e.About.Name, e.Reason, e.Message,
 			},
-			// An event is something to read, not somewhere to go.
-			Target: -1,
 		}
 		if e.Type == "Warning" {
 			row.Status = theme.StatusWarning
