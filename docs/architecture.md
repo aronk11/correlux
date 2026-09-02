@@ -48,6 +48,7 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 | `internal/kube/workloads` | One bounded, concurrent pass over a scope, converted into a domain snapshot. A kind that cannot be read becomes a gap, not a failure. |
 | `internal/domain/application` | Infers applications from ownership, labels and selectors, and derives their health. Pure; knows nothing about client-go ([ADR 16](adr/0016-application-inference.md)). |
 | `internal/domain/describe` | Turns the document an object came as into the facts worth reading. Works on raw JSON, so an unknown kind is described as well as a Pod is. |
+| `internal/domain/decode` | Renders a document with its base64 values decoded, for reading only. Pure; the fields it decodes come from the document, not from a list of kinds. |
 | `internal/domain/diff` | Line comparison, so an edit can be shown before it is applied. |
 | `internal/domain/fleet` | The application model one level up: several clusters merged into one answer, with each cluster's own state kept ([ADR 19](adr/0019-fleet-overview.md)). |
 | `internal/domain/diagnosis` | Thirteen deterministic rules that turn evidence into a problem, a cause, the facts behind it and what to check next. Degrades with the evidence available ([ADR 18](adr/0018-evidence-on-demand.md)). |

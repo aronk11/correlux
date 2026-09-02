@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/aronk11/kubeui/internal/domain/application"
+	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
 	"github.com/aronk11/kubeui/internal/kube/resources"
 )
 
@@ -401,5 +402,123 @@ func TestEverythingBelowTheLastSelectableRowIsReachable(t *testing.T) {
 	}
 	if out := plainView(m); !strings.Contains(out, "RECENT EVENTS") {
 		t.Errorf("the sections below the last selectable row must be reachable:\n%s", out)
+	}
+}
+
+// secretYAML is what the API server hands back for a Secret: values nobody can
+// read without reaching for a second tool.
+const secretYAML = `apiVersion: v1
+data:
+  keystore.jks: G0kgYW0gbm90IHRleHQgYXQgYWxsLCBJIGFtIGJ5dGVzAAAAAAA=
+  password: aHVudGVyMg==
+  username: cGF5bWVudHM=
+kind: Secret
+metadata:
+  name: database
+  namespace: default
+type: Opaque
+`
+
+const secretJSON = `{"apiVersion": "v1", "kind": "Secret", "type": "Opaque",
+  "metadata": {"name": "database", "namespace": "default"},
+  "data": {
+    "keystore.jks": "G0kgYW0gbm90IHRleHQgYXQgYWxsLCBJIGFtIGJ5dGVzAAAAAAA=",
+    "password": "aHVudGVyMg==",
+    "username": "cGF5bWVudHM="
+  }}`
+
+func secretCatalog() *kubediscovery.Catalog {
+	catalog := testCatalog()
+	catalog.Resources = append(catalog.Resources, resource("", "v1", "secrets", "Secret", true, true))
+	return catalog
+}
+
+// openSecret puts a Secret on the object screen, exactly as the server holds it.
+func openSecret(t *testing.T, m *Model) {
+	t.Helper()
+	loadCatalogInto(m, secretCatalog())
+	m.openObject(objectRef{Kind: "Secret", Name: "database", Namespace: "default", Resource: "secrets"})
+	loadObjectInto(m, secretObject())
+}
+
+func secretObject() *resources.Object {
+	return &resources.Object{
+		Target:          resources.Target{GVR: schema.GroupVersionResource{Version: "v1", Resource: "secrets"}, Namespaced: true},
+		Kind:            "Secret",
+		Name:            "database",
+		Namespace:       "default",
+		UID:             "secret-uid",
+		ResourceVersion: "7781",
+		Raw:             []byte(secretJSON),
+		YAML:            secretYAML,
+	}
+}
+
+func TestTheEncodedValuesOfASecretAreDecodedOnRequest(t *testing.T) {
+	m := newTestModel(t)
+	openSecret(t, m)
+
+	press(t, m, "y")
+	if out := plainView(m); !strings.Contains(out, "password: aHVudGVyMg==") {
+		t.Fatalf("the document must first be shown as the server holds it:\n%s", out)
+	}
+
+	press(t, m, "b")
+	out := plainView(m)
+	for _, want := range []string{"password: hunter2", "username: payments"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the decoded document must show %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "aHVudGVyMg==") {
+		t.Errorf("a value shown decoded must not also be shown encoded:\n%s", out)
+	}
+	if !strings.Contains(out, "3 values decoded from base64") {
+		t.Errorf("the reader must be told that what they see is decoded:\n%s", out)
+	}
+
+	press(t, m, "b")
+	if out := plainView(m); !strings.Contains(out, "password: aHVudGVyMg==") {
+		t.Errorf("the key must toggle back to what the server stores:\n%s", out)
+	}
+}
+
+func TestADecodedValueThatIsNotTextIsSummarisedRatherThanDumped(t *testing.T) {
+	m := newTestModel(t)
+	openSecret(t, m)
+
+	press(t, m, "b")
+	out := plainView(m)
+	if !strings.Contains(out, "keystore.jks: <binary, 38 bytes>") {
+		t.Errorf("bytes nobody can read must be summarised:\n%s", out)
+	}
+	if strings.Contains(out, "I am not text") {
+		// The value starts with an escape byte: written out as it is, it would
+		// redraw the screen around itself.
+		t.Errorf("the bytes themselves must not reach the terminal:\n%s", out)
+	}
+}
+
+func TestDecodingReachesForTheDocumentItDecodes(t *testing.T) {
+	m := newTestModel(t)
+	openSecret(t, m)
+
+	// The details are on screen, and the encoded values are not part of them.
+	press(t, m, "b")
+	if !m.objectYAML {
+		t.Error("asking for the values decoded must show the document that holds them")
+	}
+}
+
+func TestAnObjectWithNothingToDecodeSaysSo(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	openDetail(t, m)
+	press(t, m, "enter")
+	loadObjectInto(m, podObject("payments-7d8f-0", "payments-7d8f"))
+
+	press(t, m, "b")
+	if out := plainView(m); !strings.Contains(out, "nothing here is base64") {
+		t.Errorf("a key that found nothing to do must say so rather than look broken:\n%s", out)
 	}
 }

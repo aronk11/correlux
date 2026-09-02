@@ -133,6 +133,10 @@ type Model struct {
 	// there rather than to a fixed screen.
 	objectFrom viewKind
 	objectYAML bool
+	// objectDecode shows the document's base64 values as what they decode to.
+	// It changes what is drawn and nothing else: an edit still sends the
+	// document the server holds.
+	objectDecode bool
 
 	// The log view. The stream lives as long as the view does; leaving it
 	// cancels the context and the connections go with it.
