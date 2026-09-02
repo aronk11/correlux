@@ -17,13 +17,15 @@ type HeaderData struct {
 	ConnStatus theme.Status
 	// ConnGlyph overrides the status glyph, e.g. to show progress rather than
 	// an unknown state while the first probe is in flight.
-	ConnGlyph    string
-	ConnLabel    string
-	ConnDetail   string
-	Breadcrumb   []string
-	Version      string
-	Refreshing   bool
-	StatusIsBusy bool
+	ConnGlyph  string
+	ConnLabel  string
+	ConnDetail string
+	Breadcrumb []string
+	Version    string
+	// Auto names the timed reload when it is running ("auto 10s"). It is on the
+	// header rather than in a menu because a screen that changes on its own has
+	// to say so.
+	Auto string
 }
 
 // RenderHeader draws the two-line header: identity on top, position below.
@@ -54,6 +56,9 @@ func RenderHeader(t *theme.Theme, d HeaderData, width int) string {
 
 	left := strings.Join([]string{badge, scope, conn}, t.Muted.Render("  "+t.Glyphs.Bullet+"  "))
 	right := t.Muted.Render(d.Version)
+	if d.Auto != "" {
+		right = t.Info.Render(d.Auto) + t.Muted.Render("  "+d.Version)
+	}
 
 	line1 := joinEnds(left, right, width)
 

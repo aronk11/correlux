@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // Theme selects the colour scheme.
@@ -37,6 +38,9 @@ type Config struct {
 	// Safety controls how aggressively kubeui guards mutating actions.
 	Safety Safety `json:"dangerousActions"`
 
+	// Refresh controls the timed reload of whatever is on screen.
+	Refresh Refresh `json:"refresh"`
+
 	// Keybindings maps an action name to a keystroke, overriding the defaults.
 	Keybindings map[string]string `json:"keybindings"`
 
@@ -48,6 +52,46 @@ type Config struct {
 type Startup struct {
 	Context   string `json:"context"`
 	Namespace string `json:"namespace"`
+}
+
+// Refresh controls kubeui's timed reload.
+//
+// It is off by default and stays off until the user asks for it: a tool that
+// polls a production API server every few seconds without being told to is a
+// tool that gets banned from production.
+type Refresh struct {
+	// Auto starts kubeui with the timed reload already running.
+	Auto bool `json:"auto"`
+	// Every is the interval as a duration string ("10s", "1m"). Anything
+	// shorter than MinInterval is raised to it.
+	Every string `json:"every"`
+}
+
+// Refresh interval bounds.
+const (
+	// DefaultRefreshInterval is slow enough to be unnoticeable on the API
+	// server and fast enough to watch a rollout.
+	DefaultRefreshInterval = 10 * time.Second
+	// MinRefreshInterval stops a mistyped config from turning kubeui into a
+	// load generator.
+	MinRefreshInterval = 2 * time.Second
+)
+
+// Interval reports how often to reload. A malformed value is reported rather
+// than silently replaced, so the user learns their config was not honoured.
+func (r Refresh) Interval() (time.Duration, error) {
+	value := strings.TrimSpace(r.Every)
+	if value == "" {
+		return DefaultRefreshInterval, nil
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return DefaultRefreshInterval, fmt.Errorf("invalid refresh interval %q: %w", r.Every, err)
+	}
+	if d < MinRefreshInterval {
+		return MinRefreshInterval, nil
+	}
+	return d, nil
 }
 
 // Safety describes how production contexts are recognised and treated.

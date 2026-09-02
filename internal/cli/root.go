@@ -95,6 +95,10 @@ func prepare(flags globalFlags) (*startup, error) {
 		warnings = append(warnings, err.Error())
 	}
 
+	if _, intervalErr := cfg.Refresh.Interval(); intervalErr != nil {
+		warnings = append(warnings, intervalErr.Error())
+	}
+
 	classifier, patternErrs := kubeconfig.NewClassifier(
 		cfg.Safety.ProductionPatterns, cfg.Safety.ProductionContexts)
 	for _, e := range patternErrs {
