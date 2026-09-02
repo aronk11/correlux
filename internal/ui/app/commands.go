@@ -54,6 +54,8 @@ type kubeconfigReloadedMsg struct {
 	err error
 }
 
+type autoRefreshTickMsg struct{ seq uint64 }
+
 type resizeSettledMsg struct{}
 
 type messageExpiredMsg struct{ seq uint64 }
@@ -65,6 +67,7 @@ func (m *Model) probeCluster() tea.Cmd {
 		m.cancelCluster()
 	}
 	gen := m.cluster.Start()
+	m.clusterLoading = true
 
 	ctx, cancel := context.WithTimeout(context.Background(), m.factory.Timeout())
 	m.cancelCluster = cancel
@@ -122,6 +125,7 @@ func (m *Model) loadTable() tea.Cmd {
 		m.cancelTable()
 	}
 	gen := m.table.Start()
+	m.tableLoading = true
 	return m.fetchTable(gen, "", false)
 }
 
@@ -167,6 +171,7 @@ func (m *Model) loadApplications() tea.Cmd {
 		m.cancelApps()
 	}
 	gen := m.apps.Start()
+	m.appsLoading = true
 
 	ctx, cancel := context.WithTimeout(context.Background(), m.factory.Timeout())
 	m.cancelApps = cancel
@@ -204,6 +209,16 @@ func (m *Model) reloadKubeconfig() tea.Cmd {
 		})
 		return kubeconfigReloadedMsg{cfg: cfg, err: err}
 	}
+}
+
+// scheduleAutoRefresh asks to be woken for the next timed reload. The sequence
+// number retires the ticker of an earlier toggle, so turning the refresh off
+// and on again leaves one loop running rather than two.
+func scheduleAutoRefresh(seq uint64, every time.Duration) tea.Cmd {
+	if every <= 0 {
+		return nil
+	}
+	return tea.Tick(every, func(time.Time) tea.Msg { return autoRefreshTickMsg{seq: seq} })
 }
 
 // scheduleResize asks to be woken once the resize burst has settled.

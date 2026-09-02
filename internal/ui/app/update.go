@@ -51,7 +51,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseClickMsg:
 		return m, m.handleClick(msg)
 
+	case autoRefreshTickMsg:
+		return m, m.handleAutoRefreshTick(msg)
+
 	case clusterProbedMsg:
+		if m.cluster.Accepts(msg.gen) {
+			m.clusterLoading = false
+		}
 		if m.cluster.Succeed(msg.gen, msg.info) && msg.info.State != kubeclient.ConnOK {
 			m.notice(connectionNotice(msg.info), theme.StatusCritical)
 			return m, m.expireNotice()
@@ -127,10 +133,14 @@ func (m *Model) applyLayout() {
 func (m *Model) applyTablePage(msg tableLoadedMsg) tea.Cmd {
 	if msg.append {
 		m.loadingMore = false
+	} else if m.table.Accepts(msg.gen) {
+		m.tableLoading = false
 	}
 	if msg.err != nil {
 		if !msg.append {
-			m.table.Fail(msg.gen, msg.err)
+			if m.table.Fail(msg.gen, msg.err) {
+				m.refreshFailures++
+			}
 			return nil
 		}
 		// A failed continuation leaves the rows we already have on screen.
@@ -152,17 +162,124 @@ func (m *Model) applyTablePage(msg tableLoadedMsg) tea.Cmd {
 		return nil
 	}
 
-	m.table.Succeed(msg.gen, msg.table)
-	m.tableCursor = 0
-	m.tableOffset = 0
+	previous := m.cursorRowKey()
+	if !m.table.Succeed(msg.gen, msg.table) {
+		return nil
+	}
+	m.refreshFailures = 0
+	m.keepCursorOnRow(previous)
 	return nil
+}
+
+// cursorRowKey identifies the row under the cursor, so a reload can put the
+// cursor back on the object rather than on the row number.
+func (m *Model) cursorRowKey() string {
+	rows := m.tableRows()
+	if m.tableCursor < 0 || m.tableCursor >= len(rows) {
+		return ""
+	}
+	return rows[m.tableCursor].Namespace + "/" + rows[m.tableCursor].Name
+}
+
+// keepCursorOnRow restores the cursor after a table was replaced. A refresh
+// re-lists the resource, and objects come and go between two lists: following
+// the name keeps the selection where the user left it, and a deleted object
+// leaves the cursor at the same place in the list rather than at the top.
+func (m *Model) keepCursorOnRow(previous string) {
+	rows := m.tableRows()
+	if len(rows) == 0 || previous == "" {
+		m.tableCursor, m.tableOffset = 0, 0
+		return
+	}
+	for i := range rows {
+		if rows[i].Namespace+"/"+rows[i].Name == previous {
+			m.tableCursor = i
+			break
+		}
+	}
+	m.tableCursor = clampInt(m.tableCursor, len(rows)-1)
+
+	visible := max(m.screen.Body.Height-1, 1)
+	if m.tableCursor < m.tableOffset {
+		m.tableOffset = m.tableCursor
+	}
+	if m.tableCursor >= m.tableOffset+visible {
+		m.tableOffset = m.tableCursor - visible + 1
+	}
+	m.tableOffset = clampInt(m.tableOffset, max(len(rows)-visible, 0))
+}
+
+// handleAutoRefreshTick runs one timed reload and schedules the next.
+//
+// Three rules keep it cheap enough to leave running on a large cluster: it
+// reloads only what the current screen shows, it never starts a request while
+// the previous one is still in flight, and it does nothing at all while an
+// overlay has the user's attention.
+func (m *Model) handleAutoRefreshTick(msg autoRefreshTickMsg) tea.Cmd {
+	if !m.autoRefresh || msg.seq != m.refreshSeq {
+		// A ticker from a toggle the user has since undone.
+		return nil
+	}
+	cmds := []tea.Cmd{scheduleAutoRefresh(m.refreshSeq, m.autoRefreshDelay())}
+	if m.overlay == overlayNone {
+		cmds = append(cmds, m.autoReload()...)
+	}
+	return tea.Batch(cmds...)
+}
+
+// autoReload refetches what the current view is showing, and only that. The
+// resource catalog and the namespace list do not change on the timescale of a
+// refresh interval, and re-discovering every API group every ten seconds would
+// cost far more than the screen is worth.
+func (m *Model) autoReload() []tea.Cmd {
+	switch m.view {
+	case viewApplications, viewApplication:
+		if m.appsLoading {
+			return nil
+		}
+		return []tea.Cmd{m.loadApplications()}
+	case viewTable:
+		// Only the first page is refreshed. Someone who has paged deep into a
+		// large resource would otherwise watch their rows disappear every tick.
+		if m.tableLoading || m.loadingMore || m.tablePaged() {
+			return nil
+		}
+		return []tea.Cmd{m.loadTable()}
+	case viewOverview:
+		if m.clusterLoading {
+			return nil
+		}
+		return []tea.Cmd{m.probeCluster()}
+	}
+	return nil
+}
+
+// tablePaged reports whether more than the first page has been loaded.
+func (m *Model) tablePaged() bool {
+	table := m.table.Get()
+	return table != nil && len(table.Rows) > int(resources.DefaultPageSize)
+}
+
+// autoRefreshDelay backs off after failures: a cluster that is unreachable
+// stays unreachable for a while, and polling it every ten seconds only fills
+// the screen with the same error faster.
+func (m *Model) autoRefreshDelay() time.Duration {
+	delay := m.refreshEvery
+	for i := 0; i < m.refreshFailures && i < 3; i++ {
+		delay *= 2
+	}
+	return delay
 }
 
 // applyApplications stores a freshly grouped dashboard, keeping the cursor on
 // the application it was on rather than on the row number it was at.
 func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
+	if m.apps.Accepts(msg.gen) {
+		m.appsLoading = false
+	}
 	if msg.err != nil {
 		if m.apps.Fail(msg.gen, msg.err) {
+			m.refreshFailures++
 			m.notice(applicationsNotice(msg.err), theme.StatusCritical)
 			return m.expireNotice()
 		}
@@ -172,6 +289,7 @@ func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
 	if !m.apps.Succeed(msg.gen, msg.list) {
 		return nil
 	}
+	m.refreshFailures = 0
 	m.keepCursorOnApplication(previous)
 	m.rebuildCommands()
 	return nil
@@ -360,6 +478,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case ActionRefresh:
 		return m.refresh()
+	case ActionAutoRefresh:
+		return m.toggleAutoRefresh()
 	case ActionClose:
 		if m.overlay != overlayNone {
 			m.closeOverlay()

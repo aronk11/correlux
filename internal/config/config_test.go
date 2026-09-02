@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 )
 
 func TestLoadMissingFileReturnsDefaults(t *testing.T) {
@@ -132,5 +133,30 @@ func write(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("write fixture: %v", err)
+	}
+}
+
+func TestRefreshInterval(t *testing.T) {
+	cases := []struct {
+		name    string
+		every   string
+		want    time.Duration
+		wantErr bool
+	}{
+		{name: "unset falls back to the default", want: DefaultRefreshInterval},
+		{name: "a plain duration", every: "30s", want: 30 * time.Second},
+		{name: "below the floor is raised", every: "50ms", want: MinRefreshInterval},
+		{name: "nonsense is reported", every: "soon", want: DefaultRefreshInterval, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := Refresh{Every: tc.every}.Interval()
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("error = %v, wantErr %v", err, tc.wantErr)
+			}
+			if got != tc.want {
+				t.Errorf("interval = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

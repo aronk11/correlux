@@ -101,6 +101,19 @@ type Model struct {
 	tableWide   bool
 	loadingMore bool
 
+	// The timed reload. It is off until the user turns it on, and it only ever
+	// refetches what is on screen.
+	autoRefresh     bool
+	refreshEvery    time.Duration
+	refreshSeq      uint64
+	refreshFailures int
+
+	// In-flight markers, so a timed reload never stacks a second request on
+	// top of one that has not answered yet.
+	appsLoading    bool
+	tableLoading   bool
+	clusterLoading bool
+
 	// In-flight work, cancelled when it becomes irrelevant.
 	cancelCluster    context.CancelFunc
 	cancelNamespaces context.CancelFunc
@@ -159,6 +172,11 @@ func New(opts Options) *Model {
 		registry:      palette.NewRegistry(),
 	}
 
+	// A malformed interval is reported by the caller as a config warning; the
+	// UI keeps working on the default.
+	m.refreshEvery, _ = opts.Config.Refresh.Interval()
+	m.autoRefresh = opts.Config.Refresh.Auto
+
 	m.configPath = opts.Config.SourcePath
 	if m.configPath == "" {
 		if path, err := config.Path(); err == nil {
@@ -203,14 +221,18 @@ func New(opts Options) *Model {
 // Init starts the first round of work: measure the terminal, learn its
 // background colour, and probe the cluster.
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		tea.RequestBackgroundColor,
 		m.probeCluster(),
 		m.loadNamespaces(),
 		m.loadCatalog(),
 		m.loadApplications(),
 		expireMessage(m.messageSeq, 8*time.Second),
-	)
+	}
+	if m.autoRefresh {
+		cmds = append(cmds, scheduleAutoRefresh(m.refreshSeq, m.refreshEvery))
+	}
+	return tea.Batch(cmds...)
 }
 
 // Context reports the active kubeconfig context.

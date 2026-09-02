@@ -1,6 +1,8 @@
 package app
 
 import (
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/aronk11/kubeui/internal/ui/async"
@@ -23,6 +25,7 @@ const (
 	paletteToggleWide      palette.ActionID = "toggle.wide"
 	paletteBackToOverview  palette.ActionID = "open.overview"
 	paletteRefresh         palette.ActionID = "refresh"
+	paletteAutoRefresh     palette.ActionID = "refresh.auto"
 	paletteReloadConfig    palette.ActionID = "reload.kubeconfig"
 	paletteHelp            palette.ActionID = "help"
 	paletteQuit            palette.ActionID = "quit"
@@ -107,6 +110,17 @@ func (m *Model) rebuildCommands() {
 			Keywords: []string{"reload", "retry", "reconnect", "probe"},
 			Shortcut: m.keys.Key(ActionRefresh),
 			Weight:   60,
+			Enabled:  true,
+		},
+		{
+			ID:       "cmd.autorefresh",
+			Action:   paletteAutoRefresh,
+			Title:    autoRefreshTitle(m.autoRefresh),
+			Subtitle: autoRefreshSubtitle(m.autoRefresh, m.refreshEvery),
+			Category: "Cluster",
+			Keywords: []string{"auto", "refresh", "follow", "watch", "poll", "live"},
+			Shortcut: m.keys.Key(ActionAutoRefresh),
+			Weight:   59,
 			Enabled:  true,
 		},
 		{
@@ -394,6 +408,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.toggleAllNamespaces()
 	case paletteRefresh:
 		return m.refresh()
+	case paletteAutoRefresh:
+		return m.toggleAutoRefresh()
 	case paletteReloadConfig:
 		m.notice("Reloading kubeconfig…", theme.StatusUnknown)
 		return m.reloadKubeconfig()
@@ -499,6 +515,45 @@ func (m *Model) setAllNamespaces(on bool) tea.Cmd {
 	m.rebuildCommands()
 	m.notice("Scope: "+m.scopeLabel(), theme.StatusUnknown)
 	return tea.Batch(m.reloadScopedViews(), m.expireNotice())
+}
+
+// toggleAutoRefresh turns the timed reload on or off.
+//
+// It is a toggle rather than a setting because the cost is real: every tick is
+// a round trip to somebody's production API server, and the user is the one who
+// knows whether that is welcome right now.
+func (m *Model) toggleAutoRefresh() tea.Cmd {
+	m.autoRefresh = !m.autoRefresh
+	// A new sequence retires the previous ticker, so toggling twice does not
+	// leave two loops refreshing the same screen.
+	m.refreshSeq++
+	m.refreshFailures = 0
+	m.rebuildCommands()
+
+	if !m.autoRefresh {
+		m.notice("Auto-refresh off", theme.StatusUnknown)
+		return m.expireNotice()
+	}
+	m.notice("Auto-refresh every "+m.refreshEvery.String(), theme.StatusUnknown)
+	return tea.Batch(
+		tea.Batch(m.autoReload()...),
+		scheduleAutoRefresh(m.refreshSeq, m.refreshEvery),
+		m.expireNotice(),
+	)
+}
+
+func autoRefreshTitle(on bool) string {
+	if on {
+		return "Stop refreshing automatically"
+	}
+	return "Refresh automatically"
+}
+
+func autoRefreshSubtitle(on bool, every time.Duration) string {
+	if on {
+		return "every " + every.String() + ", on"
+	}
+	return "every " + every.String() + ", off"
 }
 
 // refresh re-probes the cluster and reloads everything the current screen shows.

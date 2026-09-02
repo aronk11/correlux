@@ -74,6 +74,7 @@ func (m *Model) headerData() components.HeaderData {
 		Scope:      m.scopeLabel(),
 		Version:    m.version(),
 		Breadcrumb: m.breadcrumb(),
+		Auto:       m.autoRefreshLabel(),
 	}
 
 	info := m.cluster.Get()
@@ -104,6 +105,14 @@ func (m *Model) headerData() components.HeaderData {
 		}
 	}
 	return d
+}
+
+// autoRefreshLabel names the timed reload for the header, empty when it is off.
+func (m *Model) autoRefreshLabel() string {
+	if !m.autoRefresh {
+		return ""
+	}
+	return "auto " + m.refreshEvery.String()
 }
 
 // breadcrumb shows where the user is in the navigation model:
@@ -487,6 +496,7 @@ func (m *Model) renderHelp(width, height int) string {
 		{"Cluster", [][2]string{
 			{m.keys.Key(ActionResourcePicker), "Browse resource kinds, including custom resources"},
 			{m.keys.Key(ActionRefresh), "Refresh"},
+			{m.keys.Key(ActionAutoRefresh), "Refresh on a timer, until you turn it off"},
 		}},
 		{"In a resource table", [][2]string{
 			{"↑ ↓ / j k", "Move; the next page loads as you reach the end"},

@@ -27,6 +27,7 @@ const (
 	ActionToggleWide      = "table.wide"
 	ActionAllNamespaces   = "namespace.all"
 	ActionRefresh         = "refresh"
+	ActionAutoRefresh     = "refresh.auto"
 	ActionReloadKubeconfi = "kubeconfig.reload"
 	ActionClose           = "close"
 )
@@ -52,6 +53,7 @@ var DefaultBindings = map[string]string{
 	ActionApplications:    "ctrl+a",
 	ActionToggleWide:      "w",
 	ActionRefresh:         "ctrl+r",
+	ActionAutoRefresh:     "ctrl+f",
 	ActionClose:           "esc",
 }
 
