@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	"github.com/aronk11/kubeui/internal/kube/resources"
 	"github.com/aronk11/kubeui/internal/ui/layout"
 	"github.com/aronk11/kubeui/internal/ui/theme"
 )
@@ -67,6 +68,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.nsPicker.Refresh()
 		return m, nil
 
+	case catalogLoadedMsg:
+		if msg.err != nil {
+			m.catalog.Fail(msg.gen, msg.err)
+		} else if m.catalog.Succeed(msg.gen, msg.catalog) {
+			m.rebuildCommands()
+			if msg.catalog.Partial() {
+				m.notice(itoa(len(msg.catalog.Failures))+" API group(s) could not be discovered; the rest is usable",
+					theme.StatusWarning)
+				m.resPicker.Refresh()
+				return m, m.expireNotice()
+			}
+		}
+		m.resPicker.Refresh()
+		return m, nil
+
+	case tableLoadedMsg:
+		return m, m.applyTablePage(msg)
+
 	case kubeconfigReloadedMsg:
 		return m, m.applyReloadedKubeconfig(msg)
 
@@ -101,6 +120,106 @@ func (m *Model) applyLayout() {
 	m.screen = layout.Compute(m.width, m.height)
 }
 
+// applyTablePage stores a page of results, appending it when it continues the
+// current table rather than replacing it.
+func (m *Model) applyTablePage(msg tableLoadedMsg) tea.Cmd {
+	if msg.append {
+		m.loadingMore = false
+	}
+	if msg.err != nil {
+		if !msg.append {
+			m.table.Fail(msg.gen, msg.err)
+			return nil
+		}
+		// A failed continuation leaves the rows we already have on screen.
+		m.notice("Could not load more rows: "+shortError(msg.err), theme.StatusWarning)
+		return m.expireNotice()
+	}
+
+	if msg.append {
+		current := m.table.Get()
+		if current == nil || !m.table.Accepts(msg.gen) {
+			return nil
+		}
+		merged := *msg.table
+		merged.Rows = append(append([]resources.Row(nil), current.Rows...), msg.table.Rows...)
+		if len(merged.Columns) == 0 {
+			merged.Columns = current.Columns
+		}
+		m.table.Succeed(msg.gen, &merged)
+		return nil
+	}
+
+	m.table.Succeed(msg.gen, msg.table)
+	m.tableCursor = 0
+	m.tableOffset = 0
+	return nil
+}
+
+// tableRows returns the rows currently loaded.
+func (m *Model) tableRows() []resources.Row {
+	if t := m.table.Get(); t != nil {
+		return t.Rows
+	}
+	return nil
+}
+
+// moveTableCursor scrolls the table, fetching the next page when the user
+// reaches the end of what is loaded.
+func (m *Model) moveTableCursor(delta int) tea.Cmd {
+	rows := m.tableRows()
+	if len(rows) == 0 {
+		return nil
+	}
+	m.tableCursor = clampInt(m.tableCursor+delta, 0, len(rows)-1)
+
+	visible := max(m.screen.Body.Height-1, 1)
+	if m.tableCursor < m.tableOffset {
+		m.tableOffset = m.tableCursor
+	}
+	if m.tableCursor >= m.tableOffset+visible {
+		m.tableOffset = m.tableCursor - visible + 1
+	}
+	m.tableOffset = clampInt(m.tableOffset, 0, max(len(rows)-visible, 0))
+
+	// Prefetch the next page a screen before the end, so scrolling stays smooth
+	// on a resource with thousands of objects.
+	if m.tableCursor >= len(rows)-visible {
+		return m.loadMoreRows()
+	}
+	return nil
+}
+
+// handleTableKey handles the keys that only exist in the resource browser.
+func (m *Model) handleTableKey(keystroke string) (tea.Cmd, bool) {
+	visible := max(m.screen.Body.Height-1, 1)
+	switch keystroke {
+	case "up", "k":
+		return m.moveTableCursor(-1), true
+	case "down", "j":
+		return m.moveTableCursor(1), true
+	case "pgup":
+		return m.moveTableCursor(-visible), true
+	case "pgdown", " ":
+		return m.moveTableCursor(visible), true
+	case "home", "g":
+		return m.moveTableCursor(-len(m.tableRows())), true
+	case "end", "G":
+		return m.moveTableCursor(len(m.tableRows())), true
+	}
+	return nil, false
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
 func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	key := msg.Key()
 	keystroke := key.Keystroke()
@@ -108,6 +227,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	// Overlays get first refusal, so typing "q" into a filter does not quit.
 	if m.overlay != overlayNone {
 		if cmd, handled := m.handleOverlayKey(keystroke, key.Text); handled {
+			return cmd
+		}
+	}
+
+	if m.overlay == overlayNone && m.view == viewTable {
+		if cmd, handled := m.handleTableKey(keystroke); handled {
 			return cmd
 		}
 	}
@@ -128,11 +253,21 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.openOverlay(overlayContexts)
 	case ActionNamespacePicker:
 		return m.openOverlay(overlayNamespaces)
+	case ActionResourcePicker:
+		return m.openOverlay(overlayResources)
+	case ActionToggleWide:
+		if m.view == viewTable {
+			return m.toggleWide()
+		}
+		return nil
 	case ActionRefresh:
 		return m.refresh()
 	case ActionClose:
-		m.closeOverlay()
-		return nil
+		if m.overlay != overlayNone {
+			m.closeOverlay()
+			return nil
+		}
+		return m.backToOverview()
 	}
 	return nil
 }

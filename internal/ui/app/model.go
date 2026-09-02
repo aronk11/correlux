@@ -9,7 +9,9 @@ import (
 	"github.com/aronk11/kubeui/internal/buildinfo"
 	"github.com/aronk11/kubeui/internal/config"
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
 	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
+	"github.com/aronk11/kubeui/internal/kube/resources"
 	"github.com/aronk11/kubeui/internal/ui/async"
 	"github.com/aronk11/kubeui/internal/ui/components"
 	"github.com/aronk11/kubeui/internal/ui/layout"
@@ -25,7 +27,18 @@ const (
 	overlayPalette
 	overlayContexts
 	overlayNamespaces
+	overlayResources
 	overlayHelp
+)
+
+// viewKind identifies the full-window view behind any overlay.
+type viewKind int
+
+const (
+	// viewOverview is the session and connection summary.
+	viewOverview viewKind = iota
+	// viewTable lists the objects of one resource kind.
+	viewTable
 )
 
 // Options configures the application at start-up.
@@ -62,10 +75,22 @@ type Model struct {
 	// Remote state, each with an explicit lifecycle.
 	cluster    async.Value[kubeclient.ClusterInfo]
 	namespaces async.Value[kubeclient.NamespaceList]
+	catalog    async.Value[*kubediscovery.Catalog]
+	table      async.Value[*resources.Table]
+
+	// The resource browser.
+	view        viewKind
+	resource    kubediscovery.Resource
+	tableCursor int
+	tableOffset int
+	tableWide   bool
+	loadingMore bool
 
 	// In-flight work, cancelled when it becomes irrelevant.
 	cancelCluster    context.CancelFunc
 	cancelNamespaces context.CancelFunc
+	cancelCatalog    context.CancelFunc
+	cancelTable      context.CancelFunc
 
 	// Geometry.
 	screen        layout.Screen
@@ -78,6 +103,7 @@ type Model struct {
 	cmdPal    *components.Selector
 	ctxPicker *components.Selector
 	nsPicker  *components.Selector
+	resPicker *components.Selector
 
 	// Transient status message.
 	message       string
@@ -141,6 +167,10 @@ func New(opts Options) *Model {
 	m.nsPicker = components.NewSelector("Namespaces", "Filter namespaces…", m.filterNamespaces)
 	m.nsPicker.Footer = "Enter switch   Esc cancel"
 
+	m.resPicker = components.NewSelector("Resources", "Filter resource kinds…", m.filterResources)
+	m.resPicker.EmptyMessage = "No resource kind matches."
+	m.resPicker.Footer = "Enter open   Esc cancel"
+
 	warnings := opts.ConfigWarnings
 	for _, action := range unknown {
 		warnings = append(warnings, "unknown keybinding action in config: "+action)
@@ -161,6 +191,7 @@ func (m *Model) Init() tea.Cmd {
 		tea.RequestBackgroundColor,
 		m.probeCluster(),
 		m.loadNamespaces(),
+		m.loadCatalog(),
 		expireMessage(m.messageSeq, 8*time.Second),
 	)
 }
@@ -190,3 +221,11 @@ func (m *Model) scopeLabel() string {
 
 // version renders the build version for the header.
 func (m *Model) version() string { return buildinfo.Get().Version }
+
+// OpenResourceForTest opens a resource kind by its kubectl-style name. It
+// exists so integration tests can drive the application the way a user does,
+// without exporting the whole action surface.
+func (m *Model) OpenResourceForTest(name string) tea.Cmd { return m.openResource(name) }
+
+// SwitchNamespaceForTest changes the active scope from an integration test.
+func (m *Model) SwitchNamespaceForTest(namespace string) tea.Cmd { return m.switchNamespace(namespace) }

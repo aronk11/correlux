@@ -7,7 +7,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
 	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
+	"github.com/aronk11/kubeui/internal/kube/resources"
 )
 
 // Messages carrying the result of asynchronous work. Every one of them is
@@ -24,6 +26,20 @@ type namespacesLoadedMsg struct {
 	gen  uint64
 	list kubeclient.NamespaceList
 	err  error
+}
+
+type catalogLoadedMsg struct {
+	gen     uint64
+	catalog *kubediscovery.Catalog
+	err     error
+}
+
+type tableLoadedMsg struct {
+	gen   uint64
+	table *resources.Table
+	// append is true when this page extends the table instead of replacing it.
+	append bool
+	err    error
 }
 
 type kubeconfigReloadedMsg struct {
@@ -70,6 +86,67 @@ func (m *Model) loadNamespaces() tea.Cmd {
 		defer cancel()
 		list, err := factory.ListNamespaces(ctx, name)
 		return namespacesLoadedMsg{gen: gen, list: list, err: err}
+	}
+}
+
+// loadCatalog discovers which resource kinds this cluster serves, custom
+// resources included.
+func (m *Model) loadCatalog() tea.Cmd {
+	if m.cancelCatalog != nil {
+		m.cancelCatalog()
+	}
+	gen := m.catalog.Start()
+
+	ctx, cancel := context.WithTimeout(context.Background(), m.factory.Timeout())
+	m.cancelCatalog = cancel
+
+	factory := m.factory
+	name := m.contextName
+	return func() tea.Msg {
+		defer cancel()
+		catalog, err := factory.Catalog(ctx, name)
+		return catalogLoadedMsg{gen: gen, catalog: catalog, err: err}
+	}
+}
+
+// loadTable fetches the first page of the active resource.
+func (m *Model) loadTable() tea.Cmd {
+	if m.cancelTable != nil {
+		m.cancelTable()
+	}
+	gen := m.table.Start()
+	return m.fetchTable(gen, "", false)
+}
+
+// loadMoreRows fetches the next page and appends it, so scrolling through a
+// large resource never blocks on a single unbounded list.
+func (m *Model) loadMoreRows() tea.Cmd {
+	current := m.table.Get()
+	if current == nil || !current.HasMore() || m.loadingMore {
+		return nil
+	}
+	m.loadingMore = true
+	return m.fetchTable(m.table.Generation(), current.Continue, true)
+}
+
+func (m *Model) fetchTable(gen uint64, continueToken string, appendPage bool) tea.Cmd {
+	ctx, cancel := context.WithTimeout(context.Background(), m.factory.Timeout())
+	if !appendPage {
+		m.cancelTable = cancel
+	}
+
+	factory := m.factory
+	name := m.contextName
+	res := m.resource
+	opts := resources.ListOptions{Continue: continueToken}
+	if res.Namespaced && !m.allNamespaces {
+		opts.Namespace = m.namespace
+	}
+
+	return func() tea.Msg {
+		defer cancel()
+		table, err := factory.ListTable(ctx, name, res, opts)
+		return tableLoadedMsg{gen: gen, table: table, append: appendPage, err: err}
 	}
 }
 
