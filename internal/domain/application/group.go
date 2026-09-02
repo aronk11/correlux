@@ -122,6 +122,24 @@ func (a *Application) finish() {
 			a.CreatedAt = m.CreatedAt
 		}
 	}
+
+	// Who deployed this: the workloads carry the mark, and the first one that
+	// does speaks for the application.
+	for i := range a.Workloads {
+		if manager := managerOf(a.Workloads[i].Meta); manager.Known() {
+			a.Manager = manager
+			break
+		}
+	}
+	if !a.Manager.Known() {
+		for i := range a.Pods {
+			if manager := managerOf(a.Pods[i].Meta); manager.Known() {
+				a.Manager = manager
+				break
+			}
+		}
+	}
+
 	a.evaluate()
 }
 
@@ -262,6 +280,55 @@ func appName(m Meta) string {
 		return ref.Name
 	}
 	return m.Name
+}
+
+// The labels and annotations Helm, Flux and Argo CD write on what they create.
+// Recognising them is the whole of kubeui's support for those tools: nothing is
+// installed, nothing is asked of them, and an application says who manages it
+// because the objects already say so.
+const (
+	helmManagedBy       = "app.kubernetes.io/managed-by"
+	helmReleaseName     = "meta.helm.sh/release-name"
+	helmReleaseNS       = "meta.helm.sh/release-namespace"
+	fluxKustomizeName   = "kustomize.toolkit.fluxcd.io/name"
+	fluxKustomizeNS     = "kustomize.toolkit.fluxcd.io/namespace"
+	fluxHelmReleaseName = "helm.toolkit.fluxcd.io/name"
+	fluxHelmReleaseNS   = "helm.toolkit.fluxcd.io/namespace"
+	argoInstance        = "argocd.argoproj.io/instance"
+)
+
+// managerOf reads who deployed an object.
+//
+// Flux is checked before Helm because Flux deploys *through* Helm: a workload
+// created by a Flux HelmRelease carries both sets of marks, and the object
+// worth opening is the HelmRelease, not the release Helm happens to have made
+// on its behalf.
+func managerOf(m Meta) Manager {
+	if name := m.Labels[fluxHelmReleaseName]; name != "" {
+		return Manager{Tool: "Flux", Kind: "HelmRelease", Name: name,
+			Namespace: firstNonEmpty(m.Labels[fluxHelmReleaseNS], m.Namespace)}
+	}
+	if name := m.Labels[fluxKustomizeName]; name != "" {
+		return Manager{Tool: "Flux", Kind: "Kustomization", Name: name,
+			Namespace: firstNonEmpty(m.Labels[fluxKustomizeNS], m.Namespace)}
+	}
+	if name := m.Annotations[argoInstance]; name != "" {
+		return Manager{Tool: "Argo CD", Kind: "Application", Name: name}
+	}
+	if strings.EqualFold(m.Labels[helmManagedBy], "Helm") {
+		return Manager{Tool: "Helm", Name: m.Annotations[helmReleaseName],
+			Namespace: firstNonEmpty(m.Annotations[helmReleaseNS], m.Namespace)}
+	}
+	return Manager{}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // labelName reads the application name off the conventional labels.

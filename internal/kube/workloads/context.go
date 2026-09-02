@@ -193,3 +193,27 @@ func fromClaim(c *corev1.PersistentVolumeClaim) application.Claim {
 	}
 	return claim
 }
+
+// CollectNodes reads just the nodes.
+//
+// The fleet overview needs them and nothing else from the evidence pass: a
+// broken node is the most common thing that is wrong with a cluster and has
+// nothing to do with any one application, so asking for the whole evidence
+// bundle per member would be paying for eight kinds to learn about one.
+func CollectNodes(ctx context.Context, cs kubernetes.Interface, opts Options) ([]application.Node, error) {
+	var out []application.Node
+	_, err := page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+		list, err := cs.CoreV1().Nodes().List(ctx, o)
+		if err != nil {
+			return "", err
+		}
+		for i := range list.Items {
+			out = append(out, fromNode(&list.Items[i]))
+		}
+		return list.Continue, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}

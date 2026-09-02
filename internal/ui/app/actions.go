@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -21,6 +22,8 @@ const (
 	paletteSwitchNamespace palette.ActionID = "switch.namespace"
 	paletteToggleAllNS     palette.ActionID = "toggle.allnamespaces"
 	paletteOpenApps        palette.ActionID = "open.applications"
+	paletteOpenFleet       palette.ActionID = "open.fleet"
+	paletteFleetEverything palette.ActionID = "fleet.everything"
 	paletteOpenApp         palette.ActionID = "open.application"
 	paletteExplain         palette.ActionID = "explain"
 	paletteToggleYAML      palette.ActionID = "object.yaml"
@@ -86,6 +89,17 @@ func (m *Model) rebuildCommands() {
 			Keywords: []string{"application", "apps", "dashboard", "home", "overview", "health"},
 			Shortcut: m.keys.Key(ActionApplications),
 			Weight:   98,
+			Enabled:  true,
+		},
+		{
+			ID:       "cmd.fleet",
+			Action:   paletteOpenFleet,
+			Title:    "Show the fleet",
+			Subtitle: m.fleetSubtitleForPalette(),
+			Category: "Navigate",
+			Keywords: []string{"fleet", "clusters", "multi", "all clusters", "overview", "tenants"},
+			Shortcut: m.keys.Key(ActionFleet),
+			Weight:   92,
 			Enabled:  true,
 		},
 		{
@@ -217,6 +231,19 @@ func (m *Model) rebuildCommands() {
 		})
 	}
 
+	if m.view == viewFleet && len(m.fleetContexts()) < len(m.kubeconfig.Contexts) {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.fleet.everything",
+			Action:   paletteFleetEverything,
+			Title:    "Add every context in this kubeconfig to the fleet",
+			Subtitle: "for this session; kubeui will authenticate against all of them",
+			Category: "Navigate",
+			Keywords: []string{"fleet", "every", "all contexts", "add"},
+			Weight:   50,
+			Enabled:  true,
+		})
+	}
+
 	if m.view == viewObject && !m.objectTarget.empty() {
 		cmds = append(cmds, palette.Command{
 			ID:             "cmd.edit",
@@ -262,10 +289,15 @@ func (m *Model) rebuildCommands() {
 	}
 
 	// Every resource kind the cluster serves is its own command, so "widgets"
-	// is as reachable as "pods" without a submenu.
+	// is as reachable as "pods" without a submenu. On a fleet screen the same
+	// entries browse that kind across every cluster instead.
+	inFleet := m.view == viewFleet || m.view == viewFleetResource
 	if catalog := m.catalog.Get(); catalog != nil {
 		for _, r := range catalog.Resources {
 			if m.view == viewTable && r.FullName() == m.resource.FullName() {
+				continue
+			}
+			if m.view == viewFleetResource && r.FullName() == m.fleetResource.FullName() {
 				continue
 			}
 			keywords := append([]string{"resource", r.Plural(), r.Group()}, r.ShortNames...)
@@ -273,11 +305,16 @@ func (m *Model) rebuildCommands() {
 			if !r.Builtin {
 				subtitle = "custom resource  " + subtitle
 			}
+			title := "Open " + r.Kind()
+			if inFleet {
+				title = "Open " + r.Kind() + " across the fleet"
+				subtitle = itoa(len(m.fleetContexts())) + " clusters  " + subtitle
+			}
 			cmds = append(cmds, palette.Command{
 				ID:       "res." + r.FullName(),
 				Action:   paletteOpenResource,
 				Arg:      r.FullName(),
-				Title:    "Open " + r.Kind(),
+				Title:    title,
 				Subtitle: subtitle,
 				Category: "Resources",
 				Keywords: keywords,
@@ -289,7 +326,9 @@ func (m *Model) rebuildCommands() {
 
 	// Every application is its own command, so "open payments" is one keystroke
 	// and a search away, without stepping through the dashboard.
-	for _, a := range m.applications() {
+	fleetApps := m.applications()
+	for i := range fleetApps {
+		a := &fleetApps[i]
 		if m.view == viewApplication && a.Key() == m.selectedApp {
 			continue
 		}
@@ -374,6 +413,19 @@ func (m *Model) whySubtitle() string {
 		return apps[m.appCursor].Name + " — " + apps[m.appCursor].Health.String()
 	}
 	return "select an application first"
+}
+
+// fleetSubtitleForPalette says what the fleet covers, or that it covers nothing
+// yet — which is the default and needs saying.
+func (m *Model) fleetSubtitleForPalette() string {
+	contexts := m.fleetContexts()
+	if len(contexts) == 0 {
+		return "no clusters configured yet"
+	}
+	if len(contexts) <= 3 {
+		return strings.Join(contexts, ", ")
+	}
+	return itoa(len(contexts)) + " clusters, read-only"
 }
 
 // catalogSubtitle summarises what discovery found, without ever implying an
@@ -530,6 +582,10 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.openOverlay(overlayNamespaces)
 	case paletteOpenApps:
 		return m.backToApplications()
+	case paletteOpenFleet:
+		return m.openFleet()
+	case paletteFleetEverything:
+		return m.includeEveryContext()
 	case paletteOpenApp:
 		return m.openApplication(cmd.Arg)
 	case paletteExplain:
@@ -540,6 +596,9 @@ func (m *Model) runCommand(id string) tea.Cmd {
 	case paletteOpenResources:
 		return m.openOverlay(overlayResources)
 	case paletteOpenResource:
+		if m.view == viewFleet || m.view == viewFleetResource {
+			return m.openFleetResourceByName(cmd.Arg)
+		}
 		return m.openResource(cmd.Arg)
 	case paletteToggleWide:
 		return m.toggleWide()
@@ -579,6 +638,13 @@ func (m *Model) runCommand(id string) tea.Cmd {
 // switchContext moves the session to another cluster. It never writes to the
 // kubeconfig: an external kubectl keeps pointing where the user left it.
 func (m *Model) switchContext(name string) tea.Cmd {
+	return m.switchContextScoped(name, "")
+}
+
+// switchContextScoped is the same move with the namespace decided by the
+// caller, which is what arriving from the fleet needs: the cluster *and* the
+// namespace the thing you clicked on lives in.
+func (m *Model) switchContextScoped(name, namespace string) tea.Cmd {
 	if name == "" || name == m.contextName {
 		return nil
 	}
@@ -590,6 +656,9 @@ func (m *Model) switchContext(name string) tea.Cmd {
 
 	m.contextName = name
 	m.namespace = kctx.Namespace
+	if namespace != "" {
+		m.namespace = namespace
+	}
 	m.allNamespaces = false
 	m.cluster.Reset()
 	m.namespaces.Reset()
@@ -599,6 +668,7 @@ func (m *Model) switchContext(name string) tea.Cmd {
 	m.evidence.Reset()
 	m.object.Reset()
 	m.stopLogs()
+	m.stopFleet()
 	m.findings = nil
 	m.appCursor, m.appOffset, m.detailOffset, m.detailCursor = 0, 0, 0, 0
 	m.selectedApp = ""
@@ -648,6 +718,7 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	m.evidence.Reset()
 	m.object.Reset()
 	m.stopLogs()
+	m.stopFleet()
 	m.findings = nil
 	m.appCursor, m.appOffset, m.detailOffset, m.detailCursor = 0, 0, 0, 0
 	m.selectedApp = ""

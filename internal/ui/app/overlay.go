@@ -141,6 +141,11 @@ func (m *Model) confirmSelection() tea.Cmd {
 		return m.switchNamespace(item.ID)
 	case overlayResources:
 		m.closeOverlay()
+		// Picked from a fleet screen, the kind is browsed across the fleet
+		// rather than in the session's own cluster.
+		if m.view == viewFleet || m.view == viewFleetResource {
+			return m.openFleetResourceByName(item.ID)
+		}
 		return m.openResource(item.ID)
 	}
 	m.closeOverlay()

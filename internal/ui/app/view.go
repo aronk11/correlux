@@ -9,6 +9,7 @@ import (
 
 	"github.com/aronk11/kubeui/internal/config"
 	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/kubeui/internal/domain/fleet"
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
 	"github.com/aronk11/kubeui/internal/kube/resources"
 	"github.com/aronk11/kubeui/internal/ui/async"
@@ -127,6 +128,15 @@ func (m *Model) autoRefreshLabel() string {
 // breadcrumb shows where the user is in the navigation model:
 // cluster, scope, application, object (SPEC 5).
 func (m *Model) breadcrumb() []string {
+	switch m.view {
+	case viewFleet:
+		// The fleet sits above the cluster: these are the two screens that are
+		// not about the context in the header.
+		return []string{"Fleet", fleetCrumb(m.fleetMembers)}
+	case viewFleetResource:
+		return []string{"Fleet", m.fleetResource.Kind(), m.fleetResourceLabel()}
+	}
+
 	crumbs := []string{"Cluster", m.scopeLabel()}
 	switch m.view {
 	case viewTable:
@@ -221,6 +231,7 @@ func (m *Model) statusData() components.StatusData {
 	if m.message != "" {
 		return components.StatusData{Message: m.message, MessageStatus: m.messageStatus}
 	}
+	filter, note := m.filterStatus()
 
 	// Priorities decide what survives a narrow terminal: the palette is the way
 	// to reach everything else, and help is the way to learn it, so those two
@@ -229,44 +240,67 @@ func (m *Model) statusData() components.StatusData {
 		{Key: m.keys.Key(ActionPalette), Desc: "Commands", Priority: 100},
 		{Key: m.keys.Key(ActionResourcePicker), Desc: "Resources", Priority: 70},
 		{Key: m.keys.Key(ActionContextPicker), Desc: "Cluster", Priority: 80},
-		{Key: m.keys.Key(ActionNamespacePicker), Desc: "Namespace", Priority: 78},
+		{Key: m.keys.Key(ActionNamespacePicker), Desc: "Scope", Priority: 78},
 		{Key: m.keys.Key(ActionAutoRefresh), Desc: autoRefreshHint(m.autoRefresh), Priority: 76},
 		{Key: m.keys.Key(ActionRefresh), Desc: "Refresh", Priority: 60},
 		{Key: m.keys.Key(ActionHelp), Desc: "Help", Priority: 95},
 		{Key: m.keys.Key(ActionQuit), Desc: "Quit", Priority: 40},
 	}
+	// The key is advertised only while it is not in use: with a filter on
+	// screen, a hint telling you how to filter is a line of noise.
+	if m.searchable() && !m.searching && !m.filtering() {
+		hints = append(hints, components.KeyHint{
+			Key: m.keys.Key(ActionSearch), Desc: "Filter", Priority: 83,
+		})
+	}
+
 	switch m.view {
 	case viewTable:
 		hints = append([]components.KeyHint{
-			{Key: "↑↓", Desc: "Rows", Priority: 90},
-			{Key: "Enter", Desc: "Open", Priority: 89},
+			{Key: "↑↓", Desc: "Rows", Priority: 70},
+			{Key: "Enter", Desc: "Open", Priority: 72},
 			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewApplications:
 		hints = append([]components.KeyHint{
-			{Key: "↑↓", Desc: "Move", Priority: 90},
-			{Key: "Enter", Desc: "Open", Priority: 90},
+			{Key: "↑↓", Desc: "Move", Priority: 70},
+			{Key: "Enter", Desc: "Open", Priority: 72},
 			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
 			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
 		}, hints...)
 	case viewApplication:
 		hints = append([]components.KeyHint{
-			{Key: "↑↓", Desc: "Objects", Priority: 90},
-			{Key: "Enter", Desc: "Open", Priority: 89},
+			{Key: "↑↓", Desc: "Objects", Priority: 70},
+			{Key: "Enter", Desc: "Open", Priority: 72},
 			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
 			{Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewWhy:
 		hints = append([]components.KeyHint{
-			{Key: "↑↓", Desc: "Scroll", Priority: 90},
-			{Key: "Enter", Desc: "Objects", Priority: 86},
+			{Key: "↑↓", Desc: "Scroll", Priority: 70},
+			{Key: "Enter", Desc: "Objects", Priority: 72},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
+		}, hints...)
+	case viewFleet:
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Clusters", Priority: 70},
+			{Key: "Enter", Desc: "Go there", Priority: 72},
+			{Key: m.keys.Key(ActionResourcePicker), Desc: "Across the fleet", Priority: 86},
+			{Key: m.keys.Key(ActionRefresh), Desc: "Reload", Priority: 84},
+			{Key: "Esc", Desc: "Back", Priority: 85},
+		}, hints...)
+	case viewFleetResource:
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Rows", Priority: 70},
+			{Key: "Enter", Desc: "Open there", Priority: 72},
+			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 82},
+			{Key: "Esc", Desc: "Fleet", Priority: 85},
 		}, hints...)
 	case viewLogs:
 		hints = append([]components.KeyHint{
-			{Key: "↑↓", Desc: "Scroll", Priority: 90},
+			{Key: "↑↓", Desc: "Scroll", Priority: 70},
 			{Key: m.keys.Key(ActionFollow), Desc: followHint(m.logFollow && !m.logClosed), Priority: 89},
 			{Key: m.keys.Key(ActionTimestamps), Desc: "Times", Priority: 82},
 			{Key: m.keys.Key(ActionPrevious), Desc: previousHint(m.logPrevious), Priority: 81},
@@ -275,8 +309,8 @@ func (m *Model) statusData() components.StatusData {
 		}, hints...)
 	case viewObject:
 		object := []components.KeyHint{
-			{Key: "↑↓", Desc: "Related", Priority: 90},
-			{Key: "Enter", Desc: "Follow", Priority: 89},
+			{Key: "↑↓", Desc: "Related", Priority: 70},
+			{Key: "Enter", Desc: "Follow", Priority: 72},
 			{Key: m.keys.Key(ActionYAML), Desc: yamlHint(m.objectYAML), Priority: 87},
 			{Key: "Esc", Desc: "Back", Priority: 85},
 		}
@@ -311,7 +345,37 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "Esc", Desc: "Cancel", Priority: 90},
 		}
 	}
-	return components.StatusData{Hints: hints}
+	return components.StatusData{
+		Hints:         hints,
+		Filter:        filter,
+		FilterNote:    note,
+		FilterFocused: m.searching,
+	}
+}
+
+// filterStatus renders the filter and how much of the list it is showing.
+func (m *Model) filterStatus() (filter, note string) {
+	if !m.searching && !m.filtering() {
+		return "", ""
+	}
+	filter = m.search.Value()
+	if !m.filtering() {
+		return filter, ""
+	}
+
+	switch m.view {
+	case viewTable:
+		table := m.table.Get()
+		complete := table != nil && !table.HasMore()
+		return filter, searchNote(len(m.visibleRows()), len(m.tableRows()), complete)
+	case viewApplications:
+		return filter, searchNote(len(m.visibleApplications()), len(m.applications()), true)
+	case viewFleetResource:
+		return filter, searchNote(len(m.visibleFleetRows()), len(m.fleetTable.Rows),
+			m.fleetPending == 0 && !m.fleetTable.Truncated)
+	default:
+		return filter, ""
+	}
 }
 
 func (m *Model) renderBody() string {
@@ -330,6 +394,10 @@ func (m *Model) renderBody() string {
 		content = screens.RenderObject(m.theme, m.objectData(), body.Width, body.Height)
 	case viewLogs:
 		content = screens.RenderLogs(m.theme, m.logsData(), body.Width, body.Height)
+	case viewFleet:
+		content = screens.RenderFleet(m.theme, m.fleetData(), body.Width, body.Height)
+	case viewFleetResource:
+		content = screens.RenderTable(m.theme, m.fleetResourceData(), body.Width, body.Height)
 	default:
 		content = screens.RenderOverview(m.theme, m.overviewData(), body.Width, body.Height)
 	}
@@ -361,6 +429,11 @@ func (m *Model) tableData() screens.TableData {
 		d.Message = "No data."
 		return d
 	}
+	if rows := m.visibleRows(); len(rows) == 0 && m.filtering() {
+		d.Message = "Nothing matches " + m.query() + " among " +
+			itoa(len(table.Rows)) + " loaded " + m.resource.Plural() + "."
+		return d
+	}
 	if len(table.Rows) == 0 {
 		d.Message = "No " + m.resource.Plural() + " in " + m.scopeLabel() + "."
 		d.MessageStatus = theme.StatusUnknown
@@ -375,11 +448,12 @@ func (m *Model) tableData() screens.TableData {
 			Right: c.Type == "integer" || c.Type == "number",
 		})
 	}
-	d.Rows = make([]screens.TableRow, 0, len(table.Rows))
-	for i := range table.Rows {
+	rows := m.visibleRows()
+	d.Rows = make([]screens.TableRow, 0, len(rows))
+	for i := range rows {
 		d.Rows = append(d.Rows, screens.TableRow{
-			Cells:  table.Rows[i].Cells,
-			Status: rowStatus(table.Rows[i].Cells),
+			Cells:  rows[i].Cells,
+			Status: rowStatus(rows[i].Cells),
 		})
 	}
 	return d
@@ -586,6 +660,8 @@ func (m *Model) renderHelp(width, height int) string {
 		{"Navigate", [][2]string{
 			{m.keys.Key(ActionPalette), "Command palette — every action, by name"},
 			{m.keys.Key(ActionApplications), "Back to the application dashboard"},
+			{m.keys.Key(ActionFleet), "The fleet: every configured cluster at once, read-only"},
+			{m.keys.Key(ActionResourcePicker), "In the fleet: browse one kind across every cluster"},
 			{m.keys.Key(ActionContextPicker), "Switch cluster"},
 			{m.keys.Key(ActionNamespacePicker), "Switch namespace"},
 		}},
@@ -614,6 +690,10 @@ func (m *Model) renderHelp(width, height int) string {
 			{m.keys.Key(ActionResourcePicker), "Browse resource kinds, including custom resources"},
 			{m.keys.Key(ActionRefresh), "Refresh"},
 			{m.keys.Key(ActionAutoRefresh), "Refresh on a timer, until you turn it off"},
+		}},
+		{"Filtering", [][2]string{
+			{m.keys.Key(ActionSearch), "Narrow the list on screen; type to filter, Esc to clear"},
+			{"↑ ↓ / Enter", "Leave the filter and act on what is left"},
 		}},
 		{"In a resource table", [][2]string{
 			{"↑ ↓ / j k", "Move; the next page loads as you reach the end"},
@@ -683,6 +763,20 @@ func padTo(s string, width int) string {
 		return s + strings.Repeat(" ", gap)
 	}
 	return s
+}
+
+// fleetCrumb summarises the fleet for the breadcrumb: how many clusters, and
+// how many of them have answered.
+func fleetCrumb(members []fleet.Member) string {
+	if len(members) == 0 {
+		return "not configured"
+	}
+	summary := fleet.Summarise(members)
+	if summary.Complete() {
+		return itoa(summary.Clusters) + " " + clusterWord(summary.Clusters)
+	}
+	return itoa(summary.Answered) + " of " + itoa(summary.Clusters) + " " +
+		clusterWord(summary.Clusters) + " answered"
 }
 
 // followHint, previousHint and wrapHint all name what the key will do next,

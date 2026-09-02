@@ -16,7 +16,7 @@ func nodeUnhealthy(in *Input) []Diagnosis {
 	}
 
 	byNode := map[string][]*application.Pod{}
-	for _, p := range sortedNames(livePods(in.App)) {
+	for _, p := range sortedNames(livePods(&in.App)) {
 		if p.Node != "" {
 			byNode[p.Node] = append(byNode[p.Node], p)
 		}
@@ -63,7 +63,7 @@ func nodeUnhealthy(in *Input) []Diagnosis {
 			Problem:    problem,
 			Cause:      cause,
 			Confidence: confidence,
-			Chain:      chain(in.App, "Pods", "Node/"+name),
+			Chain:      chain(&in.App, "Pods", "Node/"+name),
 			Suggestions: []Suggestion{
 				{Text: "Check the node's conditions and what the kubelet reports",
 					Command: describeCommand("node", "", name)},
@@ -105,7 +105,7 @@ func storageNotBound(in *Input) []Diagnosis {
 
 	seen := map[string]bool{}
 	var out []Diagnosis
-	for _, p := range sortedNames(livePods(in.App)) {
+	for _, p := range sortedNames(livePods(&in.App)) {
 		for _, name := range p.Claims {
 			claim, ok := in.Context.ClaimByName(p.Namespace, name)
 			if !ok || claim.Phase == "Bound" || seen[name] {
@@ -134,7 +134,7 @@ func storageNotBound(in *Input) []Diagnosis {
 				Problem:    "PersistentVolumeClaim " + claim.Name + " is " + strings.ToLower(orUnknown(claim.Phase)) + ", so the pods that mount it cannot start",
 				Cause:      cause,
 				Confidence: confidence,
-				Chain:      chain(in.App, "Pods", "PersistentVolumeClaim/"+claim.Name, claim.Phase),
+				Chain:      chain(&in.App, "Pods", "PersistentVolumeClaim/"+claim.Name, claim.Phase),
 				Suggestions: []Suggestion{
 					{Text: "Check the storage class and whether a provisioner is running",
 						Command: describeCommand("pvc", claim.Namespace, claim.Name)},
@@ -144,8 +144,9 @@ func storageNotBound(in *Input) []Diagnosis {
 					Detail: "phase " + orUnknown(claim.Phase) + ", storage class " + orUnknown(claim.StorageClass),
 				}},
 			}
-			for _, e := range limitEvents(events) {
-				d.Evidence = append(d.Evidence, eventEvidence(e))
+			shown := limitEvents(events)
+			for i := range shown {
+				d.Evidence = append(d.Evidence, eventEvidence(&shown[i]))
 			}
 			out = append(out, d)
 		}
@@ -163,7 +164,7 @@ func replicasMissing(in *Input) []Diagnosis {
 		if !w.Replicated || w.Desired == 0 || w.Ready >= w.Desired {
 			continue
 		}
-		running := podsOf(in.App, w)
+		running := podsOf(&in.App, w)
 		if running >= int(w.Desired) {
 			// The pods exist; whatever is wrong with them is a pod problem.
 			continue
@@ -188,7 +189,7 @@ func replicasMissing(in *Input) []Diagnosis {
 			Problem:    w.Kind + "/" + w.Name + " is missing " + strconv.Itoa(missing) + " of " + strconv.Itoa(int(w.Desired)) + " pods",
 			Cause:      cause,
 			Confidence: confidence,
-			Chain:      chain(in.App, "ReplicaSet", "pods not created"),
+			Chain:      chain(&in.App, "ReplicaSet", "pods not created"),
 			Suggestions: []Suggestion{
 				{Text: "Check the controller's events for quota, limit ranges or admission webhooks",
 					Command: describeCommand(w.Kind, w.Namespace, w.Name)},
@@ -199,8 +200,9 @@ func replicasMissing(in *Input) []Diagnosis {
 					" ready, " + strconv.Itoa(running) + " pods exist",
 			}},
 		}
-		for _, e := range limitEvents(events) {
-			d.Evidence = append(d.Evidence, eventEvidence(e))
+		quoted := limitEvents(events)
+		for i := range quoted {
+			d.Evidence = append(d.Evidence, eventEvidence(&quoted[i]))
 		}
 		out = append(out, d)
 	}
@@ -223,7 +225,7 @@ func rolloutPaused(in *Input) []Diagnosis {
 				Problem:    w.Kind + "/" + w.Name + " has its rollout paused",
 				Cause:      "somebody paused it; changes to the pod template will not be applied until it is resumed",
 				Confidence: High,
-				Chain:      chain(in.App, "rollout paused"),
+				Chain:      chain(&in.App, "rollout paused"),
 				Suggestions: []Suggestion{
 					{Text: "Resume the rollout when the pause is no longer wanted",
 						Command: "kubectl rollout resume " + strings.ToLower(w.Kind) + " -n " + w.Namespace + " " + w.Name},
@@ -237,7 +239,7 @@ func rolloutPaused(in *Input) []Diagnosis {
 				Problem:    w.Kind + "/" + w.Name + " is suspended",
 				Cause:      "it will not run again until it is resumed",
 				Confidence: High,
-				Chain:      chain(in.App, "suspended"),
+				Chain:      chain(&in.App, "suspended"),
 			})
 		}
 	}
@@ -250,7 +252,7 @@ func rolloutPaused(in *Input) []Diagnosis {
 // to that workload by construction — attribution has already happened, and
 // insisting on a selector match here would report "0 pods exist" about pods
 // that are visibly on the screen.
-func podsOf(app application.Application, w *application.Workload) int {
+func podsOf(app *application.Application, w *application.Workload) int {
 	if len(app.Workloads) == 1 {
 		return len(livePods(app))
 	}

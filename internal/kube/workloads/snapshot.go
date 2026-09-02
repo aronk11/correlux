@@ -216,14 +216,25 @@ func Collect(ctx context.Context, cs kubernetes.Interface, opts Options) (applic
 	return snap, nil
 }
 
+// managerAnnotations are the only annotations kept. Annotations routinely hold
+// a full copy of the last applied manifest, and keeping every one of them for
+// every object in a cluster would cost more than the rest of the snapshot put
+// together.
+var managerAnnotations = []string{
+	"meta.helm.sh/release-name",
+	"meta.helm.sh/release-namespace",
+	"argocd.argoproj.io/instance",
+}
+
 func meta(kind string, m metav1.ObjectMeta) application.Meta {
 	out := application.Meta{
-		Kind:      kind,
-		Name:      m.Name,
-		Namespace: m.Namespace,
-		UID:       string(m.UID),
-		Labels:    m.Labels,
-		CreatedAt: m.CreationTimestamp.Time,
+		Kind:        kind,
+		Name:        m.Name,
+		Namespace:   m.Namespace,
+		UID:         string(m.UID),
+		Labels:      m.Labels,
+		Annotations: keepAnnotations(m.Annotations),
+		CreatedAt:   m.CreationTimestamp.Time,
 	}
 	for _, o := range m.OwnerReferences {
 		out.Owners = append(out.Owners, application.OwnerRef{
@@ -320,6 +331,25 @@ func fromIngress(i *networkingv1.Ingress) application.Ingress {
 				out.Backends = append(out.Backends, path.Backend.Service.Name)
 			}
 		}
+	}
+	return out
+}
+
+// keepAnnotations copies only the keys that say who manages an object.
+func keepAnnotations(annotations map[string]string) map[string]string {
+	if len(annotations) == 0 {
+		return nil
+	}
+	var out map[string]string
+	for _, key := range managerAnnotations {
+		value, ok := annotations[key]
+		if !ok {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]string, len(managerAnnotations))
+		}
+		out[key] = value
 	}
 	return out
 }
