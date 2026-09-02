@@ -43,26 +43,68 @@ func fromPod(p *corev1.Pod) application.Pod {
 // containers records both the current and the previous state of every
 // container. A pod in CrashLoopBackOff is only *waiting* right now; how its
 // last run ended is the part that explains anything.
+//
+// The walk starts from the spec rather than from the statuses, because a pod
+// that has never been scheduled has no statuses at all — and an unschedulable
+// pod is exactly the one whose requests somebody wants to look at.
 func containers(p *corev1.Pod) []application.Container {
-	out := make([]application.Container, 0,
+	statuses := make(map[string]*corev1.ContainerStatus,
 		len(p.Status.InitContainerStatuses)+len(p.Status.ContainerStatuses))
 	for i := range p.Status.InitContainerStatuses {
-		out = append(out, container(p.Status.InitContainerStatuses[i], true))
+		statuses[p.Status.InitContainerStatuses[i].Name] = &p.Status.InitContainerStatuses[i]
 	}
 	for i := range p.Status.ContainerStatuses {
-		out = append(out, container(p.Status.ContainerStatuses[i], false))
+		statuses[p.Status.ContainerStatuses[i].Name] = &p.Status.ContainerStatuses[i]
+	}
+
+	out := make([]application.Container, 0, len(p.Spec.InitContainers)+len(p.Spec.Containers))
+	for i := range p.Spec.InitContainers {
+		spec := &p.Spec.InitContainers[i]
+		c := container(statuses[spec.Name], true)
+		c.Name, c.Sidecar = spec.Name, spec.RestartPolicy != nil &&
+			*spec.RestartPolicy == corev1.ContainerRestartPolicyAlways
+		fillResources(&c, spec)
+		out = append(out, c)
+	}
+	for i := range p.Spec.Containers {
+		spec := &p.Spec.Containers[i]
+		c := container(statuses[spec.Name], false)
+		c.Name = spec.Name
+		fillResources(&c, spec)
+		out = append(out, c)
 	}
 	return out
 }
 
-func container(s corev1.ContainerStatus, init bool) application.Container {
-	c := application.Container{
-		Name:     s.Name,
-		Image:    s.Image,
-		Ready:    s.Ready,
-		Init:     init,
-		Restarts: s.RestartCount,
+// fillResources copies what the spec asked for. An absent request is recorded
+// as absent, never as zero: nothing is what an unsized container is, and zero
+// is what a container that asked for nothing is.
+func fillResources(c *application.Container, spec *corev1.Container) {
+	c.Requests = amountsOf(spec.Resources.Requests)
+	c.Limits = amountsOf(spec.Resources.Limits)
+}
+
+func amountsOf(list corev1.ResourceList) application.Amounts {
+	out := application.Amounts{}
+	if cpu, ok := list[corev1.ResourceCPU]; ok {
+		out.CPUMilli, out.HasCPU = cpu.MilliValue(), true
 	}
+	if mem, ok := list[corev1.ResourceMemory]; ok {
+		out.MemoryBytes, out.HasMemory = mem.Value(), true
+	}
+	return out
+}
+
+// container reduces one container status. A nil status is a container the
+// kubelet has not reported on yet, which leaves its state empty rather than
+// inventing one.
+func container(status *corev1.ContainerStatus, init bool) application.Container {
+	c := application.Container{Init: init}
+	if status == nil {
+		return c
+	}
+	s := *status
+	c.Name, c.Image, c.Ready, c.Restarts = s.Name, s.Image, s.Ready, s.RestartCount
 	switch {
 	case s.State.Waiting != nil:
 		c.State, c.Reason, c.Message = "waiting", s.State.Waiting.Reason, s.State.Waiting.Message

@@ -126,6 +126,56 @@ type Container struct {
 	// OOMKilled is true when this container, or its previous run, was killed
 	// for exceeding its memory limit.
 	OOMKilled bool
+	// Requests is what the spec asked the scheduler to reserve and Limits what
+	// the kubelet will not let the container exceed: CPU in millicores, memory
+	// in bytes. The flags beside them separate "the spec set none" from "the
+	// spec set zero" — an unsized container is placed anywhere and throttled by
+	// nothing, which is a fact about the workload, not a zero.
+	Requests Amounts
+	Limits   Amounts
+	// Sidecar marks an init container with restartPolicy Always. It runs
+	// beside the regular containers rather than before them, so its request
+	// adds to the pod's instead of being absorbed by the init-phase maximum.
+	Sidecar bool
+}
+
+// Amounts is the CPU and memory of one container or one rollup: millicores and
+// bytes, so the numbers add without carrying a unit around.
+//
+// HasCPU and HasMemory record whether anything was set at all. Without them a
+// container with no request and a container asking for nothing are the same
+// number, and the whole point of a usage view is telling those two apart.
+type Amounts struct {
+	CPUMilli    int64
+	MemoryBytes int64
+	HasCPU      bool
+	HasMemory   bool
+}
+
+// Add sums two sets of amounts, keeping "something was set" if either had it.
+func (a Amounts) Add(b Amounts) Amounts {
+	return Amounts{
+		CPUMilli:    a.CPUMilli + b.CPUMilli,
+		MemoryBytes: a.MemoryBytes + b.MemoryBytes,
+		HasCPU:      a.HasCPU || b.HasCPU,
+		HasMemory:   a.HasMemory || b.HasMemory,
+	}
+}
+
+// Max takes the larger of each amount, which is how the init phase of a pod
+// contributes to what the scheduler reserves for it.
+func (a Amounts) Max(b Amounts) Amounts {
+	out := Amounts{HasCPU: a.HasCPU || b.HasCPU, HasMemory: a.HasMemory || b.HasMemory}
+	out.CPUMilli = max64(a.CPUMilli, b.CPUMilli)
+	out.MemoryBytes = max64(a.MemoryBytes, b.MemoryBytes)
+	return out
+}
+
+func max64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // Terminal reports whether the pod has finished and is not expected to run
@@ -197,6 +247,21 @@ type Node struct {
 	// Reason and Message come from the Ready condition when it is not true.
 	Reason  string
 	Message string
+	// Capacity is what the machine has; Allocatable is what is left for pods
+	// after the kubelet's own reservations. Allocatable is the denominator of
+	// every "how full is this node" question, because it is the number the
+	// scheduler works with.
+	Capacity    Capacity
+	Allocatable Capacity
+}
+
+// Capacity is a machine-sized amount of the three things a node runs out of.
+// Pods is the kubelet's own limit on how many it will accept, which a node
+// reaches long before it runs out of either of the other two.
+type Capacity struct {
+	CPUMilli    int64
+	MemoryBytes int64
+	Pods        int64
 }
 
 // Claim is a PersistentVolumeClaim's binding state.
