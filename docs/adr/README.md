@@ -16,6 +16,10 @@ for the process; the format is Michael Nygard's: context, decision, consequences
 | [9](0009-accessibility-and-terminal-capabilities.md) | Never encode meaning in colour alone; degrade to ASCII | accepted |
 | [10](0010-deterministic-diagnosis-before-ai.md) | The diagnosis engine is deterministic; AI is an optional explanation layer | accepted |
 | [11](0011-development-workflow.md) | Trunk-based development with feature branches and Conventional Commits | accepted |
+| [12](0012-task-instead-of-make.md) | Task instead of Make | accepted |
+| [13](0013-server-side-tables.md) | Resources are rendered from the API server's own tables | accepted |
+| [14](0014-load-testing-with-kind.md) | Load is tested on a real API server, with pods that never run | accepted |
+| [15](0015-signed-commits.md) | Every commit is signed | accepted |
 
 ## Adding one
 
