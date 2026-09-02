@@ -298,3 +298,72 @@ func TestTheWheelDoesNotScrollBehindAnOverlay(t *testing.T) {
 		t.Errorf("the dashboard scrolled behind an open overlay, offset is %d", m.appOffset)
 	}
 }
+
+func TestWhoDeployedAnApplicationIsOnScreenAndReachable(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+
+	app := testApplication("payments", application.Degraded, 2, 3)
+	app.Manager = application.Manager{
+		Tool: "Flux", Kind: "HelmRelease", Name: "payments", Namespace: "flux-system",
+	}
+	loadApplicationsInto(m, app)
+
+	// The dashboard carries it in the wide columns.
+	press(t, m, "w")
+	if out := plainView(m); !strings.Contains(out, "Flux payments") {
+		t.Errorf("the dashboard must say who deployed it:\n%s", out)
+	}
+	press(t, m, "w")
+
+	press(t, m, "enter")
+	out := plainView(m)
+	for _, want := range []string{"DELIVERED BY", "Flux", "HelmRelease/payments", "flux-system"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the detail view must show %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestTheFluxObjectCanBeOpenedFromTheApplication(t *testing.T) {
+	m := newTestModel(t)
+	catalog := testCatalog()
+	catalog.Resources = append(catalog.Resources, resource(
+		"helm.toolkit.fluxcd.io", "v2", "helmreleases", "HelmRelease", true, false, "hr"))
+	loadCatalogInto(m, catalog)
+
+	app := testApplication("payments", application.Degraded, 2, 3)
+	app.Manager = application.Manager{
+		Tool: "Flux", Kind: "HelmRelease", Name: "payments", Namespace: "flux-system",
+	}
+	loadApplicationsInto(m, app)
+	press(t, m, "enter")
+
+	// Past the workload, the pods, the service, onto the delivery row.
+	_, targets := m.applicationView()
+	found := -1
+	for i, ref := range targets {
+		if ref.Kind == "HelmRelease" {
+			found = i
+		}
+	}
+	if found < 0 {
+		t.Fatalf("the HelmRelease must be selectable: %+v", targets)
+	}
+
+	m.detailCursor = found
+	press(t, m, "enter")
+	if m.view != viewObject || m.objectTarget.Kind != "HelmRelease" {
+		t.Errorf("view = %v target = %+v, want the Flux object open", m.view, m.objectTarget)
+	}
+}
+
+func TestAnApplicationNobodyClaimsSaysSo(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
+	press(t, m, "enter")
+
+	if out := plainView(m); !strings.Contains(out, "nothing claims this application") {
+		t.Errorf("on a cluster run by Flux, an unclaimed application is worth noticing:\n%s", out)
+	}
+}

@@ -329,6 +329,8 @@ func (m *Model) fleetData() screens.FleetData {
 	}
 
 	nodes := screens.DetailSection{
+		// Everything unusual about a machine belongs here, a cordon included:
+		// it is not a fault, and it is the reason a rollout will not land.
 		Title:   "Nodes",
 		Columns: []string{"Cluster", "Node", "State", "Detail"},
 		Empty:   nodesEmpty(m.fleetMembers),
@@ -401,14 +403,26 @@ func fleetSubtitle(s fleet.Summary) string {
 		if s.Unhealthy > 0 {
 			parts = append(parts, itoa(s.Unhealthy)+" not healthy")
 		}
-		switch {
-		case s.NodesNotReady > 0:
-			parts = append(parts, itoa(s.NodesNotReady)+" of "+itoa(s.Nodes)+" nodes not ready")
-		case s.NodesPressure > 0:
-			parts = append(parts, itoa(s.NodesPressure)+" nodes under pressure")
+		if node := nodeSummary(s); node != "" {
+			parts = append(parts, node)
 		}
 	}
 	return strings.Join(parts, "   ")
+}
+
+// nodeSummary states everything odd about the fleet's machines in one phrase.
+func nodeSummary(s fleet.Summary) string {
+	var parts []string
+	if s.NodesNotReady > 0 {
+		parts = append(parts, itoa(s.NodesNotReady)+" of "+itoa(s.Nodes)+" nodes not ready")
+	}
+	if s.NodesPressure > 0 {
+		parts = append(parts, itoa(s.NodesPressure)+" under pressure")
+	}
+	if s.NodesCordoned > 0 {
+		parts = append(parts, itoa(s.NodesCordoned)+" cordoned")
+	}
+	return strings.Join(parts, ", ")
 }
 
 func fleetEmpty(s fleet.Summary) string {
@@ -464,16 +478,21 @@ func memberDetail(m fleet.Member) string {
 		parts = append(parts, itoa(counts.Degraded)+" degraded")
 	}
 
+	// Everything odd about the machines, not only the worst of it: a cluster
+	// with one node down and two cordoned has two facts worth knowing, and
+	// showing only the first is how the second is discovered too late.
 	trouble := m.NodeTrouble()
-	switch {
-	case m.NodesErr != nil:
+	if m.NodesErr != nil {
 		parts = append(parts, "nodes not readable")
-	case trouble.NotReady > 0:
+	}
+	if trouble.NotReady > 0 {
 		parts = append(parts, itoa(trouble.NotReady)+" of "+itoa(trouble.Total)+" nodes not ready")
-	case trouble.Pressure > 0:
-		parts = append(parts, itoa(trouble.Pressure)+" nodes under pressure")
-	case trouble.Cordoned > 0:
-		parts = append(parts, itoa(trouble.Cordoned)+" nodes cordoned")
+	}
+	if trouble.Pressure > 0 {
+		parts = append(parts, itoa(trouble.Pressure)+" under pressure")
+	}
+	if trouble.Cordoned > 0 {
+		parts = append(parts, itoa(trouble.Cordoned)+" cordoned")
 	}
 
 	if len(m.Gaps) > 0 {
@@ -556,11 +575,15 @@ func memberStatus(m fleet.Member) theme.Status {
 		return theme.StatusCritical
 	case fleet.Ready:
 		counts := m.Counts()
+		trouble := m.NodeTrouble()
 		switch {
-		case counts.Down > 0:
+		case counts.Down > 0 || trouble.NotReady > 0:
 			return theme.StatusCritical
-		case counts.Degraded > 0:
+		case counts.Degraded > 0 || trouble.Pressure > 0:
 			return theme.StatusWarning
+		case trouble.Cordoned > 0 || m.NodesErr != nil || len(m.Gaps) > 0:
+			// Nothing is failing, and something is not as it should be.
+			return theme.StatusUnknown
 		default:
 			return theme.StatusHealthy
 		}

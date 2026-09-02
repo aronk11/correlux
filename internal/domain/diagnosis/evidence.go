@@ -15,7 +15,7 @@ const maxEvidence = 3
 
 // livePods are the pods that are still meant to be running. A Job's completed
 // pods are not a problem to explain.
-func livePods(app application.Application) []*application.Pod {
+func livePods(app *application.Application) []*application.Pod {
 	out := make([]*application.Pod, 0, len(app.Pods))
 	for i := range app.Pods {
 		if app.Pods[i].Terminal() {
@@ -32,7 +32,7 @@ func podRef(p *application.Pod) application.ObjectRef {
 
 // chain renders the path from the workload to the failure, which is the line
 // the WHY view leads with.
-func chain(app application.Application, steps ...string) []string {
+func chain(app *application.Application, steps ...string) []string {
 	out := make([]string, 0, len(steps)+2)
 	if len(app.Workloads) > 0 {
 		out = append(out, app.Workloads[0].Kind+"/"+app.Workloads[0].Name)
@@ -48,20 +48,20 @@ func chain(app application.Application, steps ...string) []string {
 func warningsAbout(in *Input, ref application.ObjectRef, reasons ...string) []application.Event {
 	events := in.Context.EventsAbout(ref.UID, ref.Name)
 	out := make([]application.Event, 0, len(events))
-	for _, e := range events {
-		if e.Type != "Warning" {
+	for i := range events {
+		if events[i].Type != "Warning" {
 			continue
 		}
-		if len(reasons) > 0 && !contains(reasons, e.Reason) {
+		if len(reasons) > 0 && !contains(reasons, events[i].Reason) {
 			continue
 		}
-		out = append(out, e)
+		out = append(out, events[i])
 	}
 	return out
 }
 
 // eventEvidence quotes an event as the cluster wrote it.
-func eventEvidence(e application.Event) Evidence {
+func eventEvidence(e *application.Event) Evidence {
 	detail := e.Reason + ": " + e.Message
 	if e.Count > 1 {
 		detail += " (x" + strconv.Itoa(int(e.Count)) + ")"

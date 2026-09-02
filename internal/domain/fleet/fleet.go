@@ -195,6 +195,7 @@ type Summary struct {
 	Nodes         int
 	NodesNotReady int
 	NodesPressure int
+	NodesCordoned int
 }
 
 // Rows merges the members' applications into one list, worst first.
@@ -252,6 +253,7 @@ func Summarise(members []Member) Summary {
 			s.Nodes += trouble.Total
 			s.NodesNotReady += trouble.NotReady
 			s.NodesPressure += trouble.Pressure
+			s.NodesCordoned += trouble.Cordoned
 			counts := member.Counts()
 			s.Counts.Total += counts.Total
 			s.Counts.Healthy += counts.Healthy

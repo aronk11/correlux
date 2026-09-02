@@ -194,19 +194,29 @@ broken in each of them.
 
 ```
 Fleet
-3 clusters   1 unreachable   5 applications across 2 of 3   3 not healthy
+3 clusters   1 unreachable   5 applications across 2 of 3   3 not healthy   1 of 7 nodes not ready, 1 cordoned
 
 CLUSTERS
   CLUSTER        STATE        APPLICATIONS  DETAIL
-  staging        connected    2             1 degraded
-  prod-eu  PROD  connected    3             1 down, 1 degraded
+  staging        connected    2             1 degraded, 1 cordoned
+  prod-eu  PROD  connected    3             1 down, 1 of 4 nodes not ready
   sandbox        unreachable  —             connection refused
 
+NODES
+  CLUSTER        NODE     STATE      DETAIL
+  prod-eu  PROD  node-2   not ready  Kubelet stopped posting node status.
+  staging        node-7   cordoned   no new pods will be placed here
+
 WHAT IS BROKEN
-  APPLICATION  CLUSTER        HEALTH    PODS  DETAIL
-  payments     prod-eu  PROD  down      0/3   3 CrashLoopBackOff
-  payments     staging        degraded  2/3   1 ImagePullBackOff
+  APPLICATION  CLUSTER        NAMESPACE  HEALTH    PODS  DETAIL
+  payments     prod-eu  PROD  shop       down      0/3   3 CrashLoopBackOff
+  payments     staging        shop       degraded  2/3   1 ImagePullBackOff
 ```
+
+Everything unusual is on that one screen, not only what has failed: a node that
+is merely cordoned is named too, because it is the reason a rollout will not
+land there, and a kind kubeui was not allowed to read is counted rather than
+passed over in silence.
 
 It covers the contexts listed under `fleet:` in your config and nothing else —
 kubeui never discovers on its own that opening it authenticated against every
@@ -234,6 +244,24 @@ fleet, or you are inside one cluster acting on it
 ([ADR 19](docs/adr/0019-fleet-overview.md)). Totals never cover a cluster that
 did not answer, and the timer does not refresh this screen — `Ctrl+R` does, when
 you decide the cost is worth paying.
+
+### Helm, Flux and Argo CD
+
+kubeui recognises their handwriting. Nothing is installed and nothing is asked
+of them: the workloads those tools create carry labels and annotations saying so,
+and an application reads them.
+
+```
+DELIVERED BY
+  TOOL  OBJECT                NAMESPACE
+  Flux  HelmRelease/payments  flux-system
+```
+
+`Enter` on that row opens the HelmRelease, Kustomization or Argo application
+itself — with its reconciliation conditions, like any other object. Flux is
+recognised ahead of the Helm it deploys through, because the object worth
+looking at is the one that drives the release. An application nothing claims
+says so, which on a cluster run by Flux is itself worth noticing.
 
 ### Keeping up with a rollout
 
@@ -336,6 +364,7 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | 4 | Object detail, describe and navigation between objects | **done** |
 | — | Logs at pod, workload and application level | **done** |
 | — | Fleet overview across several clusters, read-only | **done** |
+| — | Helm, Flux and Argo CD recognised from what they write | **done** |
 | — | Exec and clipboard | next |
 | 5 | Safe mutating actions: scale and edit | **done** |
 | — | Further safe actions: delete, restart, cordon | planned |

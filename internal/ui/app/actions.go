@@ -326,7 +326,9 @@ func (m *Model) rebuildCommands() {
 
 	// Every application is its own command, so "open payments" is one keystroke
 	// and a search away, without stepping through the dashboard.
-	for _, a := range m.applications() {
+	fleetApps := m.applications()
+	for i := range fleetApps {
+		a := &fleetApps[i]
 		if m.view == viewApplication && a.Key() == m.selectedApp {
 			continue
 		}

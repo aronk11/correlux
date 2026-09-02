@@ -42,7 +42,7 @@ func serviceWithoutEndpoints(in *Input) []Diagnosis {
 			continue
 		}
 
-		selected, ready := selectedPods(in.App, svc.Selector)
+		selected, ready := selectedPods(&in.App, svc.Selector)
 		var (
 			cause      string
 			confidence Confidence
@@ -68,7 +68,7 @@ func serviceWithoutEndpoints(in *Input) []Diagnosis {
 			Problem:    "Service/" + svc.Name + " has no ready endpoints, so nothing it fronts can be reached",
 			Cause:      cause,
 			Confidence: confidence,
-			Chain:      chain(in.App, "Service/"+svc.Name, chainTail),
+			Chain:      chain(&in.App, "Service/"+svc.Name, chainTail),
 			Suggestions: []Suggestion{
 				{Text: "Compare the service selector with the labels on the pods",
 					Command: describeCommand("service", svc.Namespace, svc.Name)},
@@ -130,7 +130,7 @@ func ingressWithoutBackend(in *Input) []Diagnosis {
 			Problem:    "Ingress/" + ing.Name + " routes to " + strings.Join(missing, ", ") + ", which does not exist here",
 			Cause:      "the backend service named in the ingress is not in this namespace, so the router has nothing to send requests to",
 			Confidence: High,
-			Chain:      chain(in.App, "Ingress/"+ing.Name, "missing backend"),
+			Chain:      chain(&in.App, "Ingress/"+ing.Name, "missing backend"),
 			Suggestions: []Suggestion{
 				{Text: "Check the service name in the ingress rules",
 					Command: describeCommand("ingress", ing.Namespace, ing.Name)},
@@ -147,7 +147,7 @@ func ingressWithoutBackend(in *Input) []Diagnosis {
 
 // selectedPods returns the application's pods a selector matches, and how many
 // of them are ready.
-func selectedPods(app application.Application, selector map[string]string) ([]*application.Pod, int) {
+func selectedPods(app *application.Application, selector map[string]string) ([]*application.Pod, int) {
 	out := make([]*application.Pod, 0, len(app.Pods))
 	ready := 0
 	for _, p := range sortedNames(livePods(app)) {

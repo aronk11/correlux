@@ -350,7 +350,8 @@ func (m *Model) objectEventsSection(obj *resources.Object, now time.Time) screen
 	if len(events) > maxDetailEvents {
 		events = events[:maxDetailEvents]
 	}
-	for _, e := range events {
+	for i := range events {
+		e := &events[i]
 		row := screens.DetailRow{
 			Cells:  []string{formatAge(e.LastSeen, now), e.Type, e.Reason, e.Message},
 			Target: -1,

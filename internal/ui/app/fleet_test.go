@@ -389,3 +389,54 @@ func TestEnterOnANodeOpensItInItsCluster(t *testing.T) {
 		t.Errorf("pending = %+v, want the node under the cursor", m.pendingObject)
 	}
 }
+
+func TestEverythingOddAboutAClusterIsOnTheDefaultView(t *testing.T) {
+	// One node down, one cordoned, one kind unreadable: three separate facts,
+	// and showing only the worst is how the other two are found too late.
+	m := fleetModel(t, "prod-eu")
+	press(t, m, "F")
+
+	cordoned := application.Node{Meta: application.Meta{Kind: "Node", Name: "node-3"}, Ready: true}
+	cordoned.Unschedulable = true
+
+	member := ready("prod-eu", true, fleetApp("api", application.Healthy, 2, 2))
+	member.Nodes = []application.Node{
+		{Meta: application.Meta{Kind: "Node", Name: "node-1"}, Ready: true},
+		brokenNode("node-2"),
+		cordoned,
+	}
+	member.Gaps = []application.Gap{{Kind: "Ingress", Reason: "not permitted for this user"}}
+	answer(m, member)
+
+	out := plainView(m)
+	for _, want := range []string{
+		"1 of 3 nodes not ready", // the failure
+		"1 cordoned",             // and the thing that is merely unusual
+		"kind(s) unreadable",     // and what could not be read at all
+		"node-3",                 // the cordoned machine is named
+		"cordoned",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the default view must show %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestACordonedNodeAloneStillMarksTheCluster(t *testing.T) {
+	m := fleetModel(t, "sandbox")
+	press(t, m, "F")
+
+	cordoned := application.Node{Meta: application.Meta{Kind: "Node", Name: "node-1"}, Ready: true}
+	cordoned.Unschedulable = true
+	member := ready("sandbox", false, fleetApp("api", application.Healthy, 1, 1))
+	member.Nodes = []application.Node{cordoned}
+	answer(m, member)
+
+	out := plainView(m)
+	if strings.Contains(out, "nothing broken") {
+		t.Errorf("a cordoned node is not nothing:\n%s", out)
+	}
+	if !strings.Contains(out, "cordoned") {
+		t.Errorf("it must be named on the cluster row:\n%s", out)
+	}
+}

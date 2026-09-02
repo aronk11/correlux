@@ -108,6 +108,12 @@ what it covers: "5 applications across 2 of 3" is what a fleet with an
 unreachable member reports, and the member itself is listed with the reason it
 could not be read.
 
+Each member's nodes are read alongside its workloads — one more call, and the
+most common thing that is wrong with a cluster belongs to no application at all.
+Everything unusual reaches the default view: a node that is not ready, one under
+pressure, one merely cordoned, and a kind that could not be read. Showing only
+the worst of them is how the rest is discovered too late.
+
 From the overview, `Ctrl+B` browses one resource kind across every member as a
 single table. The columns are the API servers' own, merged by name rather than
 by position: clusters need not agree — a CRD at two versions prints different
