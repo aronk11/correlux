@@ -15,6 +15,7 @@ vars:
   TOOLS_DIR: "{{.ROOT_DIR}}/.tools"
   # Pinned tool versions. CI uses the same ones.
   GOLANGCI_VERSION: v2.6.2
+  GORELEASER_VERSION: v2.18.0
   KIND_VERSION: v0.33.0
   # kind cluster used by the integration and load tasks.
   KIND_CLUSTER: kubeui-test
@@ -51,6 +52,22 @@ tasks:
     desc: Install the binary into $GOBIN
     cmds:
       - go install -trimpath -ldflags "{{.LDFLAGS}}" ./cmd/kubeui
+
+  dist:
+    desc: Build the release artefacts for every platform into ./dist
+    deps: [tools:goreleaser]
+    cmds:
+      # The same configuration CI publishes with, stopping before it publishes
+      # anything. On a tagged commit the artefacts carry that version; on any
+      # other commit GoReleaser needs --snapshot, which stamps a preview
+      # version instead.
+      - "{{.TOOLS_DIR}}/goreleaser release --clean --skip=publish,announce {{.CLI_ARGS}}"
+
+  dist:snapshot:
+    desc: Build the release artefacts for an untagged commit
+    deps: [tools:goreleaser]
+    cmds:
+      - "{{.TOOLS_DIR}}/goreleaser release --clean --snapshot --skip=publish,announce"
 
   run:
     desc: Run kubeui against your current kubeconfig
@@ -250,6 +267,13 @@ tasks:
       - test -x {{.TOOLS_DIR}}/golangci-lint
     cmds:
       - GOBIN={{.TOOLS_DIR}} go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_VERSION}}
+
+  tools:goreleaser:
+    internal: true
+    status:
+      - test -x {{.TOOLS_DIR}}/goreleaser
+    cmds:
+      - GOBIN={{.TOOLS_DIR}} go install github.com/goreleaser/goreleaser/v2@{{.GORELEASER_VERSION}}
 
   tools:kind:
     internal: true
