@@ -244,9 +244,16 @@ func rolloutPaused(in *Input) []Diagnosis {
 	return out
 }
 
-// podsOf counts the application's pods that belong to one workload, by owner or
-// by the workload's own selector.
+// podsOf counts the application's pods that belong to one workload.
+//
+// When the application has a single workload, every pod grouped into it belongs
+// to that workload by construction — attribution has already happened, and
+// insisting on a selector match here would report "0 pods exist" about pods
+// that are visibly on the screen.
 func podsOf(app application.Application, w *application.Workload) int {
+	if len(app.Workloads) == 1 {
+		return len(livePods(app))
+	}
 	count := 0
 	for i := range app.Pods {
 		p := &app.Pods[i]

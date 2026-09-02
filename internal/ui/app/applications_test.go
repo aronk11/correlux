@@ -29,10 +29,11 @@ func testApplication(name string, health application.Health, ready, desired int3
 	}
 	for i := int32(0); i < desired; i++ {
 		pod := application.Pod{
-			Meta:  application.Meta{Kind: "Pod", Name: name + "-7d8f-" + itoa(int(i)), Namespace: "default"},
-			Phase: "Running",
-			Ready: i < ready,
-			Node:  "node-1",
+			Meta:      application.Meta{Kind: "Pod", Name: name + "-7d8f-" + itoa(int(i)), Namespace: "default"},
+			Phase:     "Running",
+			Ready:     i < ready,
+			Node:      "node-1",
+			Scheduled: true,
 		}
 		if i >= ready {
 			pod.Phase, pod.Reason = "Pending", "CrashLoopBackOff"

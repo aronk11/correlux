@@ -135,12 +135,17 @@ func (m *Model) breadcrumb() []string {
 			label += "  " + m.rowCountLabel(table)
 		}
 		return append(crumbs, label)
-	case viewApplication:
+	case viewApplication, viewWhy:
 		crumbs = append(crumbs, "Applications")
+		name := m.selectedApp
 		if a, ok := m.currentApplication(); ok {
-			return append(crumbs, a.Name)
+			name = a.Name
 		}
-		return append(crumbs, m.selectedApp)
+		crumbs = append(crumbs, name)
+		if m.view == viewWhy {
+			return append(crumbs, "Why")
+		}
+		return crumbs
 	case viewOverview:
 		return append(crumbs, "Session")
 	default:
@@ -221,11 +226,19 @@ func (m *Model) statusData() components.StatusData {
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Move", Priority: 90},
 			{Key: "Enter", Desc: "Open", Priority: 90},
+			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
 			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
 		}, hints...)
 	case viewApplication:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Scroll", Priority: 90},
+			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
+			{Key: "Esc", Desc: "Applications", Priority: 85},
+		}, hints...)
+	case viewWhy:
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Scroll", Priority: 90},
+			{Key: "Enter", Desc: "Objects", Priority: 86},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	}
@@ -249,6 +262,8 @@ func (m *Model) renderBody() string {
 		content = screens.RenderTable(m.theme, m.applicationsData(), body.Width, body.Height)
 	case viewApplication:
 		content = screens.RenderApplication(m.theme, m.applicationData(), body.Width, body.Height)
+	case viewWhy:
+		content = screens.RenderWhy(m.theme, m.whyData(), body.Width, body.Height)
 	default:
 		content = screens.RenderOverview(m.theme, m.overviewData(), body.Width, body.Height)
 	}
@@ -504,6 +519,7 @@ func (m *Model) renderHelp(width, height int) string {
 		{"In the application dashboard", [][2]string{
 			{"↑ ↓ / j k", "Move between applications"},
 			{"Enter", "Open the application: its workloads, pods and network"},
+			{m.keys.Key(ActionWhy), "Explain why it is unhealthy, from the cluster's own evidence"},
 			{"Esc", "Back to the dashboard"},
 		}},
 		{"Cluster", [][2]string{

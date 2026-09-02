@@ -276,7 +276,10 @@ func outOfMemory(in *Input) []Diagnosis {
 func unschedulable(in *Input) []Diagnosis {
 	var pods []*application.Pod
 	for _, p := range sortedNames(livePods(in.App)) {
-		if !p.Scheduled {
+		// A pod no node has taken is Pending by definition. Requiring the phase
+		// as well keeps the rule from accusing a running pod when the
+		// scheduling condition is simply not known.
+		if !p.Scheduled && (p.Phase == "Pending" || p.Phase == "") {
 			pods = append(pods, p)
 		}
 	}

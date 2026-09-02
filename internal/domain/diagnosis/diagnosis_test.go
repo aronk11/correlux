@@ -214,6 +214,16 @@ func TestUnschedulableQuotesTheScheduler(t *testing.T) {
 	}
 }
 
+func TestARunningPodIsNeverCalledUnschedulable(t *testing.T) {
+	// The scheduling condition is dropped from a pod that has been running for
+	// a while; a rule that only looked at the flag would accuse it.
+	p := pod("payments-1")
+	p.Scheduled = false
+	p.Phase = "Running"
+
+	none(t, diagnose(t, &Input{App: app(p)}), "pod.unschedulable")
+}
+
 func TestNotReadyQuotesTheProbeEventWhenThereIsOne(t *testing.T) {
 	p := pod("payments-1", application.Container{Name: "app", State: "running"})
 	in := &Input{
