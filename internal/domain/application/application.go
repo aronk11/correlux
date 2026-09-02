@@ -35,8 +35,13 @@ type Meta struct {
 	Namespace string
 	UID       string
 	Labels    map[string]string
-	Owners    []OwnerRef
-	CreatedAt time.Time
+	// Annotations carries only the handful of keys that say who manages an
+	// object. Annotations routinely hold a full copy of the last applied
+	// manifest, and keeping all of them for every object in a cluster would
+	// cost more memory than the whole snapshot.
+	Annotations map[string]string
+	Owners      []OwnerRef
+	CreatedAt   time.Time
 }
 
 // Controller returns the owner reference that manages this object.
@@ -252,9 +257,10 @@ func (c Context) ClaimByName(namespace, name string) (Claim, bool) {
 // EventsAbout returns the events about one object, newest first.
 func (c Context) EventsAbout(uid, name string) []Event {
 	var out []Event
-	for _, e := range c.Events {
+	for i := range c.Events {
+		e := &c.Events[i]
 		if (uid != "" && e.About.UID == uid) || (e.About.UID == "" && e.About.Name == name) {
-			out = append(out, e)
+			out = append(out, *e)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].LastSeen.After(out[j].LastSeen) })
@@ -289,6 +295,39 @@ type Snapshot struct {
 	FetchedAt time.Time
 }
 
+// Manager is what put an application in the cluster: a Helm release, a Flux
+// Kustomization or HelmRelease, an Argo CD application.
+//
+// It is read from the labels and annotations those tools write on what they
+// create, so kubeui supports them by recognising their handwriting rather than
+// by talking to them. Nothing has to be installed for kubeui to work, and when
+// one of them is installed its objects are reachable like any other (SPEC 2).
+type Manager struct {
+	// Tool is "Helm", "Flux" or "Argo CD".
+	Tool string
+	// Kind is the object to look at: "HelmRelease", "Kustomization",
+	// "Application", or empty for a plain Helm release with no operator.
+	Kind string
+	Name string
+	// Namespace is where that object lives, which for Flux is often not the
+	// namespace of the workloads it manages.
+	Namespace string
+}
+
+// Known reports whether an application has a manager at all.
+func (m Manager) Known() bool { return m.Tool != "" }
+
+// Label renders the manager for one line of screen.
+func (m Manager) Label() string {
+	if !m.Known() {
+		return ""
+	}
+	if m.Name == "" {
+		return m.Tool
+	}
+	return m.Tool + " " + m.Name
+}
+
 // Problem is a pod state worth naming on the dashboard, with how many pods are
 // in it.
 type Problem struct {
@@ -314,16 +353,18 @@ type Application struct {
 	DesiredPods int32
 	ReadyPods   int32
 	Restarts    int32
-	Problems    []Problem
+	// Manager is what deployed this, when it left a trace saying so.
+	Manager  Manager
+	Problems []Problem
 	// CreatedAt is the age of the oldest object in the application.
 	CreatedAt time.Time
 }
 
 // Key identifies an application within a cluster.
-func (a Application) Key() string { return a.Namespace + "/" + a.Name }
+func (a *Application) Key() string { return a.Namespace + "/" + a.Name }
 
 // ProblemSummary renders the pod problems as one line, worst first.
-func (a Application) ProblemSummary() string {
+func (a *Application) ProblemSummary() string {
 	out := ""
 	for _, p := range a.Problems {
 		if out != "" {
@@ -346,8 +387,8 @@ type Counts struct {
 // Summarise counts applications by health.
 func Summarise(apps []Application) Counts {
 	c := Counts{Total: len(apps)}
-	for _, a := range apps {
-		switch a.Health {
+	for i := range apps {
+		switch apps[i].Health {
 		case Healthy:
 			c.Healthy++
 		case Degraded:

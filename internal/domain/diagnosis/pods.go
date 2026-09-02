@@ -15,7 +15,7 @@ type affected struct {
 
 // findContainers collects every container matching a predicate, across the
 // application's live pods.
-func findContainers(app application.Application, match func(*application.Container) bool) []affected {
+func findContainers(app *application.Application, match func(*application.Container) bool) []affected {
 	var out []affected
 	for _, p := range sortedNames(livePods(app)) {
 		for i := range p.Containers {
@@ -39,7 +39,7 @@ func waitingFor(reasons ...string) func(*application.Container) bool {
 // container is waiting to be restarted. What explains it is how the *previous*
 // run ended, which is why the last termination state is collected at all.
 func crashLoop(in *Input) []Diagnosis {
-	hits := findContainers(in.App, waitingFor("CrashLoopBackOff"))
+	hits := findContainers(&in.App, waitingFor("CrashLoopBackOff"))
 	if len(hits) == 0 {
 		return nil
 	}
@@ -53,7 +53,7 @@ func crashLoop(in *Input) []Diagnosis {
 		Problem:    podsPhrase(countPods(hits)) + agree(countPods(hits), " restarts", " restart") + " in a loop",
 		Cause:      cause,
 		Confidence: confidence,
-		Chain:      chain(in.App, "Pods", "CrashLoopBackOff", crashChainTail(hits)),
+		Chain:      chain(&in.App, "Pods", "CrashLoopBackOff", crashChainTail(hits)),
 		Suggestions: []Suggestion{
 			{
 				Text:    "Read the logs of the run that failed, not of the one waiting to start",
@@ -72,8 +72,9 @@ func crashLoop(in *Input) []Diagnosis {
 			Detail: containerOf(h.container) + " " + lastRun(h.container) + ", restarted " + strconv.Itoa(int(h.container.Restarts)) + " times",
 		})
 	}
-	for _, e := range limitEvents(warningsAbout(in, podRef(first.pod))) {
-		d.Evidence = append(d.Evidence, eventEvidence(e))
+	quoted := limitEvents(warningsAbout(in, podRef(first.pod)))
+	for i := range quoted {
+		d.Evidence = append(d.Evidence, eventEvidence(&quoted[i]))
 	}
 	return []Diagnosis{d}
 }
@@ -133,7 +134,7 @@ func lastRun(c *application.Container) string {
 
 // imagePull explains a container whose image never arrives.
 func imagePull(in *Input) []Diagnosis {
-	hits := findContainers(in.App,
+	hits := findContainers(&in.App,
 		waitingFor("ImagePullBackOff", "ErrImagePull", "ErrImageNeverPull", "InvalidImageName"))
 	if len(hits) == 0 {
 		return nil
@@ -148,7 +149,7 @@ func imagePull(in *Input) []Diagnosis {
 		Problem:    podsPhrase(countPods(hits)) + " cannot pull " + agree(countPods(hits), "its", "their") + " image",
 		Cause:      cause,
 		Confidence: confidence,
-		Chain:      chain(in.App, "Pods", first.container.Reason),
+		Chain:      chain(&in.App, "Pods", first.container.Reason),
 		Suggestions: []Suggestion{
 			{Text: "Check the image name and tag in the pod template"},
 			{
@@ -164,8 +165,9 @@ func imagePull(in *Input) []Diagnosis {
 		}
 		d.Evidence = append(d.Evidence, Evidence{Kind: "Pod", Name: h.pod.Name, Detail: detail})
 	}
-	for _, e := range limitEvents(warningsAbout(in, podRef(first.pod), "Failed", "BackOff")) {
-		d.Evidence = append(d.Evidence, eventEvidence(e))
+	quoted := limitEvents(warningsAbout(in, podRef(first.pod), "Failed", "BackOff"))
+	for i := range quoted {
+		d.Evidence = append(d.Evidence, eventEvidence(&quoted[i]))
 	}
 	return []Diagnosis{d}
 }
@@ -200,7 +202,7 @@ func imageCause(hits []affected) (string, Confidence) {
 // containerConfig explains a container the kubelet cannot even create, which is
 // almost always a ConfigMap or Secret that is not there.
 func containerConfig(in *Input) []Diagnosis {
-	hits := findContainers(in.App, waitingFor("CreateContainerConfigError", "CreateContainerError"))
+	hits := findContainers(&in.App, waitingFor("CreateContainerConfigError", "CreateContainerError"))
 	if len(hits) == 0 {
 		return nil
 	}
@@ -217,7 +219,7 @@ func containerConfig(in *Input) []Diagnosis {
 		Problem:    podsPhrase(countPods(hits)) + " cannot start " + agree(countPods(hits), "its", "their") + " container",
 		Cause:      cause,
 		Confidence: confidence,
-		Chain:      chain(in.App, "Pods", first.container.Reason),
+		Chain:      chain(&in.App, "Pods", first.container.Reason),
 		Suggestions: []Suggestion{
 			{
 				Text:    "Check the ConfigMaps and Secrets the pod template references",
@@ -237,7 +239,7 @@ func containerConfig(in *Input) []Diagnosis {
 // the crash-loop rule does not cover it. It is the quiet version of the same
 // problem and disappears from a dashboard that only looks at readiness.
 func outOfMemory(in *Input) []Diagnosis {
-	hits := findContainers(in.App, func(c *application.Container) bool {
+	hits := findContainers(&in.App, func(c *application.Container) bool {
 		return c.OOMKilled && (c.State != "waiting" || c.Reason != "CrashLoopBackOff")
 	})
 	if len(hits) == 0 {
@@ -253,7 +255,7 @@ func outOfMemory(in *Input) []Diagnosis {
 			" been killed for exceeding " + agree(countPods(hits), "its", "their") + " memory limit",
 		Cause:      "the container's memory use reached its limit and the kernel killed it",
 		Confidence: High,
-		Chain:      chain(in.App, "Pods", "OOMKilled"),
+		Chain:      chain(&in.App, "Pods", "OOMKilled"),
 		Suggestions: []Suggestion{
 			{Text: "Compare the container's memory limit with what it actually uses"},
 			{
@@ -276,7 +278,7 @@ func outOfMemory(in *Input) []Diagnosis {
 // itself precisely, so the rule quotes it rather than paraphrasing.
 func unschedulable(in *Input) []Diagnosis {
 	var pods []*application.Pod
-	for _, p := range sortedNames(livePods(in.App)) {
+	for _, p := range sortedNames(livePods(&in.App)) {
 		// A pod no node has taken is Pending by definition. Requiring the phase
 		// as well keeps the rule from accusing a running pod when the
 		// scheduling condition is simply not known.
@@ -302,7 +304,7 @@ func unschedulable(in *Input) []Diagnosis {
 		Problem:    podsPhrase(len(pods)) + " cannot be scheduled onto any node",
 		Cause:      cause,
 		Confidence: confidence,
-		Chain:      chain(in.App, "Pods", "Pending", "Unschedulable"),
+		Chain:      chain(&in.App, "Pods", "Pending", "Unschedulable"),
 		Suggestions: []Suggestion{
 			{Text: "Compare the pod's resource requests with what the nodes have free",
 				Command: "kubectl describe nodes"},
@@ -317,8 +319,9 @@ func unschedulable(in *Input) []Diagnosis {
 		}
 		d.Evidence = append(d.Evidence, Evidence{Kind: "Pod", Name: p.Name, Detail: detail})
 	}
-	for _, e := range limitEvents(warningsAbout(in, podRef(pods[0]), "FailedScheduling")) {
-		d.Evidence = append(d.Evidence, eventEvidence(e))
+	scheduling := limitEvents(warningsAbout(in, podRef(pods[0]), "FailedScheduling"))
+	for i := range scheduling {
+		d.Evidence = append(d.Evidence, eventEvidence(&scheduling[i]))
 	}
 	return []Diagnosis{d}
 }
@@ -327,7 +330,7 @@ func unschedulable(in *Input) []Diagnosis {
 // node, or terminated with an error and not restarted.
 func podFailed(in *Input) []Diagnosis {
 	var pods []*application.Pod
-	for _, p := range sortedNames(livePods(in.App)) {
+	for _, p := range sortedNames(livePods(&in.App)) {
 		if p.Phase == "Failed" {
 			pods = append(pods, p)
 		}
@@ -358,7 +361,7 @@ func podFailed(in *Input) []Diagnosis {
 			agree(len(pods), "is", "are") + " not running",
 		Cause:      cause,
 		Confidence: confidence,
-		Chain:      chain(in.App, "Pods", "Failed"),
+		Chain:      chain(&in.App, "Pods", "Failed"),
 		Suggestions: []Suggestion{
 			{Text: "Check the node the pods were on and why it removed them",
 				Command: describeCommand("pod", pods[0].Namespace, pods[0].Name)},
@@ -375,7 +378,7 @@ func podFailed(in *Input) []Diagnosis {
 // and the event stream is where the probe says why.
 func notReady(in *Input) []Diagnosis {
 	var pods []*application.Pod
-	for _, p := range sortedNames(livePods(in.App)) {
+	for _, p := range sortedNames(livePods(&in.App)) {
 		if p.Phase == "Running" && !p.Ready && p.Reason == "" {
 			pods = append(pods, p)
 		}
@@ -401,7 +404,7 @@ func notReady(in *Input) []Diagnosis {
 			" running but not ready, so nothing routes to " + agree(len(pods), "it", "them"),
 		Cause:      cause,
 		Confidence: confidence,
-		Chain:      chain(in.App, "Pods", "not ready"),
+		Chain:      chain(&in.App, "Pods", "not ready"),
 		Suggestions: []Suggestion{
 			{Text: "Check what the readiness probe asks for and what the container answers",
 				Command: describeCommand("pod", pods[0].Namespace, pods[0].Name)},
@@ -412,8 +415,9 @@ func notReady(in *Input) []Diagnosis {
 	for _, p := range limitPods(pods) {
 		d.Evidence = append(d.Evidence, Evidence{Kind: "Pod", Name: p.Name, Detail: "Running, not ready"})
 	}
-	for _, e := range limitEvents(quoted) {
-		d.Evidence = append(d.Evidence, eventEvidence(e))
+	shown := limitEvents(quoted)
+	for i := range shown {
+		d.Evidence = append(d.Evidence, eventEvidence(&shown[i]))
 	}
 	return []Diagnosis{d}
 }

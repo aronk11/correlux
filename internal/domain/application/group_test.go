@@ -57,9 +57,9 @@ func deployment(s *Snapshot, name string, desired, ready int32, podReason string
 
 func find(t *testing.T, apps []Application, name string) Application {
 	t.Helper()
-	for _, a := range apps {
-		if a.Name == name {
-			return a
+	for i := range apps {
+		if apps[i].Name == name {
+			return apps[i]
 		}
 	}
 	t.Fatalf("no application named %q in %v", name, names(apps))
@@ -68,8 +68,8 @@ func find(t *testing.T, apps []Application, name string) Application {
 
 func names(apps []Application) []string {
 	out := make([]string, 0, len(apps))
-	for _, a := range apps {
-		out = append(out, a.Name)
+	for i := range apps {
+		out = append(out, apps[i].Name)
 	}
 	return out
 }
@@ -251,5 +251,96 @@ func TestOwnerCyclesDoNotHang(t *testing.T) {
 	s := Snapshot{Workloads: []Workload{{Meta: a}, {Meta: b}}}
 	if apps := Group(s); len(apps) == 0 {
 		t.Fatal("a cyclic chain must still produce applications")
+	}
+}
+
+// managed builds a Deployment carrying the marks one of the delivery tools
+// leaves on what it creates.
+func managed(name string, labels, annotations map[string]string) Snapshot {
+	dep := meta("Deployment", name, labels)
+	dep.Annotations = annotations
+	return Snapshot{Workloads: []Workload{{Meta: dep, Desired: 1, Ready: 1, Replicated: true}}}
+}
+
+func TestWhoDeployedAnApplicationIsReadOffTheObjects(t *testing.T) {
+	cases := []struct {
+		name        string
+		labels      map[string]string
+		annotations map[string]string
+		want        Manager
+	}{
+		{
+			name:        "Helm",
+			labels:      map[string]string{"app.kubernetes.io/managed-by": "Helm"},
+			annotations: map[string]string{"meta.helm.sh/release-name": "payments", "meta.helm.sh/release-namespace": "shop"},
+			want:        Manager{Tool: "Helm", Name: "payments", Namespace: "shop"},
+		},
+		{
+			name: "Flux Kustomization",
+			labels: map[string]string{
+				"kustomize.toolkit.fluxcd.io/name":      "apps",
+				"kustomize.toolkit.fluxcd.io/namespace": "flux-system",
+			},
+			want: Manager{Tool: "Flux", Kind: "Kustomization", Name: "apps", Namespace: "flux-system"},
+		},
+		{
+			name: "Flux HelmRelease",
+			labels: map[string]string{
+				"helm.toolkit.fluxcd.io/name":      "payments",
+				"helm.toolkit.fluxcd.io/namespace": "shop",
+			},
+			want: Manager{Tool: "Flux", Kind: "HelmRelease", Name: "payments", Namespace: "shop"},
+		},
+		{
+			name:        "Argo CD",
+			annotations: map[string]string{"argocd.argoproj.io/instance": "payments"},
+			want:        Manager{Tool: "Argo CD", Kind: "Application", Name: "payments"},
+		},
+		{
+			name:   "nothing at all",
+			labels: map[string]string{"app": "payments"},
+			want:   Manager{},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			apps := Group(managed("payments", tc.labels, tc.annotations))
+			if len(apps) != 1 {
+				t.Fatalf("expected one application, got %v", names(apps))
+			}
+			if apps[0].Manager != tc.want {
+				t.Errorf("manager = %+v, want %+v", apps[0].Manager, tc.want)
+			}
+		})
+	}
+}
+
+func TestFluxIsRecognisedAheadOfTheHelmItDeploysThrough(t *testing.T) {
+	// A Flux HelmRelease creates a Helm release, so its workloads carry both
+	// sets of marks. The object worth opening is the HelmRelease.
+	apps := Group(managed("payments",
+		map[string]string{
+			"app.kubernetes.io/managed-by":     "Helm",
+			"helm.toolkit.fluxcd.io/name":      "payments",
+			"helm.toolkit.fluxcd.io/namespace": "shop",
+		},
+		map[string]string{"meta.helm.sh/release-name": "payments"},
+	))
+
+	if got := apps[0].Manager; got.Tool != "Flux" || got.Kind != "HelmRelease" {
+		t.Errorf("manager = %+v, want the Flux object that drives the release", got)
+	}
+}
+
+func TestAManagerLabelReadsAsASentence(t *testing.T) {
+	if got := (Manager{Tool: "Helm", Name: "payments"}).Label(); got != "Helm payments" {
+		t.Errorf("label = %q", got)
+	}
+	if got := (Manager{Tool: "Helm"}).Label(); got != "Helm" {
+		t.Errorf("label = %q, want no dangling name", got)
+	}
+	if got := (Manager{}).Label(); got != "" {
+		t.Errorf("label = %q, want nothing for an application nobody claims", got)
 	}
 }

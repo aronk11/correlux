@@ -185,7 +185,7 @@ func severityStatus(s diagnosis.Severity) theme.Status {
 
 // incidentLabel is the one-line version of an application's worst finding, for
 // the dashboard's detail column.
-func (m *Model) incidentLabel(app application.Application) string {
+func (m *Model) incidentLabel(app *application.Application) string {
 	primary, ok := diagnosis.Primary(m.findingsFor(app.Key()))
 	if !ok {
 		return ""

@@ -27,3 +27,13 @@ func (f *Factory) Applications(
 	}
 	return application.Group(snapshot), snapshot, nil
 }
+
+// Nodes reads a cluster's nodes, which is what the fleet overview needs to say
+// whether a cluster itself is healthy rather than only its applications.
+func (f *Factory) Nodes(ctx context.Context, contextName string) ([]application.Node, error) {
+	cs, err := f.Clientset(contextName)
+	if err != nil {
+		return nil, err
+	}
+	return workloads.CollectNodes(ctx, cs, workloads.Options{})
+}

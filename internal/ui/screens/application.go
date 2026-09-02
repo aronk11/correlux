@@ -211,11 +211,23 @@ func detailWidths(section DetailSection, width int) []int {
 	}
 
 	const gap = 2
+	natural := make([]int, len(widths))
 	total := 0
 	for i := range widths {
+		natural[i] = widths[i]
 		widths[i] = min(widths[i], maxColumnWidth)
 		total += widths[i] + gap
 	}
+
+	// The last column is where the prose goes — a message, a reason, what is
+	// wrong with a node — and cutting it at the generic column cap while half
+	// the screen sits empty loses exactly the part worth reading.
+	if last := len(widths) - 1; last >= 0 && total < width && natural[last] > widths[last] {
+		grow := min(width-total, natural[last]-widths[last])
+		widths[last] += grow
+		total += grow
+	}
+
 	for total > width && len(widths) > 0 {
 		widest := 0
 		for i, w := range widths {

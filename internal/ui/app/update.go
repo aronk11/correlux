@@ -91,6 +91,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case applicationsLoadedMsg:
 		return m, m.applyApplications(msg)
 
+	case fleetStartedMsg:
+		if msg.gen != m.fleetGeneration {
+			return m, nil
+		}
+		m.fleetResults = msg.results
+		return m, waitForFleet(msg.gen, msg.results)
+
+	case fleetMemberMsg:
+		return m, m.applyFleetMember(msg)
+
+	case fleetPartsMsg:
+		if msg.gen != m.fleetGeneration {
+			return m, nil
+		}
+		m.fleetPartsChan = msg.parts
+		return m, waitForFleetPart(msg.gen, msg.parts)
+
+	case fleetPartMsg:
+		return m, m.applyFleetPart(msg)
+
 	case logsStartedMsg:
 		if msg.gen != m.logGeneration {
 			return m, nil
@@ -346,6 +366,18 @@ func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
 	m.keepCursorOnApplication(previous)
 	m.rediagnose()
 	m.rebuildCommands()
+
+	if m.pendingApplication != "" {
+		// Chosen in the fleet view, before this cluster had answered.
+		name := m.pendingApplication
+		m.pendingApplication = ""
+		return m.openApplication(name)
+	}
+	if !m.pendingObject.empty() {
+		ref := m.pendingObject
+		m.pendingObject = objectRef{}
+		return m.openObject(ref)
+	}
 	return nil
 }
 
@@ -360,7 +392,7 @@ func (m *Model) tableRows() []resources.Row {
 // moveTableCursor scrolls the table, fetching the next page when the user
 // reaches the end of what is loaded.
 func (m *Model) moveTableCursor(delta int) tea.Cmd {
-	rows := m.tableRows()
+	rows := m.visibleRows()
 	if len(rows) == 0 {
 		return nil
 	}
@@ -396,9 +428,9 @@ func (m *Model) handleTableKey(keystroke string) (tea.Cmd, bool) {
 	case "pgdown", " ":
 		return m.moveTableCursor(visible), true
 	case "home", "g":
-		return m.moveTableCursor(-len(m.tableRows())), true
+		return m.moveTableCursor(-len(m.visibleRows())), true
 	case "end", "G":
-		return m.moveTableCursor(len(m.tableRows())), true
+		return m.moveTableCursor(len(m.visibleRows())), true
 	case "enter", "right":
 		return m.openSelectedRow(), true
 	}
@@ -418,9 +450,9 @@ func (m *Model) handleApplicationsKey(keystroke string) (tea.Cmd, bool) {
 	case "pgdown", " ":
 		m.moveAppCursor(visible)
 	case "home", "g":
-		m.moveAppCursor(-len(m.applications()))
+		m.moveAppCursor(-len(m.visibleApplications()))
 	case "end", "G":
-		m.moveAppCursor(len(m.applications()))
+		m.moveAppCursor(len(m.visibleApplications()))
 	case "enter", "right":
 		return m.openSelectedApplication(), true
 	default:
@@ -488,6 +520,84 @@ func (m *Model) openSelectedObject() tea.Cmd {
 		return nil
 	}
 	return m.openObject(targets[m.detailCursor])
+}
+
+// handleFleetKey moves through the clusters and what is broken in them.
+func (m *Model) handleFleetKey(keystroke string) (tea.Cmd, bool) {
+	page := max(m.screen.Body.Height-1, 1)
+	switch keystroke {
+	case "up", "k":
+		m.moveFleetCursor(-1)
+	case "down", "j":
+		m.moveFleetCursor(1)
+	case "pgup":
+		m.scrollFleet(-page)
+	case "pgdown", " ":
+		m.scrollFleet(page)
+	case "home", "g":
+		m.fleetCursor, m.fleetOffset = 0, 0
+	case "end", "G":
+		m.scrollFleet(m.fleetData().LineCount(m.screen.Body.Width))
+	case "enter", "right":
+		return m.enterFleetRow(), true
+	default:
+		return nil, false
+	}
+	return nil, true
+}
+
+// moveFleetCursor moves the selection, scrolling when it has nowhere to go.
+func (m *Model) moveFleetCursor(delta int) {
+	data := m.fleetData()
+	targets := m.fleetTargets()
+	lines := data.TargetLines(m.screen.Body.Width)
+	if len(targets) == 0 || !m.onScreen(lines[m.fleetCursor], hasLine(lines, m.fleetCursor), m.fleetOffset) {
+		m.scrollFleet(delta)
+		return
+	}
+	next := clampInt(m.fleetCursor+delta, len(targets)-1)
+	if next == m.fleetCursor {
+		m.scrollFleet(delta)
+		return
+	}
+	m.fleetCursor = next
+	m.keepVisible(lines[m.fleetCursor], data.LineCount(m.screen.Body.Width), &m.fleetOffset)
+}
+
+// scrollFleet moves the viewport and drags the selection along.
+func (m *Model) scrollFleet(delta int) {
+	data := m.fleetData()
+	height := max(m.screen.Body.Height, 1)
+	total := data.LineCount(m.screen.Body.Width)
+	m.fleetOffset = clampInt(m.fleetOffset+delta, max(total-height, 0))
+	m.fleetCursor = m.visibleTarget(data.TargetLines(m.screen.Body.Width), len(m.fleetTargets()),
+		m.fleetCursor, m.fleetOffset)
+}
+
+// handleFleetResourceKey moves through one kind across the fleet.
+func (m *Model) handleFleetResourceKey(keystroke string) (tea.Cmd, bool) {
+	visible := max(m.screen.Body.Height-1, 1)
+	switch keystroke {
+	case "up", "k":
+		m.moveFleetTableCursor(-1)
+	case "down", "j":
+		m.moveFleetTableCursor(1)
+	case "pgup":
+		m.scrollFleetTable(-visible)
+	case "pgdown", " ":
+		m.scrollFleetTable(visible)
+	case "home", "g":
+		m.moveFleetTableCursor(-len(m.visibleFleetRows()))
+	case "end", "G":
+		m.moveFleetTableCursor(len(m.visibleFleetRows()))
+	case "enter", "right":
+		return m.openFleetRow(), true
+	case "esc", "left", "h":
+		return m.openFleet(), true
+	default:
+		return nil, false
+	}
+	return nil, true
 }
 
 // handleLogsKey drives the log view.
@@ -714,6 +824,14 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 
+	// The filter takes every key while it has focus, for the same reason: a
+	// resource named "w" must be typeable.
+	if m.overlay == overlayNone && m.searching {
+		if m.handleSearchKey(keystroke, key.Text) {
+			return nil
+		}
+	}
+
 	if m.overlay == overlayNone {
 		switch m.view {
 		case viewTable:
@@ -738,6 +856,14 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			}
 		case viewLogs:
 			if cmd, handled := m.handleLogsKey(keystroke); handled {
+				return cmd
+			}
+		case viewFleet:
+			if cmd, handled := m.handleFleetKey(keystroke); handled {
+				return cmd
+			}
+		case viewFleetResource:
+			if cmd, handled := m.handleFleetResourceKey(keystroke); handled {
 				return cmd
 			}
 		}
@@ -765,7 +891,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		// Both table-shaped views hide the same secondary columns, and one
 		// toggle for both is one thing to learn instead of two.
 		switch m.view {
-		case viewTable, viewApplications:
+		case viewTable, viewApplications, viewFleetResource:
 			return m.toggleWide()
 		case viewLogs:
 			// The same question — show me the part that is cut off — asked of
@@ -787,9 +913,22 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.closeOverlay()
 			return nil
 		}
+		if m.filtering() {
+			// Esc undoes the filter first; leaving the view is the next press.
+			m.clearSearch()
+			return nil
+		}
 		return m.backToApplications()
 	case ActionApplications:
 		return m.backToApplications()
+	case ActionSearch:
+		return m.startSearch()
+	case ActionFleet:
+		if m.view == viewFleet {
+			m.stopFleet()
+			return m.backToApplications()
+		}
+		return m.openFleet()
 	case ActionWhy:
 		return m.explain()
 	case ActionYAML:
@@ -861,6 +1000,12 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 		m.scrollWhy(delta)
 	case viewObject:
 		m.scrollObject(delta)
+	case viewFleet:
+		m.scrollFleet(delta)
+	case viewFleetResource:
+		m.scrollFleetTable(delta)
+	case viewLogs:
+		m.scrollLogs(delta)
 	}
 	return nil
 }
@@ -869,7 +1014,7 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 // cursor along only when it would otherwise scroll off the screen — the row a
 // user picked must not change because they looked further down the list.
 func (m *Model) scrollTable(delta int) tea.Cmd {
-	rows := m.tableRows()
+	rows := m.visibleRows()
 	if len(rows) == 0 {
 		return nil
 	}

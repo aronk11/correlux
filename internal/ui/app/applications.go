@@ -30,9 +30,10 @@ func (m *Model) applications() []application.Application { return m.apps.Get().A
 // on every render rather than copying it means a refresh updates the open
 // application in place, which is exactly what a user watching a rollout wants.
 func (m *Model) currentApplication() (application.Application, bool) {
-	for _, a := range m.applications() {
-		if a.Key() == m.selectedApp {
-			return a, true
+	apps := m.applications()
+	for i := range apps {
+		if apps[i].Key() == m.selectedApp {
+			return apps[i], true
 		}
 	}
 	return application.Application{}, false
@@ -45,7 +46,9 @@ func (m *Model) openApplication(name string) tea.Cmd {
 	if name == "" {
 		return nil
 	}
-	for _, a := range m.applications() {
+	apps := m.applications()
+	for i := range apps {
+		a := &apps[i]
 		if a.Key() == name || a.Name == name {
 			m.selectedApp = a.Key()
 			m.view = viewApplication
@@ -66,7 +69,7 @@ func (m *Model) openApplication(name string) tea.Cmd {
 
 // openSelectedApplication opens whatever the dashboard cursor is on.
 func (m *Model) openSelectedApplication() tea.Cmd {
-	apps := m.applications()
+	apps := m.visibleApplications()
 	if m.appCursor < 0 || m.appCursor >= len(apps) {
 		return nil
 	}
@@ -93,7 +96,7 @@ func (m *Model) applicationsVisible() int { return max(m.screen.Body.Height-1, 1
 
 // moveAppCursor scrolls the dashboard.
 func (m *Model) moveAppCursor(delta int) {
-	apps := m.applications()
+	apps := m.visibleApplications()
 	if len(apps) == 0 {
 		return
 	}
@@ -116,14 +119,14 @@ func (m *Model) moveAppCursor(delta int) {
 // cursor onto a different application under the user's hands. The cursor
 // follows the application it was on, not the position it was at.
 func (m *Model) keepCursorOnApplication(previous string) {
-	apps := m.applications()
+	apps := m.visibleApplications()
 	if len(apps) == 0 {
 		m.appCursor, m.appOffset = 0, 0
 		return
 	}
 	if previous != "" {
-		for i, a := range apps {
-			if a.Key() == previous {
+		for i := range apps {
+			if apps[i].Key() == previous {
 				m.appCursor = i
 				break
 			}
@@ -144,7 +147,7 @@ func (m *Model) keepCursorOnApplication(previous string) {
 // cursorApplicationKey is the application the cursor is on, for restoring it
 // across a reload.
 func (m *Model) cursorApplicationKey() string {
-	apps := m.applications()
+	apps := m.visibleApplications()
 	if m.appCursor >= 0 && m.appCursor < len(apps) {
 		return apps[m.appCursor].Key()
 	}
@@ -182,7 +185,12 @@ func (m *Model) applicationsData() screens.TableData {
 		return d
 	}
 
-	apps := m.applications()
+	apps := m.visibleApplications()
+	if len(apps) == 0 && m.filtering() {
+		d.Message = "Nothing matches " + m.query() + " among " +
+			itoa(len(m.applications())) + " applications."
+		return d
+	}
 	if len(apps) == 0 {
 		d.Message = "No applications in " + m.scopeLabel() + "."
 		if gaps := m.apps.Get().Snapshot.Gaps; len(gaps) > 0 {
@@ -198,6 +206,7 @@ func (m *Model) applicationsData() screens.TableData {
 		{Title: "Namespace", Wide: !m.allNamespaces},
 		{Title: "Pods"},
 		{Title: "Workloads", Wide: true},
+		{Title: "Managed by", Wide: true},
 		{Title: "Restarts", Right: true},
 		{Title: "Age"},
 		{Title: "Detail"},
@@ -205,7 +214,8 @@ func (m *Model) applicationsData() screens.TableData {
 
 	now := time.Now()
 	d.Rows = make([]screens.TableRow, 0, len(apps))
-	for _, a := range apps {
+	for i := range apps {
+		a := &apps[i]
 		status := healthStatus(a.Health)
 		d.Rows = append(d.Rows, screens.TableRow{
 			Status: status,
@@ -215,6 +225,7 @@ func (m *Model) applicationsData() screens.TableData {
 				a.Namespace,
 				itoa(int(a.ReadyPods)) + "/" + itoa(int(a.DesiredPods)),
 				workloadSummary(a),
+				managerCell(a.Manager),
 				itoa(int(a.Restarts)),
 				formatAge(a.CreatedAt, now),
 				applicationDetail(a),
@@ -224,9 +235,18 @@ func (m *Model) applicationsData() screens.TableData {
 	return d
 }
 
+// managerCell names who deployed an application, or says plainly that nothing
+// claims it — which on a cluster run by Flux is itself worth noticing.
+func managerCell(m application.Manager) string {
+	if !m.Known() {
+		return "—"
+	}
+	return m.Label()
+}
+
 // applicationDetail is the one thing worth reading about a row: what is wrong
 // with it, or nothing at all when it is healthy.
-func applicationDetail(a application.Application) string {
+func applicationDetail(a *application.Application) string {
 	if problems := a.ProblemSummary(); problems != "" {
 		return problems
 	}
@@ -238,7 +258,7 @@ func applicationDetail(a application.Application) string {
 
 // workloadSummary names the workload when there is one, and counts them when
 // there are several: "Deployment" says more than "1 workload".
-func workloadSummary(a application.Application) string {
+func workloadSummary(a *application.Application) string {
 	switch len(a.Workloads) {
 	case 0:
 		return "—"
@@ -300,7 +320,7 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 	d.HealthGlyph = m.theme.Glyph(status)
 	d.HealthStatus = status
 	d.Summary = a.Summary
-	if incident := m.incidentLabel(a); incident != "" {
+	if incident := m.incidentLabel(&a); incident != "" {
 		d.Notes = append(d.Notes, incident)
 	}
 	if gaps := m.apps.Get().Snapshot.Gaps; len(gaps) > 0 {
@@ -353,6 +373,26 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		pods.Rows = append(pods.Rows, row)
 	}
 
+	delivery := screens.DetailSection{
+		Title:   "Delivered by",
+		Columns: []string{"Tool", "Object", "Namespace"},
+		Empty:   "nothing claims this application: no Helm release, Flux object or Argo CD application",
+	}
+	if a.Manager.Known() {
+		row := screens.DetailRow{
+			Cells:  []string{a.Manager.Tool, deliveryObject(a.Manager), orNone(a.Manager.Namespace)},
+			Target: -1,
+		}
+		// The Flux and Argo objects are real resources: opening one shows its
+		// reconciliation conditions like any other object.
+		if a.Manager.Kind != "" {
+			row.Target = target(objectRef{
+				Kind: a.Manager.Kind, Name: a.Manager.Name, Namespace: a.Manager.Namespace,
+			})
+		}
+		delivery.Rows = append(delivery.Rows, row)
+	}
+
 	network := screens.DetailSection{
 		Title:   "Network",
 		Columns: []string{"Kind", "Name", "Detail"},
@@ -375,13 +415,13 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		})
 	}
 
-	d.Sections = []screens.DetailSection{workloads, pods, network, m.eventsSection(a, now)}
+	d.Sections = []screens.DetailSection{workloads, pods, network, delivery, m.eventsSection(&a, now)}
 	return d, targets
 }
 
 // eventsSection shows what the cluster said about this application, which is
 // the difference between "the pod is not ready" and "the probe is refused".
-func (m *Model) eventsSection(a application.Application, now time.Time) screens.DetailSection {
+func (m *Model) eventsSection(a *application.Application, now time.Time) screens.DetailSection {
 	section := screens.DetailSection{
 		Title:   "Recent events",
 		Columns: []string{"Age", "Type", "Object", "Reason", "Message"},
@@ -415,7 +455,8 @@ func (m *Model) eventsSection(a application.Application, now time.Time) screens.
 		return section
 	}
 
-	for _, e := range events {
+	for i := range events {
+		e := &events[i]
 		row := screens.DetailRow{
 			Cells: []string{
 				formatAge(e.LastSeen, now), e.Type, e.About.Kind + "/" + e.About.Name, e.Reason, e.Message,
@@ -434,6 +475,18 @@ func (m *Model) eventsSection(a application.Application, now time.Time) screens.
 // maxDetailEvents bounds the events on the detail screen. The newest handful
 // explain the current state; older ones are history.
 const maxDetailEvents = 8
+
+// deliveryObject names what to look at: the Flux or Argo object when there is
+// one, the Helm release otherwise.
+func deliveryObject(m application.Manager) string {
+	if m.Kind != "" {
+		return m.Kind + "/" + m.Name
+	}
+	if m.Name == "" {
+		return "—"
+	}
+	return "release " + m.Name
+}
 
 func readyLabel(ready bool) string {
 	if ready {

@@ -160,3 +160,21 @@ func TestRefreshInterval(t *testing.T) {
 		})
 	}
 }
+
+func TestTheFleetIsEmptyUntilItIsNamed(t *testing.T) {
+	if len(Default().Fleet) != 0 {
+		t.Error("kubeui must not fan out to every context on its own")
+	}
+
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("fleet:\n  - prod-eu\n  - prod-us\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Fleet) != 2 || cfg.Fleet[0] != "prod-eu" {
+		t.Errorf("fleet = %v, want the two named contexts", cfg.Fleet)
+	}
+}

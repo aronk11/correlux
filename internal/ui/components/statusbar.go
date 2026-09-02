@@ -25,6 +25,15 @@ type StatusData struct {
 	Message string
 	// MessageStatus colours the message.
 	MessageStatus theme.Status
+	// Filter is the text a list is being narrowed by, shown while it is in
+	// force. A list showing a fraction of its rows must say so somewhere the
+	// eye lands.
+	Filter string
+	// FilterNote says how much is shown of how much: "12 of 4213 loaded rows".
+	FilterNote string
+	// FilterFocused draws the cursor in the filter, because the next keystroke
+	// will land there.
+	FilterFocused bool
 	// Hints are the keys available in the current view.
 	Hints []KeyHint
 }
@@ -39,7 +48,13 @@ func RenderStatus(t *theme.Theme, d StatusData, width int) string {
 	if d.Message != "" {
 		return pad(t.Badge(d.MessageStatus, truncate(d.Message, max(width-2, 1))), width)
 	}
-	return pad(renderHints(t, fit(d.Hints, width), width), width)
+
+	lead := ""
+	if d.Filter != "" || d.FilterFocused {
+		lead = renderFilter(t, d)
+	}
+	remaining := max(width-lipgloss.Width(lead), 0)
+	return pad(lead+renderHints(t, fit(d.Hints, remaining), remaining), width)
 }
 
 // separatorWidth is the gap rendered between two hints.
@@ -82,6 +97,19 @@ func fit(hints []KeyHint, width int) []KeyHint {
 		}
 	}
 	return out
+}
+
+// renderFilter draws the filter and what it is showing, leading the bar.
+func renderFilter(t *theme.Theme, d StatusData) string {
+	text := d.Filter
+	if d.FilterFocused {
+		text += t.Glyphs.Selected
+	}
+	out := t.InputPrompt.Render("/") + t.Emphasis.Render(text)
+	if d.FilterNote != "" {
+		out += t.Muted.Render("  " + d.FilterNote)
+	}
+	return out + t.Muted.Render("   ")
 }
 
 func hintWidth(h KeyHint) int { return lipgloss.Width(h.Key) + 1 + lipgloss.Width(h.Desc) }

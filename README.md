@@ -60,6 +60,7 @@ kubeui version
 |-----|--------|
 | `Ctrl+P` | Command palette — every action, searchable by name |
 | `Ctrl+A` | Back to the application dashboard |
+| `F` | The fleet: every configured cluster at once |
 | `Enter` | Open the application under the cursor |
 | `Ctrl+W` | Why is this unhealthy? |
 | `y` | Show the document the server holds, and back |
@@ -70,6 +71,7 @@ kubeui version
 | `Enter` | Open the object under the cursor |
 | `Ctrl+K` | Switch cluster |
 | `Ctrl+O` | Switch namespace |
+| `/` | Filter the list on screen |
 | `Ctrl+R` | Refresh |
 | `Ctrl+F` | Refresh on a timer, until you turn it off (`auto 10s` appears in the header) |
 | `w` | Toggle the wide columns in a resource table |
@@ -162,6 +164,22 @@ A container that cannot be read yet says so on its own line instead of silencing
 the others, the oldest lines are dropped once the buffer is full and the header
 admits it, and leaving the view closes every connection it opened.
 
+### Finding something
+
+`/` narrows whatever list is on screen — a resource table, the dashboard, or one
+kind across the whole fleet. The match is fuzzy and covers the whole row, so
+typing `crashloop` finds the pods that are in it and `pay` finds `payments`
+wherever the name sits.
+
+```
+/pay  2 of 4213 loaded rows   Ctrl+P Commands   Ctrl+K Cluster   ? Help
+```
+
+It is a filter, not a query: kubeui narrows the rows it has rather than asking
+the server a different question, and the bar says how much it is showing — with
+`loaded` when the table is paged and rows below have not been fetched. The order
+never changes; a filtered list is the same list with fewer rows.
+
 ### Changing something
 
 `S` scales the selected workload, `e` opens the object in `$EDITOR`. Both end at
@@ -185,6 +203,82 @@ cluster ([ADR 20](docs/adr/0020-changes-go-through-one-gate.md)). An edit shows
 its diff first, is refused if it renames the object or is not valid YAML, and is
 refused by the server if somebody else changed the object while it sat in the
 editor.
+
+### Several clusters at once
+
+`F` opens the fleet: every cluster you named, read in parallel, with what is
+broken in each of them.
+
+```
+Fleet
+3 clusters   1 unreachable   5 applications across 2 of 3   3 not healthy   1 of 7 nodes not ready, 1 cordoned
+
+CLUSTERS
+  CLUSTER        STATE        APPLICATIONS  DETAIL
+  staging        connected    2             1 degraded, 1 cordoned
+  prod-eu  PROD  connected    3             1 down, 1 of 4 nodes not ready
+  sandbox        unreachable  —             connection refused
+
+NODES
+  CLUSTER        NODE     STATE      DETAIL
+  prod-eu  PROD  node-2   not ready  Kubelet stopped posting node status.
+  staging        node-7   cordoned   no new pods will be placed here
+
+WHAT IS BROKEN
+  APPLICATION  CLUSTER        NAMESPACE  HEALTH    PODS  DETAIL
+  payments     prod-eu  PROD  shop       down      0/3   3 CrashLoopBackOff
+  payments     staging        shop       degraded  2/3   1 ImagePullBackOff
+```
+
+Everything unusual is on that one screen, not only what has failed: a node that
+is merely cordoned is named too, because it is the reason a rollout will not
+land there, and a kind kubeui was not allowed to read is counted rather than
+passed over in silence.
+
+It covers the contexts listed under `fleet:` in your config and nothing else —
+kubeui never discovers on its own that opening it authenticated against every
+production cluster you hold credentials for. Adding all of them is a command you
+run, for one session.
+
+From the overview, `Ctrl+B` browses **one resource kind across every cluster** —
+pods, deployments, or a custom resource — as one table:
+
+```
+Fleet → Deployment → 69 deployments   from 3 of 4 clusters   not listed in prod-ap: connection refused
+CLUSTER           NAMESPACE        NAME     READY  UP-TO-DATE  AVAILABLE  AGE
+kind-kubeui-test  kube-system      coredns  2/2    2           2          3h59m
+kind-kubeui-test  kubeui-load-000  app-00   0/3    3           0          3h18m
+```
+
+The columns are the API server's own, merged by name: a cluster running an older
+version of a CRD contributes what it has and leaves the rest empty, and no cell
+ever lands under the wrong heading. A cluster that does not serve the kind is
+named with the reason. `Enter` opens that object, in its cluster.
+
+The overview is **read-only**. Enter leaves it for the cluster the row is about,
+which is what keeps every action unambiguous: either you are looking at the
+fleet, or you are inside one cluster acting on it
+([ADR 19](docs/adr/0019-fleet-overview.md)). Totals never cover a cluster that
+did not answer, and the timer does not refresh this screen — `Ctrl+R` does, when
+you decide the cost is worth paying.
+
+### Helm, Flux and Argo CD
+
+kubeui recognises their handwriting. Nothing is installed and nothing is asked
+of them: the workloads those tools create carry labels and annotations saying so,
+and an application reads them.
+
+```
+DELIVERED BY
+  TOOL  OBJECT                NAMESPACE
+  Flux  HelmRelease/payments  flux-system
+```
+
+`Enter` on that row opens the HelmRelease, Kustomization or Argo application
+itself — with its reconciliation conditions, like any other object. Flux is
+recognised ahead of the Helm it deploys through, because the object worth
+looking at is the one that drives the release. An application nothing claims
+says so, which on a cluster run by Flux is itself worth noticing.
 
 ### Keeping up with a rollout
 
@@ -230,6 +324,9 @@ startup:
   context: ""
   namespace: ""
 
+# The clusters the fleet overview (F) covers. Empty means no fleet.
+fleet: []
+
 refresh:
   auto: false # start with the timed reload running
   every: 10s  # floored at 2s
@@ -244,6 +341,8 @@ dangerousActions:
 keybindings:
   palette: ctrl+p
   applications: ctrl+a
+  fleet: F
+  search: "/"
   why: ctrl+w
   object.yaml: "y"
   edit: e
@@ -282,6 +381,8 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | 3 | Deterministic WHY diagnosis engine | **done** |
 | 4 | Object detail, describe and navigation between objects | **done** |
 | — | Logs at pod, workload and application level | **done** |
+| — | Fleet overview across several clusters, read-only | **done** |
+| — | Helm, Flux and Argo CD recognised from what they write | **done** |
 | — | Exec and clipboard | next |
 | 5 | Safe mutating actions: scale and edit | **done** |
 | — | Further safe actions: delete, restart, cordon | planned |

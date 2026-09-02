@@ -137,7 +137,7 @@ func whyLines(t *theme.Theme, d WhyData, width int) []string {
 
 		if f.Cause != "" {
 			lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.PanelTitle }, "  WHY"))
-			lines = append(lines, wrapInto(f.Cause, width-4, "    ", t, false)...)
+			lines = append(lines, wrapInto(f.Cause, width-4, "    ", t)...)
 		} else {
 			lines = append(lines, muted("  The cluster did not say why."))
 		}
@@ -150,14 +150,14 @@ func whyLines(t *theme.Theme, d WhyData, width int) []string {
 					label += "  " + e.At
 				}
 				lines = append(lines, muted(truncateTo(label, width)))
-				lines = append(lines, wrapInto(e.Detail, width-6, "      ", t, false)...)
+				lines = append(lines, wrapInto(e.Detail, width-6, "      ", t)...)
 			}
 		}
 
 		if len(f.Suggestions) > 0 {
 			lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.PanelTitle }, "  WHAT TO CHECK"))
 			for _, s := range f.Suggestions {
-				lines = append(lines, wrapInto(s.Text, width-6, "    "+bullet(t)+" ", t, false)...)
+				lines = append(lines, wrapInto(s.Text, width-6, "    "+bullet(t)+" ", t)...)
 				if s.Command != "" {
 					lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.Key },
 						truncateTo("      "+s.Command, width)))
@@ -180,7 +180,7 @@ func bullet(t *theme.Theme) string {
 // wrapInto breaks a sentence across lines at the given width. Causes and
 // evidence are prose, and truncating prose loses exactly the part that
 // explained something.
-func wrapInto(s string, width int, indent string, t *theme.Theme, emphasise bool) []string {
+func wrapInto(s string, width int, indent string, t *theme.Theme) []string {
 	if width < 8 {
 		width = 8
 	}
@@ -199,11 +199,7 @@ func wrapInto(s string, width int, indent string, t *theme.Theme, emphasise bool
 		}
 		text := indent + line
 		if t != nil {
-			if emphasise {
-				text = t.Emphasis.Render(text)
-			} else {
-				text = t.Base.Render(text)
-			}
+			text = t.Base.Render(text)
 		}
 		out = append(out, text)
 		line = ""

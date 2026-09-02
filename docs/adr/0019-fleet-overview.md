@@ -1,6 +1,6 @@
 # 19. A fleet overview across several kubeconfig contexts, read-only
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-09-02
 
 ## Context
@@ -93,3 +93,33 @@ answer.
   a much smaller version — one row per cluster, no applications — would deliver
   most of that value for a fraction of the cost. That is the fallback if the
   full version proves too heavy in practice.
+
+## What was built
+
+The first version follows all five rules. The screen has two parts: one row per
+cluster with its own state, and below it every application that is not healthy,
+with the cluster it is not healthy in. Enter on either leaves the overview for
+that cluster — a cluster row opens its dashboard, an application row opens the
+application, in its namespace.
+
+Members are read four at a time, each with its own timeout, and each answer
+appears as it arrives rather than after the slowest cluster. Every total says
+what it covers: "5 applications across 2 of 3" is what a fleet with an
+unreachable member reports, and the member itself is listed with the reason it
+could not be read.
+
+Each member's nodes are read alongside its workloads — one more call, and the
+most common thing that is wrong with a cluster belongs to no application at all.
+Everything unusual reaches the default view: a node that is not ready, one under
+pressure, one merely cordoned, and a kind that could not be read. Showing only
+the worst of them is how the rest is discovered too late.
+
+From the overview, `Ctrl+B` browses one resource kind across every member as a
+single table. The columns are the API servers' own, merged by name rather than
+by position: clusters need not agree — a CRD at two versions prints different
+columns — and a cell landing under the wrong heading would be worse than a gap,
+so a column one cluster lacks is left empty. A cluster that does not serve the
+kind at all is named with the reason rather than quietly left out.
+
+The timed refresh deliberately does not touch these screens. `Ctrl+R` reloads
+them, which is the one moment a user has decided the cost is worth paying.

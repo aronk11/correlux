@@ -23,7 +23,7 @@ for the process; the format is Michael Nygard's: context, decision, consequences
 | [16](0016-application-inference.md) | Applications are inferred from the cluster, not declared to kubeui | accepted |
 | [17](0017-timed-refresh-not-watches.md) | The screen reloads on a timer the user turns on, not on watches | accepted |
 | [18](0018-evidence-on-demand.md) | A diagnosis is built from evidence fetched on demand, not from a cache | accepted |
-| [19](0019-fleet-overview.md) | A fleet overview across several kubeconfig contexts, read-only | proposed |
+| [19](0019-fleet-overview.md) | A fleet overview across several kubeconfig contexts, read-only | accepted |
 | [20](0020-changes-go-through-one-gate.md) | Every change goes through one gate, and kubeui never edits for you | accepted |
 
 ## Adding one
