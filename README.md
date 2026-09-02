@@ -10,11 +10,12 @@ It is inspired by how useful K9s is, and it is deliberately not a K9s clone: the
 first screen is your **applications and their health**, not a list of resource
 types.
 
-> **Status: early.** Implemented so far: kubeconfig loading, cluster and
-> namespace switching, the command palette, connection diagnostics, and a
-> resource browser that lists **every** kind the cluster serves — custom
-> resources included — with the API server's own columns. The application
-> dashboard, the WHY diagnosis engine, logs and exec are next. See
+> **Status: early.** Implemented so far: the application dashboard, which infers
+> applications from the cluster's own ownership, labels and selectors and sorts
+> them worst first; cluster and namespace switching; the command palette; an
+> optional timed refresh; and a resource browser that lists **every** kind the
+> cluster serves — custom resources included — with the API server's own
+> columns. The WHY diagnosis engine, logs and exec are next. See
 > [the roadmap](#roadmap). Nothing in the UI is a mock-up: if kubeui does not
 > know something yet, it says so.
 
@@ -57,16 +58,52 @@ kubeui version
 | Key | Action |
 |-----|--------|
 | `Ctrl+P` | Command palette — every action, searchable by name |
+| `Ctrl+A` | Back to the application dashboard |
+| `Enter` | Open the application under the cursor |
 | `Ctrl+B` | Browse resource kinds, custom resources included |
 | `Ctrl+K` | Switch cluster |
 | `Ctrl+O` | Switch namespace |
 | `Ctrl+R` | Refresh |
+| `Ctrl+F` | Refresh on a timer, until you turn it off |
 | `w` | Toggle the wide columns in a resource table |
 | `?` | Help |
 | `Esc` | Back / close overlay |
 | `Ctrl+C` / `q` | Quit |
 
 You are not expected to memorise those. Press `Ctrl+P` and type what you want.
+
+### Applications, not resource types
+
+The first screen is what is deployed in the current scope, worst first:
+
+```
+STATUS      APPLICATION  PODS   AGE    DETAIL
+✖ down      payments     0/3    1h30m  0 of 3 pods ready
+⚠ degraded  worker       7/8    4d2h   1 CrashLoopBackOff
+✓ healthy   api          12/12  9d
+✓ healthy   frontend     6/6    9d
+```
+
+Kubernetes has no application object, so kubeui infers one: pods are walked up
+their owner references to the controller that owns them, workloads sharing an
+`app.kubernetes.io/instance` label are one release, services join by selector
+and ingresses through the service they route to. Nothing has to be installed,
+labelled or configured first, and `Enter` opens an application to show the
+workloads, pods and network it is actually made of
+([ADR 16](docs/adr/0016-application-inference.md)).
+
+Health comes from what the cluster reports — replica counts and pod states —
+and stops there. *Why* something is broken is the diagnosis engine's job, and
+that is Phase 3.
+
+### Keeping up with a rollout
+
+`Ctrl+F` reloads the current screen on a timer until you turn it off, and the
+header says `auto 10s` while it does. It is off by default, refetches only what
+is on screen, never stacks requests, idles while a menu is open and backs off
+when the cluster is unreachable — because polling somebody's production API
+server is the user's decision, not a default
+([ADR 17](docs/adr/0017-timed-refresh-not-watches.md)).
 
 ### Custom resources are not second-class
 
@@ -103,6 +140,10 @@ startup:
   context: ""
   namespace: ""
 
+refresh:
+  auto: false # start with the timed reload running
+  every: 10s  # floored at 2s
+
 dangerousActions:
   productionConfirmation: true
   # Matched case-insensitively against context name, cluster name and server URL.
@@ -112,9 +153,12 @@ dangerousActions:
 
 keybindings:
   palette: ctrl+p
+  applications: ctrl+a
   context.picker: ctrl+k
   namespace.picker: ctrl+o
+  resource.picker: ctrl+b
   refresh: ctrl+r
+  refresh.auto: ctrl+f
   help: "?"
   quit: ctrl+c
 ```
@@ -135,8 +179,9 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | 1 | TUI shell, kubeconfig, cluster/namespace switching, command palette | **done** |
 | — | Resource browser for every kind, native and custom | **done** |
 | — | kind-based integration and load testing harness | **done** |
-| 2 | Application discovery and the application-first dashboard | next |
-| 3 | Deterministic WHY diagnosis engine | planned |
+| 2 | Application discovery and the application-first dashboard | **done** |
+| — | Timed refresh, mouse-wheel scrolling | **done** |
+| 3 | Deterministic WHY diagnosis engine | next |
 | 4 | Logs, exec, object detail, clipboard | planned |
 | 5 | Safe mutating actions | planned |
 | 6 | Large-cluster performance work, guided by the benchmarks | planned |

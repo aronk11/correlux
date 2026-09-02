@@ -20,6 +20,8 @@ for the process; the format is Michael Nygard's: context, decision, consequences
 | [13](0013-server-side-tables.md) | Resources are rendered from the API server's own tables | accepted |
 | [14](0014-load-testing-with-kind.md) | Load is tested on a real API server, with pods that never run | accepted |
 | [15](0015-signed-commits.md) | Every commit is signed | accepted |
+| [16](0016-application-inference.md) | Applications are inferred from the cluster, not declared to kubeui | accepted |
+| [17](0017-timed-refresh-not-watches.md) | The screen reloads on a timer the user turns on, not on watches | accepted |
 
 ## Adding one
 
