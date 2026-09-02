@@ -16,6 +16,7 @@ permissions:
 
 env:
   GO_VERSION: "1.25"
+  TASK_VERSION: v3.53.1
 
 jobs:
   test:
@@ -57,6 +58,7 @@ jobs:
       - uses: golangci/golangci-lint-action@v8
         with:
           version: v2.6.2
+          args: --build-tags integration
 
   tidy:
     name: go mod tidy is clean
@@ -82,17 +84,55 @@ jobs:
           check-latest: true
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
-  commits:
-    name: conventional commits
+  integration:
+    name: integration (kind)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      - name: Install Task
+        run: go install github.com/go-task/task/v3/cmd/task@${{ env.TASK_VERSION }}
+
+      - name: Create the kind cluster
+        run: task kind:up
+
+      # A modest load in CI: enough to exercise pagination, the Table API and
+      # CRD discovery without turning every pull request into a 10-minute job.
+      # The full 10k-object run is the scheduled load workflow.
+      - name: Seed the cluster
+        run: task kind:seed -- --namespaces 10 --apps-per-namespace 5 --pods-per-app 4 --crds 3 --custom-resources 50
+
+      - name: Integration tests
+        run: task test:integration
+
+      - name: Cluster diagnostics on failure
+        if: failure()
+        run: |
+          task kind:kubeconfig
+          kubectl --kubeconfig .tools/kind.kubeconfig get nodes -o wide || true
+          kubectl --kubeconfig .tools/kind.kubeconfig get pods -A | head -50 || true
+
+      - name: Delete the kind cluster
+        if: always()
+        run: task kind:down
+
+  hygiene:
+    name: commits
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - name: Check commit messages and PR title
+      - name: Conventional Commits and signatures
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: ./scripts/check-conventional-commits.sh
+        run: |
+          ./scripts/check-conventional-commits.sh
+          ./scripts/check-signed-commits.sh
