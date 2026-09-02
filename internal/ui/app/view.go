@@ -128,10 +128,13 @@ func (m *Model) autoRefreshLabel() string {
 // breadcrumb shows where the user is in the navigation model:
 // cluster, scope, application, object (SPEC 5).
 func (m *Model) breadcrumb() []string {
-	if m.view == viewFleet {
-		// The fleet sits above the cluster: it is the one screen that is not
-		// about the context in the header.
+	switch m.view {
+	case viewFleet:
+		// The fleet sits above the cluster: these are the two screens that are
+		// not about the context in the header.
 		return []string{"Fleet", fleetCrumb(m.fleetMembers)}
+	case viewFleetResource:
+		return []string{"Fleet", m.fleetResource.Kind(), m.fleetResourceLabel()}
 	}
 
 	crumbs := []string{"Cluster", m.scopeLabel()}
@@ -275,8 +278,16 @@ func (m *Model) statusData() components.StatusData {
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Clusters", Priority: 90},
 			{Key: "Enter", Desc: "Go there", Priority: 89},
+			{Key: m.keys.Key(ActionResourcePicker), Desc: "Across the fleet", Priority: 86},
 			{Key: m.keys.Key(ActionRefresh), Desc: "Reload", Priority: 84},
 			{Key: "Esc", Desc: "Back", Priority: 85},
+		}, hints...)
+	case viewFleetResource:
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Rows", Priority: 90},
+			{Key: "Enter", Desc: "Open there", Priority: 89},
+			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 82},
+			{Key: "Esc", Desc: "Fleet", Priority: 85},
 		}, hints...)
 	case viewLogs:
 		hints = append([]components.KeyHint{
@@ -346,6 +357,8 @@ func (m *Model) renderBody() string {
 		content = screens.RenderLogs(m.theme, m.logsData(), body.Width, body.Height)
 	case viewFleet:
 		content = screens.RenderFleet(m.theme, m.fleetData(), body.Width, body.Height)
+	case viewFleetResource:
+		content = screens.RenderTable(m.theme, m.fleetResourceData(), body.Width, body.Height)
 	default:
 		content = screens.RenderOverview(m.theme, m.overviewData(), body.Width, body.Height)
 	}
@@ -603,6 +616,7 @@ func (m *Model) renderHelp(width, height int) string {
 			{m.keys.Key(ActionPalette), "Command palette — every action, by name"},
 			{m.keys.Key(ActionApplications), "Back to the application dashboard"},
 			{m.keys.Key(ActionFleet), "The fleet: every configured cluster at once, read-only"},
+			{m.keys.Key(ActionResourcePicker), "In the fleet: browse one kind across every cluster"},
 			{m.keys.Key(ActionContextPicker), "Switch cluster"},
 			{m.keys.Key(ActionNamespacePicker), "Switch namespace"},
 		}},

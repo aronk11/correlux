@@ -67,3 +67,40 @@ func TestAClusterThatCannotBeReachedIsNamedInTheFleet(t *testing.T) {
 		t.Errorf("a context that is not in the kubeconfig must not be listed:\n%s", out)
 	}
 }
+
+func TestBrowsingOneKindAcrossTheFleet(t *testing.T) {
+	m := newModelFor(t)
+	drain(t, m, m.Init())
+	drainFleet(t, m, m.OpenFleetForTest(shared.context))
+	drainFleet(t, m, m.BrowseAcrossFleetForTest("deployments.apps"))
+
+	out := frame(m)
+	if !strings.Contains(out, "CLUSTER") || !strings.Contains(out, "NAMESPACE") {
+		t.Fatalf("a merged table must say which cluster and namespace a row is from:\n%s", out)
+	}
+	if !strings.Contains(out, shared.context) {
+		t.Errorf("every row carries its cluster:\n%s", out)
+	}
+	// The server's own columns survive the merge.
+	if !strings.Contains(out, "READY") || !strings.Contains(out, "UP-TO-DATE") {
+		t.Errorf("the API server's printer columns must come through:\n%s", out)
+	}
+	if strings.Contains(out, "Reading deployments") {
+		t.Errorf("the read must have finished:\n%s", out)
+	}
+}
+
+func TestAKindNoClusterServesIsReportedPerCluster(t *testing.T) {
+	m := newModelFor(t)
+	drain(t, m, m.Init())
+	drainFleet(t, m, m.OpenFleetForTest(shared.context))
+
+	// A kind the catalog knows but that is scoped to one namespace's CRD is
+	// still served; instead, ask for something no cluster has by pointing the
+	// browser at a name discovery does not resolve.
+	drainFleet(t, m, m.BrowseAcrossFleetForTest("sprockets.example.com"))
+
+	if out := frame(m); !strings.Contains(out, "Unknown resource") {
+		t.Errorf("a kind nothing serves must be named as unknown:\n%s", out)
+	}
+}

@@ -101,6 +101,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case fleetMemberMsg:
 		return m, m.applyFleetMember(msg)
 
+	case fleetPartsMsg:
+		if msg.gen != m.fleetGeneration {
+			return m, nil
+		}
+		m.fleetPartsChan = msg.parts
+		return m, waitForFleetPart(msg.gen, msg.parts)
+
+	case fleetPartMsg:
+		return m, m.applyFleetPart(msg)
+
 	case logsStartedMsg:
 		if msg.gen != m.logGeneration {
 			return m, nil
@@ -363,6 +373,11 @@ func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
 		m.pendingApplication = ""
 		return m.openApplication(name)
 	}
+	if !m.pendingObject.empty() {
+		ref := m.pendingObject
+		m.pendingObject = objectRef{}
+		return m.openObject(ref)
+	}
 	return nil
 }
 
@@ -557,6 +572,32 @@ func (m *Model) scrollFleet(delta int) {
 	m.fleetOffset = clampInt(m.fleetOffset+delta, max(total-height, 0))
 	m.fleetCursor = m.visibleTarget(data.TargetLines(m.screen.Body.Width), len(m.fleetTargets()),
 		m.fleetCursor, m.fleetOffset)
+}
+
+// handleFleetResourceKey moves through one kind across the fleet.
+func (m *Model) handleFleetResourceKey(keystroke string) (tea.Cmd, bool) {
+	visible := max(m.screen.Body.Height-1, 1)
+	switch keystroke {
+	case "up", "k":
+		m.moveFleetTableCursor(-1)
+	case "down", "j":
+		m.moveFleetTableCursor(1)
+	case "pgup":
+		m.scrollFleetTable(-visible)
+	case "pgdown", " ":
+		m.scrollFleetTable(visible)
+	case "home", "g":
+		m.moveFleetTableCursor(-len(m.fleetTable.Rows))
+	case "end", "G":
+		m.moveFleetTableCursor(len(m.fleetTable.Rows))
+	case "enter", "right":
+		return m.openFleetRow(), true
+	case "esc", "left", "h":
+		return m.openFleet(), true
+	default:
+		return nil, false
+	}
+	return nil, true
 }
 
 // handleLogsKey drives the log view.
@@ -813,6 +854,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			if cmd, handled := m.handleFleetKey(keystroke); handled {
 				return cmd
 			}
+		case viewFleetResource:
+			if cmd, handled := m.handleFleetResourceKey(keystroke); handled {
+				return cmd
+			}
 		}
 	}
 
@@ -838,7 +883,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		// Both table-shaped views hide the same secondary columns, and one
 		// toggle for both is one thing to learn instead of two.
 		switch m.view {
-		case viewTable, viewApplications:
+		case viewTable, viewApplications, viewFleetResource:
 			return m.toggleWide()
 		case viewLogs:
 			// The same question — show me the part that is cut off — asked of
@@ -942,6 +987,8 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 		m.scrollObject(delta)
 	case viewFleet:
 		m.scrollFleet(delta)
+	case viewFleetResource:
+		m.scrollFleetTable(delta)
 	case viewLogs:
 		m.scrollLogs(delta)
 	}

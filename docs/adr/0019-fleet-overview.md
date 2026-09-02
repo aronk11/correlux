@@ -108,5 +108,12 @@ what it covers: "5 applications across 2 of 3" is what a fleet with an
 unreachable member reports, and the member itself is listed with the reason it
 could not be read.
 
-The timed refresh deliberately does not touch this screen. `Ctrl+R` reloads it,
-which is the one moment a user has decided the cost is worth paying.
+From the overview, `Ctrl+B` browses one resource kind across every member as a
+single table. The columns are the API servers' own, merged by name rather than
+by position: clusters need not agree — a CRD at two versions prints different
+columns — and a cell landing under the wrong heading would be worse than a gap,
+so a column one cluster lacks is left empty. A cluster that does not serve the
+kind at all is named with the reason rather than quietly left out.
+
+The timed refresh deliberately does not touch these screens. `Ctrl+R` reloads
+them, which is the one moment a user has decided the cost is worth paying.

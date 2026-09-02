@@ -58,6 +58,8 @@ const (
 	viewLogs
 	// viewFleet is several clusters at once, read-only.
 	viewFleet
+	// viewFleetResource is one resource kind across those clusters.
+	viewFleetResource
 	// viewOverview is the session and connection summary.
 	viewOverview
 	// viewTable lists the objects of one resource kind.
@@ -156,9 +158,20 @@ type Model struct {
 	fleetGeneration uint64
 	fleetOffset     int
 	fleetCursor     int
-	// pendingApplication is opened once the cluster it belongs to has loaded,
-	// which is how Enter in the fleet view lands on the right screen.
+	// pendingApplication and pendingObject are opened once the cluster they
+	// belong to has loaded, which is how Enter in the fleet view lands on the
+	// right screen in the right cluster.
 	pendingApplication string
+	pendingObject      objectRef
+
+	// One resource kind across the fleet.
+	fleetResource    kubediscovery.Resource
+	fleetParts       []resources.Part
+	fleetPartsChan   <-chan resources.Part
+	fleetTable       resources.Merged
+	fleetTableCursor int
+	fleetTableOffset int
+	fleetPending     int
 	// findings are the diagnoses per application key, computed once per load
 	// rather than on every frame: View must stay a cheap pure function.
 	findings map[string][]diagnosis.Diagnosis
@@ -388,6 +401,11 @@ func (m *Model) PressForTest(keystroke string) tea.Cmd {
 func (m *Model) OpenFleetForTest(contexts ...string) tea.Cmd {
 	m.cfg.Fleet = contexts
 	return m.openFleet()
+}
+
+// BrowseAcrossFleetForTest lists one kind across every cluster in the fleet.
+func (m *Model) BrowseAcrossFleetForTest(name string) tea.Cmd {
+	return m.openFleetResourceByName(name)
 }
 
 // OpenLogsForTest reads the logs of one object.

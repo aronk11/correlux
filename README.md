@@ -213,6 +213,21 @@ kubeui never discovers on its own that opening it authenticated against every
 production cluster you hold credentials for. Adding all of them is a command you
 run, for one session.
 
+From the overview, `Ctrl+B` browses **one resource kind across every cluster** —
+pods, deployments, or a custom resource — as one table:
+
+```
+Fleet → Deployment → 69 deployments   from 3 of 4 clusters   not listed in prod-ap: connection refused
+CLUSTER           NAMESPACE        NAME     READY  UP-TO-DATE  AVAILABLE  AGE
+kind-kubeui-test  kube-system      coredns  2/2    2           2          3h59m
+kind-kubeui-test  kubeui-load-000  app-00   0/3    3           0          3h18m
+```
+
+The columns are the API server's own, merged by name: a cluster running an older
+version of a CRD contributes what it has and leaves the rest empty, and no cell
+ever lands under the wrong heading. A cluster that does not serve the kind is
+named with the reason. `Enter` opens that object, in its cluster.
+
 The overview is **read-only**. Enter leaves it for the cluster the row is about,
 which is what keeps every action unambiguous: either you are looking at the
 fleet, or you are inside one cluster acting on it

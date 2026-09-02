@@ -8,6 +8,7 @@ import (
 	"github.com/aronk11/kubeui/internal/config"
 	"github.com/aronk11/kubeui/internal/domain/application"
 	"github.com/aronk11/kubeui/internal/domain/fleet"
+	"github.com/aronk11/kubeui/internal/kube/resources"
 )
 
 // fleetModel builds a model whose fleet covers the given contexts. They exist
@@ -208,5 +209,104 @@ func TestAContextThatLeftTheKubeconfigIsDropped(t *testing.T) {
 	contexts := m.fleetContexts()
 	if len(contexts) != 1 || contexts[0] != "staging" {
 		t.Errorf("contexts = %v, want only the one that still exists", contexts)
+	}
+}
+
+// answerPart delivers one cluster's page of a resource.
+func answerPart(m *Model, source string, table *resources.Table, err error) {
+	m.Update(fleetPartMsg{gen: m.fleetGeneration, part: resources.Part{
+		Source: source, Table: table, Err: err,
+	}})
+}
+
+func podPage(names ...string) *resources.Table {
+	t := &resources.Table{
+		Columns: []resources.Column{
+			{Name: "Name", Type: "string"},
+			{Name: "Status", Type: "string"},
+		},
+		Remaining: -1,
+	}
+	for _, name := range names {
+		t.Rows = append(t.Rows, resources.Row{
+			Name: name, Namespace: "shop", Cells: []string{name, "Running"},
+		})
+	}
+	return t
+}
+
+func TestAKindCanBeBrowsedAcrossTheWholeFleet(t *testing.T) {
+	m := fleetModel(t, "staging", "prod-eu")
+	loadCatalogInto(m, testCatalog())
+	press(t, m, "F")
+
+	m.openFleetResourceByName("pods")
+	if m.view != viewFleetResource {
+		t.Fatalf("view = %v, want the fleet's resource table", m.view)
+	}
+	if out := plainView(m); !strings.Contains(out, "Reading pods from 2 clusters") {
+		t.Errorf("the read must be visible while it runs:\n%s", out)
+	}
+
+	answerPart(m, "prod-eu", podPage("payments-1"), nil)
+	answerPart(m, "staging", podPage("payments-2"), nil)
+
+	out := plainView(m)
+	for _, want := range []string{"CLUSTER", "NAMESPACE", "prod-eu", "staging", "payments-1", "payments-2"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the merged table must contain %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestAClusterThatCannotListTheKindIsNamed(t *testing.T) {
+	m := fleetModel(t, "staging", "prod-eu")
+	loadCatalogInto(m, testCatalog())
+	press(t, m, "F")
+	m.openFleetResourceByName("widgets")
+
+	answerPart(m, "prod-eu", podPage("widget-1"), nil)
+	answerPart(m, "staging", nil, errors.New("the server could not find the requested resource"))
+
+	out := plainView(m)
+	if !strings.Contains(out, "widget-1") {
+		t.Errorf("the cluster that answered must still be shown:\n%s", out)
+	}
+	if !strings.Contains(out, "not listed in staging") {
+		t.Errorf("a cluster that does not serve the kind must be named:\n%s", out)
+	}
+}
+
+func TestEnterOnAFleetRowGoesToThatClusterAndObject(t *testing.T) {
+	m := fleetModel(t, "staging", "prod-eu")
+	loadCatalogInto(m, testCatalog())
+	press(t, m, "F")
+	m.openFleetResourceByName("pods")
+	answerPart(m, "prod-eu", podPage("payments-1"), nil)
+
+	press(t, m, "enter")
+	if m.Context() != "prod-eu" {
+		t.Fatalf("context = %q, want the cluster the row came from", m.Context())
+	}
+	if m.pendingObject.Name != "payments-1" || m.pendingObject.Kind != "Pod" {
+		t.Errorf("pending = %+v, want the object under the cursor", m.pendingObject)
+	}
+
+	// Once that cluster's dashboard answers, the object opens.
+	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
+	if m.view != viewObject || m.objectTarget.Name != "payments-1" {
+		t.Errorf("view = %v target = %+v, want the object open", m.view, m.objectTarget)
+	}
+}
+
+func TestEscapeReturnsFromTheMergedTableToTheFleet(t *testing.T) {
+	m := fleetModel(t, "staging", "prod-eu")
+	loadCatalogInto(m, testCatalog())
+	press(t, m, "F")
+	m.openFleetResourceByName("pods")
+
+	press(t, m, "esc")
+	if m.view != viewFleet {
+		t.Errorf("view = %v, want the fleet overview", m.view)
 	}
 }

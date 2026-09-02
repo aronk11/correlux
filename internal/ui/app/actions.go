@@ -289,10 +289,15 @@ func (m *Model) rebuildCommands() {
 	}
 
 	// Every resource kind the cluster serves is its own command, so "widgets"
-	// is as reachable as "pods" without a submenu.
+	// is as reachable as "pods" without a submenu. On a fleet screen the same
+	// entries browse that kind across every cluster instead.
+	inFleet := m.view == viewFleet || m.view == viewFleetResource
 	if catalog := m.catalog.Get(); catalog != nil {
 		for _, r := range catalog.Resources {
 			if m.view == viewTable && r.FullName() == m.resource.FullName() {
+				continue
+			}
+			if m.view == viewFleetResource && r.FullName() == m.fleetResource.FullName() {
 				continue
 			}
 			keywords := append([]string{"resource", r.Plural(), r.Group()}, r.ShortNames...)
@@ -300,11 +305,16 @@ func (m *Model) rebuildCommands() {
 			if !r.Builtin {
 				subtitle = "custom resource  " + subtitle
 			}
+			title := "Open " + r.Kind()
+			if inFleet {
+				title = "Open " + r.Kind() + " across the fleet"
+				subtitle = itoa(len(m.fleetContexts())) + " clusters  " + subtitle
+			}
 			cmds = append(cmds, palette.Command{
 				ID:       "res." + r.FullName(),
 				Action:   paletteOpenResource,
 				Arg:      r.FullName(),
-				Title:    "Open " + r.Kind(),
+				Title:    title,
 				Subtitle: subtitle,
 				Category: "Resources",
 				Keywords: keywords,
@@ -584,6 +594,9 @@ func (m *Model) runCommand(id string) tea.Cmd {
 	case paletteOpenResources:
 		return m.openOverlay(overlayResources)
 	case paletteOpenResource:
+		if m.view == viewFleet || m.view == viewFleetResource {
+			return m.openFleetResourceByName(cmd.Arg)
+		}
 		return m.openResource(cmd.Arg)
 	case paletteToggleWide:
 		return m.toggleWide()
@@ -653,6 +666,7 @@ func (m *Model) switchContextScoped(name, namespace string) tea.Cmd {
 	m.evidence.Reset()
 	m.object.Reset()
 	m.stopLogs()
+	m.stopFleet()
 	m.findings = nil
 	m.appCursor, m.appOffset, m.detailOffset, m.detailCursor = 0, 0, 0, 0
 	m.selectedApp = ""
@@ -702,6 +716,7 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	m.evidence.Reset()
 	m.object.Reset()
 	m.stopLogs()
+	m.stopFleet()
 	m.findings = nil
 	m.appCursor, m.appOffset, m.detailOffset, m.detailCursor = 0, 0, 0, 0
 	m.selectedApp = ""

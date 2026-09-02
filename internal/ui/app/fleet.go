@@ -206,6 +206,8 @@ func (m *Model) stopFleet() {
 	}
 	m.fleetGeneration++
 	m.fleetResults = nil
+	m.fleetPartsChan = nil
+	m.fleetPending = 0
 }
 
 // enterFleetRow acts on the row under the cursor, and there is only one thing
