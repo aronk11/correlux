@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/kubeui/internal/kube/logs"
 	"github.com/aronk11/kubeui/internal/ui/async"
 	"github.com/aronk11/kubeui/internal/ui/palette"
 	"github.com/aronk11/kubeui/internal/ui/theme"
@@ -25,6 +26,7 @@ const (
 	paletteToggleYAML      palette.ActionID = "object.yaml"
 	paletteScale           palette.ActionID = "scale"
 	paletteEdit            palette.ActionID = "edit"
+	paletteLogs            palette.ActionID = "logs"
 	paletteOpenResources   palette.ActionID = "open.resources"
 	paletteOpenResource    palette.ActionID = "open.resource"
 	paletteToggleWide      palette.ActionID = "toggle.wide"
@@ -185,6 +187,20 @@ func (m *Model) rebuildCommands() {
 				Enabled:  true,
 			},
 		)
+	}
+
+	if _, title, ok := m.logSources(); ok && m.view != viewLogs {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.logs",
+			Action:   paletteLogs,
+			Title:    title,
+			Subtitle: "the last " + itoa(int(logs.DefaultTail)) + " lines, then whatever follows",
+			Category: "Inspect",
+			Keywords: []string{"logs", "log", "tail", "output", "stdout", "follow"},
+			Shortcut: m.keys.Key(ActionLogs),
+			Weight:   88,
+			Enabled:  true,
+		})
 	}
 
 	if ref, ok := m.scalableTarget(); ok {
@@ -534,6 +550,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.scaleTarget()
 	case paletteEdit:
 		return m.editObject(m.objectTarget)
+	case paletteLogs:
+		return m.openLogs()
 	case paletteBackToOverview:
 		return m.backToOverview()
 	case paletteSwitchContext:
@@ -580,6 +598,7 @@ func (m *Model) switchContext(name string) tea.Cmd {
 	m.apps.Reset()
 	m.evidence.Reset()
 	m.object.Reset()
+	m.stopLogs()
 	m.findings = nil
 	m.appCursor, m.appOffset, m.detailOffset, m.detailCursor = 0, 0, 0, 0
 	m.selectedApp = ""
@@ -628,11 +647,12 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	m.apps.Reset()
 	m.evidence.Reset()
 	m.object.Reset()
+	m.stopLogs()
 	m.findings = nil
 	m.appCursor, m.appOffset, m.detailOffset, m.detailCursor = 0, 0, 0, 0
 	m.selectedApp = ""
 	m.objectTarget, m.objectTrail = objectRef{}, nil
-	if m.view == viewApplication || m.view == viewWhy || m.view == viewObject {
+	if m.view == viewApplication || m.view == viewWhy || m.view == viewObject || m.view == viewLogs {
 		m.view = viewApplications
 	}
 	reload := m.loadApplications()

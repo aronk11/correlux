@@ -91,6 +91,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case applicationsLoadedMsg:
 		return m, m.applyApplications(msg)
 
+	case logsStartedMsg:
+		if msg.gen != m.logGeneration {
+			return m, nil
+		}
+		if msg.err != nil {
+			m.logErr = msg.err
+			return m, nil
+		}
+		m.logStream = msg.stream
+		return m, waitForLogs(msg.gen, msg.stream)
+
+	case logBatchMsg:
+		return m, m.applyLogBatch(msg)
+
 	case objectLoadedMsg:
 		if m.object.Accepts(msg.gen) {
 			m.objectLoading = false
@@ -385,7 +399,7 @@ func (m *Model) handleTableKey(keystroke string) (tea.Cmd, bool) {
 		return m.moveTableCursor(-len(m.tableRows())), true
 	case "end", "G":
 		return m.moveTableCursor(len(m.tableRows())), true
-	case "enter", "right", "l":
+	case "enter", "right":
 		return m.openSelectedRow(), true
 	}
 	return nil, false
@@ -407,7 +421,7 @@ func (m *Model) handleApplicationsKey(keystroke string) (tea.Cmd, bool) {
 		m.moveAppCursor(-len(m.applications()))
 	case "end", "G":
 		m.moveAppCursor(len(m.applications()))
-	case "enter", "right", "l":
+	case "enter", "right":
 		return m.openSelectedApplication(), true
 	default:
 		return nil, false
@@ -435,7 +449,7 @@ func (m *Model) handleApplicationKey(keystroke string) (tea.Cmd, bool) {
 		m.detailCursor, m.detailOffset = 0, 0
 	case "end", "G":
 		m.scrollDetail(m.detailLines())
-	case "enter", "right", "l":
+	case "enter", "right":
 		return m.openSelectedObject(), true
 	case "left", "h":
 		return m.backToApplications(), true
@@ -476,6 +490,32 @@ func (m *Model) openSelectedObject() tea.Cmd {
 	return m.openObject(targets[m.detailCursor])
 }
 
+// handleLogsKey drives the log view.
+func (m *Model) handleLogsKey(keystroke string) (tea.Cmd, bool) {
+	page := max(m.screen.Body.Height-3, 1)
+	switch keystroke {
+	case "up", "k":
+		m.scrollLogs(-1)
+	case "down", "j":
+		m.scrollLogs(1)
+	case "pgup":
+		m.scrollLogs(-page)
+	case "pgdown", " ":
+		m.scrollLogs(page)
+	case "home", "g":
+		m.logFollow = false
+		m.logOffset = 0
+	case "end", "G":
+		m.logFollow = true
+		m.scrollLogs(0)
+	case "esc", "left", "h":
+		return m.closeLogs(), true
+	default:
+		return nil, false
+	}
+	return nil, true
+}
+
 // handleObjectKey moves through one object's relations, and its document.
 func (m *Model) handleObjectKey(keystroke string) (tea.Cmd, bool) {
 	page := max(m.screen.Body.Height-1, 1)
@@ -492,7 +532,7 @@ func (m *Model) handleObjectKey(keystroke string) (tea.Cmd, bool) {
 		m.objectCursor, m.objectOffset = 0, 0
 	case "end", "G":
 		m.scrollObject(m.objectLines())
-	case "enter", "right", "l":
+	case "enter", "right":
 		return m.openSelectedRelation(), true
 	case "esc", "left", "h":
 		return m.backFromObject(), true
@@ -696,6 +736,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			if cmd, handled := m.handleObjectKey(keystroke); handled {
 				return cmd
 			}
+		case viewLogs:
+			if cmd, handled := m.handleLogsKey(keystroke); handled {
+				return cmd
+			}
 		}
 	}
 
@@ -720,10 +764,20 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case ActionToggleWide:
 		// Both table-shaped views hide the same secondary columns, and one
 		// toggle for both is one thing to learn instead of two.
-		if m.view == viewTable || m.view == viewApplications {
+		switch m.view {
+		case viewTable, viewApplications:
 			return m.toggleWide()
+		case viewLogs:
+			// The same question — show me the part that is cut off — asked of
+			// text rather than of columns.
+			return m.toggleWrap()
 		}
 		return nil
+	case ActionLogs:
+		if m.view == viewLogs {
+			return m.closeLogs()
+		}
+		return m.openLogs()
 	case ActionRefresh:
 		return m.refresh()
 	case ActionAutoRefresh:
@@ -750,6 +804,22 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			return m.editObject(m.objectTarget)
 		}
 		return nil
+	case ActionFollow:
+		if m.view == viewLogs {
+			return m.toggleFollow()
+		}
+		return nil
+	case ActionTimestamps:
+		if m.view == viewLogs {
+			return m.toggleLogTimestamps()
+		}
+		return nil
+	case ActionPrevious:
+		if m.view == viewLogs {
+			return m.togglePrevious()
+		}
+		return nil
+
 	}
 	return nil
 }

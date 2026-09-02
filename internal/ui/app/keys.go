@@ -30,6 +30,10 @@ const (
 	ActionYAML            = "object.yaml"
 	ActionScale           = "scale"
 	ActionEdit            = "edit"
+	ActionLogs            = "logs"
+	ActionFollow          = "logs.follow"
+	ActionTimestamps      = "logs.timestamps"
+	ActionPrevious        = "logs.previous"
 	ActionOverview        = "overview"
 	ActionToggleWide      = "table.wide"
 	ActionAllNamespaces   = "namespace.all"
@@ -62,6 +66,10 @@ var DefaultBindings = map[string]string{
 	ActionYAML:            "y",
 	ActionScale:           "S",
 	ActionEdit:            "e",
+	ActionLogs:            "l",
+	ActionFollow:          "f",
+	ActionTimestamps:      "t",
+	ActionPrevious:        "p",
 	ActionToggleWide:      "w",
 	ActionRefresh:         "ctrl+r",
 	ActionAutoRefresh:     "ctrl+f",

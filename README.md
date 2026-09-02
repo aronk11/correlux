@@ -65,6 +65,7 @@ kubeui version
 | `y` | Show the document the server holds, and back |
 | `e` | Edit the open object in your editor |
 | `S` | Scale the selected workload |
+| `l` | Read the logs of the pod, workload or application in hand |
 | `Ctrl+B` | Browse resource kinds, custom resources included |
 | `Enter` | Open the object under the cursor |
 | `Ctrl+K` | Switch cluster |
@@ -148,6 +149,18 @@ their images, states, restarts and limits; a workload by its replicas and pod
 template — and `y` shows that document unabridged. A kind kubeui has never heard
 of is described from its own status and conditions, which is where a custom
 controller reports itself anyway.
+
+### Logs
+
+`l` reads the logs of whatever is in hand: a pod, or every pod of a workload or
+an application at once, each line attributed to the container it came from. It
+opens following; `f` pauses so you can read what is there, `p` switches to the
+previous run of a container that restarted — the only log that explains a crash
+loop — `t` adds the server's timestamps and `w` wraps long lines.
+
+A container that cannot be read yet says so on its own line instead of silencing
+the others, the oldest lines are dropped once the buffer is full and the header
+admits it, and leaving the view closes every connection it opened.
 
 ### Changing something
 
@@ -235,6 +248,10 @@ keybindings:
   object.yaml: "y"
   edit: e
   scale: S
+  logs: l
+  logs.follow: f
+  logs.previous: p
+  logs.timestamps: t
   context.picker: ctrl+k
   namespace.picker: ctrl+o
   resource.picker: ctrl+b
@@ -264,7 +281,8 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | — | Timed refresh, mouse-wheel scrolling | **done** |
 | 3 | Deterministic WHY diagnosis engine | **done** |
 | 4 | Object detail, describe and navigation between objects | **done** |
-| — | Logs, exec, clipboard | next |
+| — | Logs at pod, workload and application level | **done** |
+| — | Exec and clipboard | next |
 | 5 | Safe mutating actions: scale and edit | **done** |
 | — | Further safe actions: delete, restart, cordon | planned |
 | 6 | Large-cluster performance work, guided by the benchmarks | planned |

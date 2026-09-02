@@ -43,7 +43,8 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 | `internal/kube/kubeconfig` | Reads and merges the kubeconfig; classifies production contexts. Never writes. |
 | `internal/kube/client` | REST configs and clientsets per context, connectivity probes, error classification, namespace listing, discovery and table listing. |
 | `internal/kube/discovery` | The catalog of every resource kind the cluster serves, native and custom, tolerant of partially broken discovery. |
-| `internal/kube/resources` | Lists any resource as a server-rendered table, paged and cancellable. |
+| `internal/kube/resources` | Lists any resource as a server-rendered table, paged and cancellable; reads, updates and scales a single object. |
+| `internal/kube/logs` | Container logs as a bounded, cancellable stream, several containers merged into one. |
 | `internal/kube/workloads` | One bounded, concurrent pass over a scope, converted into a domain snapshot. A kind that cannot be read becomes a gap, not a failure. |
 | `internal/domain/application` | Infers applications from ownership, labels and selectors, and derives their health. Pure; knows nothing about client-go ([ADR 16](adr/0016-application-inference.md)). |
 | `internal/domain/describe` | Turns the document an object came as into the facts worth reading. Works on raw JSON, so an unknown kind is described as well as a Pod is. |
