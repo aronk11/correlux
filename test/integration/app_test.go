@@ -73,15 +73,27 @@ func TestApplicationRendersARealCluster(t *testing.T) {
 	m := newModelFor(t)
 	drain(t, m, m.Init())
 
+	// The first screen is the application dashboard, in the context's own
+	// namespace — which on a fresh kind cluster is legitimately empty.
 	out := frame(m)
 	if !strings.Contains(out, "connected") {
 		t.Errorf("the header must show the live connection:\n%s", out)
 	}
-	if !strings.Contains(out, "listable") {
-		t.Errorf("the overview must report what discovery found:\n%s", out)
+	if !strings.Contains(out, "Applications") {
+		t.Errorf("kubeui must open on the applications:\n%s", out)
 	}
-	if strings.Contains(out, "not discovered") || strings.Contains(out, "not loaded") {
-		t.Errorf("after Init everything must be loaded:\n%s", out)
+	if strings.Contains(out, "Looking for applications") {
+		t.Errorf("after Init the dashboard must be loaded:\n%s", out)
+	}
+
+	// The session view still answers "what am I connected to?".
+	drain(t, m, m.ShowSessionForTest())
+	session := frame(m)
+	if !strings.Contains(session, "listable") {
+		t.Errorf("the session view must report what discovery found:\n%s", session)
+	}
+	if strings.Contains(session, "not discovered") || strings.Contains(session, "not loaded") {
+		t.Errorf("after Init everything must be loaded:\n%s", session)
 	}
 }
 
