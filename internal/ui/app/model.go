@@ -13,6 +13,7 @@ import (
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
 	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
 	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
+	"github.com/aronk11/kubeui/internal/kube/logs"
 	"github.com/aronk11/kubeui/internal/kube/resources"
 	"github.com/aronk11/kubeui/internal/ui/async"
 	"github.com/aronk11/kubeui/internal/ui/components"
@@ -52,6 +53,8 @@ const (
 	// viewObject is one object: what it is, what it is related to, and the
 	// document the server holds for it.
 	viewObject
+	// viewLogs is the output of one or more containers.
+	viewLogs
 	// viewOverview is the session and connection summary.
 	viewOverview
 	// viewTable lists the objects of one resource kind.
@@ -123,6 +126,23 @@ type Model struct {
 	objectOffset int
 	objectCursor int
 	objectYAML   bool
+
+	// The log view. The stream lives as long as the view does; leaving it
+	// cancels the context and the connections go with it.
+	logTitle      string
+	logTargets    []logs.Source
+	logLines      []logs.Line
+	logStream     <-chan logs.Event
+	logGeneration uint64
+	logOffset     int
+	logFollow     bool
+	logTimestamps bool
+	logPrevious   bool
+	logWrap       bool
+	logClosed     bool
+	logDropped    int
+	logFailed     []string
+	logErr        error
 	// findings are the diagnoses per application key, computed once per load
 	// rather than on every frame: View must stay a cheap pure function.
 	findings map[string][]diagnosis.Diagnosis
@@ -158,6 +178,7 @@ type Model struct {
 	cancelApps       context.CancelFunc
 	cancelEvidence   context.CancelFunc
 	cancelObject     context.CancelFunc
+	cancelLogs       context.CancelFunc
 
 	// Geometry.
 	screen        layout.Screen
@@ -342,6 +363,13 @@ func (m *Model) OpenObjectForTest(kind, name, namespace string) tea.Cmd {
 func (m *Model) PressForTest(keystroke string) tea.Cmd {
 	_, cmd := m.Update(keyPress(keystroke))
 	return cmd
+}
+
+// OpenLogsForTest reads the logs of one object.
+func (m *Model) OpenLogsForTest(kind, name, namespace string) tea.Cmd {
+	m.objectTarget = objectRef{Kind: kind, Name: name, Namespace: namespace}
+	m.view = viewObject
+	return m.openLogs()
 }
 
 // ShowYAMLForTest switches the object view to the server's document.

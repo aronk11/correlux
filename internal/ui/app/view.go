@@ -162,6 +162,10 @@ func (m *Model) breadcrumb() []string {
 			crumbs = append(crumbs, ref.label())
 		}
 		return append(crumbs, m.objectTarget.label())
+	case viewLogs:
+		// The body already carries the full title; the breadcrumb only has to
+		// say where in the navigation you are.
+		return append(crumbs, "Logs")
 	case viewOverview:
 		return append(crumbs, "Session")
 	default:
@@ -251,6 +255,7 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "↑↓", Desc: "Objects", Priority: 90},
 			{Key: "Enter", Desc: "Open", Priority: 89},
 			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
+			{Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewWhy:
@@ -258,6 +263,15 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "↑↓", Desc: "Scroll", Priority: 90},
 			{Key: "Enter", Desc: "Objects", Priority: 86},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
+		}, hints...)
+	case viewLogs:
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Scroll", Priority: 90},
+			{Key: m.keys.Key(ActionFollow), Desc: followHint(m.logFollow && !m.logClosed), Priority: 89},
+			{Key: m.keys.Key(ActionTimestamps), Desc: "Times", Priority: 82},
+			{Key: m.keys.Key(ActionPrevious), Desc: previousHint(m.logPrevious), Priority: 81},
+			{Key: m.keys.Key(ActionToggleWide), Desc: wrapHint(m.logWrap), Priority: 80},
+			{Key: "Esc", Desc: "Back", Priority: 85},
 		}, hints...)
 	case viewObject:
 		object := []components.KeyHint{
@@ -268,6 +282,8 @@ func (m *Model) statusData() components.StatusData {
 		}
 		object = append(object, components.KeyHint{
 			Key: m.keys.Key(ActionEdit), Desc: "Edit", Priority: 86,
+		}, components.KeyHint{
+			Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87,
 		})
 		if _, ok := m.scalableTarget(); ok {
 			object = append(object, components.KeyHint{
@@ -312,6 +328,8 @@ func (m *Model) renderBody() string {
 		content = screens.RenderWhy(m.theme, m.whyData(), body.Width, body.Height)
 	case viewObject:
 		content = screens.RenderObject(m.theme, m.objectData(), body.Width, body.Height)
+	case viewLogs:
+		content = screens.RenderLogs(m.theme, m.logsData(), body.Width, body.Height)
 	default:
 		content = screens.RenderOverview(m.theme, m.overviewData(), body.Width, body.Height)
 	}
@@ -577,6 +595,13 @@ func (m *Model) renderHelp(width, height int) string {
 			{m.keys.Key(ActionWhy), "Explain why it is unhealthy, from the cluster's own evidence"},
 			{"Esc", "Back to the dashboard"},
 		}},
+		{"Logs", [][2]string{
+			{m.keys.Key(ActionLogs), "Read the logs of the pod, workload or application in hand"},
+			{m.keys.Key(ActionFollow), "Follow new output, or pause to read what is there"},
+			{m.keys.Key(ActionPrevious), "Read the previous run of a container that restarted"},
+			{m.keys.Key(ActionTimestamps), "Show the time each line was written"},
+			{m.keys.Key(ActionToggleWide), "Wrap long lines instead of cutting them"},
+		}},
 		{"In an application or an object", [][2]string{
 			{"↑ ↓ / j k", "Move between the objects; the page follows"},
 			{"Enter", "Open the object under the cursor, or follow the relation"},
@@ -658,6 +683,29 @@ func padTo(s string, width int) string {
 		return s + strings.Repeat(" ", gap)
 	}
 	return s
+}
+
+// followHint, previousHint and wrapHint all name what the key will do next,
+// not what is on screen.
+func followHint(following bool) string {
+	if following {
+		return "Pause"
+	}
+	return "Follow"
+}
+
+func previousHint(previous bool) string {
+	if previous {
+		return "Current run"
+	}
+	return "Previous run"
+}
+
+func wrapHint(wrapped bool) string {
+	if wrapped {
+		return "Clip"
+	}
+	return "Wrap"
 }
 
 // yamlHint names what the key will show next, not what is on screen.
