@@ -42,7 +42,7 @@ func (m *Model) openFleetResource(res kubediscovery.Resource) tea.Cmd {
 	m.fleetResource = res
 	m.fleetParts = nil
 	m.fleetTable = resources.Merged{}
-	m.fleetTableCursor, m.fleetTableOffset = 0, 0
+	m.fleetTablePort.Cursor, m.fleetTablePort.Offset = 0, 0
 	m.view = viewFleetResource
 	m.rebuildCommands()
 	return m.startFleetResource(contexts, res)
@@ -142,15 +142,15 @@ func (m *Model) applyFleetPart(msg fleetPartMsg) tea.Cmd {
 	m.fleetParts = append(m.fleetParts, msg.part)
 	m.fleetPending = max(m.fleetPending-1, 0)
 	m.fleetTable = resources.Merge(m.fleetParts, m.fleetResource.Namespaced)
-	m.fleetTableCursor = clampInt(m.fleetTableCursor, max(len(m.visibleFleetRows())-1, 0))
+	m.fleetTablePort.Cursor = clampInt(m.fleetTablePort.Cursor, max(len(m.visibleFleetRows())-1, 0))
 	return waitForFleetPart(msg.gen, m.fleetPartsChan)
 }
 
 // fleetResourceData renders the merged table.
 func (m *Model) fleetResourceData() screens.TableData {
 	d := screens.TableData{
-		Cursor:   m.fleetTableCursor,
-		Offset:   m.fleetTableOffset,
+		Cursor:   m.fleetTablePort.Cursor,
+		Offset:   m.fleetTablePort.Offset,
 		ShowWide: m.tableWide,
 	}
 
@@ -230,10 +230,10 @@ func (m *Model) fleetFailureNote() string {
 // its namespace, the object itself.
 func (m *Model) openFleetRow() tea.Cmd {
 	rows := m.visibleFleetRows()
-	if m.fleetTableCursor < 0 || m.fleetTableCursor >= len(rows) {
+	if m.fleetTablePort.Cursor < 0 || m.fleetTablePort.Cursor >= len(rows) {
 		return nil
 	}
-	row := rows[m.fleetTableCursor]
+	row := rows[m.fleetTablePort.Cursor]
 	res := m.fleetResource
 
 	m.stopFleet()
@@ -251,35 +251,10 @@ func (m *Model) openFleetRow() tea.Cmd {
 
 // moveFleetTableCursor scrolls the merged table.
 func (m *Model) moveFleetTableCursor(delta int) {
-	rows := m.visibleFleetRows()
-	if len(rows) == 0 {
-		return
-	}
-	m.fleetTableCursor = clampInt(m.fleetTableCursor+delta, len(rows)-1)
-
-	visible := max(m.screen.Body.Height-1, 1)
-	if m.fleetTableCursor < m.fleetTableOffset {
-		m.fleetTableOffset = m.fleetTableCursor
-	}
-	if m.fleetTableCursor >= m.fleetTableOffset+visible {
-		m.fleetTableOffset = m.fleetTableCursor - visible + 1
-	}
-	m.fleetTableOffset = clampInt(m.fleetTableOffset, max(len(rows)-visible, 0))
+	m.fleetTablePort.MoveCursor(delta, len(m.visibleFleetRows()), m.rowsPerScreen())
 }
 
 // scrollFleetTable moves the viewport and drags the selection with it.
 func (m *Model) scrollFleetTable(delta int) {
-	rows := m.visibleFleetRows()
-	if len(rows) == 0 {
-		return
-	}
-	visible := max(m.screen.Body.Height-1, 1)
-	m.fleetTableOffset = clampInt(m.fleetTableOffset+delta, max(len(rows)-visible, 0))
-	m.fleetTableCursor = clampInt(m.fleetTableCursor, len(rows)-1)
-	if m.fleetTableCursor < m.fleetTableOffset {
-		m.fleetTableCursor = m.fleetTableOffset
-	}
-	if m.fleetTableCursor >= m.fleetTableOffset+visible {
-		m.fleetTableCursor = m.fleetTableOffset + visible - 1
-	}
+	m.fleetTablePort.ScrollRows(delta, len(m.visibleFleetRows()), m.rowsPerScreen())
 }

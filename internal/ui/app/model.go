@@ -108,16 +108,20 @@ type Model struct {
 	evidence async.Value[application.Context]
 	object   async.Value[*resources.Object]
 
-	// The application dashboard.
-	appCursor int
-	appOffset int
+	// One viewport per scrollable screen. The rules they follow live in
+	// layout.Viewport, written once (ADR 4: arithmetic below the UI).
+	appPort        layout.Viewport
+	tablePort      layout.Viewport
+	detailPort     layout.Viewport
+	objectPort     layout.Viewport
+	whyPort        layout.Viewport
+	logPort        layout.Viewport
+	fleetPort      layout.Viewport
+	fleetTablePort layout.Viewport
 	// selectedApp is the application the detail view shows, addressed by key
 	// rather than by index: a reload re-sorts the list, and a cursor position
 	// would then follow the ranking instead of the application.
-	selectedApp  string
-	detailOffset int
-	detailCursor int
-	whyOffset    int
+	selectedApp string
 
 	// The object inspector.
 	objectTarget objectRef
@@ -127,10 +131,8 @@ type Model struct {
 	objectTrail []objectRef
 	// objectFrom is the view the inspector was opened from, so Esc returns
 	// there rather than to a fixed screen.
-	objectFrom   viewKind
-	objectOffset int
-	objectCursor int
-	objectYAML   bool
+	objectFrom viewKind
+	objectYAML bool
 
 	// The log view. The stream lives as long as the view does; leaving it
 	// cancels the context and the connections go with it.
@@ -139,7 +141,6 @@ type Model struct {
 	logLines      []logs.Line
 	logStream     <-chan logs.Event
 	logGeneration uint64
-	logOffset     int
 	logFollow     bool
 	logTimestamps bool
 	logPrevious   bool
@@ -156,8 +157,6 @@ type Model struct {
 	fleetExtra      []string
 	fleetResults    <-chan fleet.Member
 	fleetGeneration uint64
-	fleetOffset     int
-	fleetCursor     int
 	// pendingApplication and pendingObject are opened once the cluster they
 	// belong to has loaded, which is how Enter in the fleet view lands on the
 	// right screen in the right cluster.
@@ -165,13 +164,11 @@ type Model struct {
 	pendingObject      objectRef
 
 	// One resource kind across the fleet.
-	fleetResource    kubediscovery.Resource
-	fleetParts       []resources.Part
-	fleetPartsChan   <-chan resources.Part
-	fleetTable       resources.Merged
-	fleetTableCursor int
-	fleetTableOffset int
-	fleetPending     int
+	fleetResource  kubediscovery.Resource
+	fleetParts     []resources.Part
+	fleetPartsChan <-chan resources.Part
+	fleetTable     resources.Merged
+	fleetPending   int
 	// findings are the diagnoses per application key, computed once per load
 	// rather than on every frame: View must stay a cheap pure function.
 	findings map[string][]diagnosis.Diagnosis
@@ -179,8 +176,6 @@ type Model struct {
 	// The resource browser.
 	view        viewKind
 	resource    kubediscovery.Resource
-	tableCursor int
-	tableOffset int
 	tableWide   bool
 	loadingMore bool
 

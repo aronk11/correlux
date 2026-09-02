@@ -52,7 +52,7 @@ func (m *Model) openApplication(name string) tea.Cmd {
 		if a.Key() == name || a.Name == name {
 			m.selectedApp = a.Key()
 			m.view = viewApplication
-			m.detailOffset, m.detailCursor = 0, 0
+			m.detailPort.Offset, m.detailPort.Cursor = 0, 0
 			m.rebuildCommands()
 			// Opening an application is the moment its evidence becomes worth
 			// fetching: the events belong on this screen, and the explanation
@@ -70,10 +70,10 @@ func (m *Model) openApplication(name string) tea.Cmd {
 // openSelectedApplication opens whatever the dashboard cursor is on.
 func (m *Model) openSelectedApplication() tea.Cmd {
 	apps := m.visibleApplications()
-	if m.appCursor < 0 || m.appCursor >= len(apps) {
+	if m.appPort.Cursor < 0 || m.appPort.Cursor >= len(apps) {
 		return nil
 	}
-	return m.openApplication(apps[m.appCursor].Key())
+	return m.openApplication(apps[m.appPort.Cursor].Key())
 }
 
 // backToApplications returns to the dashboard from anywhere.
@@ -86,7 +86,7 @@ func (m *Model) backToApplications() tea.Cmd {
 		m.table.Reset()
 	}
 	m.view = viewApplications
-	m.detailOffset = 0
+	m.detailPort.Offset = 0
 	m.rebuildCommands()
 	return nil
 }
@@ -96,20 +96,7 @@ func (m *Model) applicationsVisible() int { return max(m.screen.Body.Height-1, 1
 
 // moveAppCursor scrolls the dashboard.
 func (m *Model) moveAppCursor(delta int) {
-	apps := m.visibleApplications()
-	if len(apps) == 0 {
-		return
-	}
-	m.appCursor = clampInt(m.appCursor+delta, len(apps)-1)
-
-	visible := m.applicationsVisible()
-	if m.appCursor < m.appOffset {
-		m.appOffset = m.appCursor
-	}
-	if m.appCursor >= m.appOffset+visible {
-		m.appOffset = m.appCursor - visible + 1
-	}
-	m.appOffset = clampInt(m.appOffset, max(len(apps)-visible, 0))
+	m.appPort.MoveCursor(delta, len(m.visibleApplications()), m.applicationsVisible())
 }
 
 // keepCursorOnApplication restores the cursor after a reload.
@@ -120,36 +107,24 @@ func (m *Model) moveAppCursor(delta int) {
 // follows the application it was on, not the position it was at.
 func (m *Model) keepCursorOnApplication(previous string) {
 	apps := m.visibleApplications()
-	if len(apps) == 0 {
-		m.appCursor, m.appOffset = 0, 0
-		return
-	}
+	found := -1
 	if previous != "" {
 		for i := range apps {
 			if apps[i].Key() == previous {
-				m.appCursor = i
+				found = i
 				break
 			}
 		}
 	}
-	m.appCursor = clampInt(m.appCursor, len(apps)-1)
-
-	visible := m.applicationsVisible()
-	if m.appCursor < m.appOffset {
-		m.appOffset = m.appCursor
-	}
-	if m.appCursor >= m.appOffset+visible {
-		m.appOffset = m.appCursor - visible + 1
-	}
-	m.appOffset = clampInt(m.appOffset, max(len(apps)-visible, 0))
+	m.appPort.KeepCursor(found, len(apps), m.applicationsVisible())
 }
 
 // cursorApplicationKey is the application the cursor is on, for restoring it
 // across a reload.
 func (m *Model) cursorApplicationKey() string {
 	apps := m.visibleApplications()
-	if m.appCursor >= 0 && m.appCursor < len(apps) {
-		return apps[m.appCursor].Key()
+	if m.appPort.Cursor >= 0 && m.appPort.Cursor < len(apps) {
+		return apps[m.appPort.Cursor].Key()
 	}
 	return ""
 }
@@ -173,7 +148,7 @@ func healthStatus(h application.Health) theme.Status {
 // the resource browser uses: sorting, column fitting and cursor behaviour must
 // not differ between two screens that look like tables (SPEC 14).
 func (m *Model) applicationsData() screens.TableData {
-	d := screens.TableData{Cursor: m.appCursor, Offset: m.appOffset, ShowWide: m.tableWide}
+	d := screens.TableData{Cursor: m.appPort.Cursor, Offset: m.appPort.Offset, ShowWide: m.tableWide}
 
 	switch m.apps.State() {
 	case async.Idle, async.Loading:
@@ -287,7 +262,7 @@ func (m *Model) applicationData() screens.ApplicationData {
 // indexes a list built somewhere else is a bug waiting for the first time the
 // two disagree.
 func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
-	d := screens.ApplicationData{Offset: m.detailOffset, Selected: m.detailCursor}
+	d := screens.ApplicationData{Offset: m.detailPort.Offset, Selected: m.detailPort.Cursor}
 	var targets []objectRef
 	target := func(ref objectRef) int {
 		targets = append(targets, ref)

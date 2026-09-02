@@ -196,8 +196,8 @@ func TestRefreshingATableKeepsTheCursorOnItsRow(t *testing.T) {
 
 	press(t, m, "down")
 	press(t, m, "down")
-	if m.tableCursor != 2 {
-		t.Fatalf("cursor = %d, want 2", m.tableCursor)
+	if m.tablePort.Cursor != 2 {
+		t.Fatalf("cursor = %d, want 2", m.tablePort.Cursor)
 	}
 
 	// The first pod is gone and a new one appeared: the cursor must stay on the

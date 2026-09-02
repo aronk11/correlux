@@ -409,8 +409,8 @@ func (m *Model) renderBody() string {
 // "none", a permission error and a transport error do not look alike.
 func (m *Model) tableData() screens.TableData {
 	d := screens.TableData{
-		Cursor:   m.tableCursor,
-		Offset:   m.tableOffset,
+		Cursor:   m.tablePort.Cursor,
+		Offset:   m.tablePort.Offset,
 		ShowWide: m.tableWide,
 	}
 

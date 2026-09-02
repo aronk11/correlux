@@ -50,14 +50,14 @@ func (m *Model) findingsFor(key string) []diagnosis.Diagnosis { return m.finding
 func (m *Model) explain() tea.Cmd {
 	if m.selectedApp == "" || m.view == viewApplications {
 		apps := m.applications()
-		if m.appCursor < 0 || m.appCursor >= len(apps) {
+		if m.appPort.Cursor < 0 || m.appPort.Cursor >= len(apps) {
 			m.notice("Select an application first", theme.StatusWarning)
 			return m.expireNotice()
 		}
-		m.selectedApp = apps[m.appCursor].Key()
+		m.selectedApp = apps[m.appPort.Cursor].Key()
 	}
 	m.view = viewWhy
-	m.whyOffset = 0
+	m.whyPort.Offset = 0
 	m.rebuildCommands()
 
 	// The explanation is only as good as the evidence; fetch it if this scope
@@ -83,13 +83,12 @@ func (m *Model) whyLines() int {
 }
 
 func (m *Model) scrollWhy(delta int) {
-	height := max(m.screen.Body.Height, 1)
-	m.whyOffset = clampInt(m.whyOffset+delta, max(m.whyLines()-height, 0))
+	m.whyPort.ScrollLines(delta, m.whyLines(), m.bodyHeight())
 }
 
 // whyData assembles the explanation for the open application.
 func (m *Model) whyData() screens.WhyData {
-	d := screens.WhyData{Offset: m.whyOffset}
+	d := screens.WhyData{Offset: m.whyPort.Offset}
 
 	switch m.apps.State() {
 	case async.Idle, async.Loading:

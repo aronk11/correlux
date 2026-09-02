@@ -59,13 +59,13 @@ func TestTheDetailViewSelectsItsObjects(t *testing.T) {
 	}
 
 	press(t, m, "down")
-	if m.detailCursor != 1 {
-		t.Errorf("down must move the selection, cursor = %d", m.detailCursor)
+	if m.detailPort.Cursor != 1 {
+		t.Errorf("down must move the selection, cursor = %d", m.detailPort.Cursor)
 	}
 	press(t, m, "up")
 	press(t, m, "up")
-	if m.detailCursor != 0 {
-		t.Errorf("the selection must not run past the first row, cursor = %d", m.detailCursor)
+	if m.detailPort.Cursor != 0 {
+		t.Errorf("the selection must not run past the first row, cursor = %d", m.detailPort.Cursor)
 	}
 }
 
@@ -275,7 +275,7 @@ func TestScrollingTheApplicationDoesNotSnapBack(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		m.Update(wheel(false))
 	}
-	scrolled := m.detailOffset
+	scrolled := m.detailPort.Offset
 	if scrolled == 0 {
 		t.Fatal("the wheel must scroll an application that overflows the screen")
 	}
@@ -283,8 +283,8 @@ func TestScrollingTheApplicationDoesNotSnapBack(t *testing.T) {
 	// The bug this guards: the page jumped back to the selection the moment an
 	// arrow key was pressed, which reads as "scrolling does not work here".
 	press(t, m, "down")
-	if m.detailOffset < scrolled {
-		t.Errorf("the page jumped back from %d to %d", scrolled, m.detailOffset)
+	if m.detailPort.Offset < scrolled {
+		t.Errorf("the page jumped back from %d to %d", scrolled, m.detailPort.Offset)
 	}
 }
 
@@ -298,13 +298,13 @@ func TestScrollingDragsTheSelectionOntoTheScreen(t *testing.T) {
 	}
 
 	lines := data.TargetLines(m.screen.Body.Width)
-	line, known := lines[m.detailCursor]
+	line, known := lines[m.detailPort.Cursor]
 	if !known {
-		t.Fatalf("the selection %d is not rendered at all", m.detailCursor)
+		t.Fatalf("the selection %d is not rendered at all", m.detailPort.Cursor)
 	}
-	if line < m.detailOffset || line >= m.detailOffset+m.screen.Body.Height {
+	if line < m.detailPort.Offset || line >= m.detailPort.Offset+m.screen.Body.Height {
 		t.Errorf("the selection sits on line %d, outside the visible %d..%d",
-			line, m.detailOffset, m.detailOffset+m.screen.Body.Height)
+			line, m.detailPort.Offset, m.detailPort.Offset+m.screen.Body.Height)
 	}
 }
 
@@ -313,22 +313,22 @@ func TestPageKeysMoveTheApplicationView(t *testing.T) {
 	openLongApplication(t, m)
 
 	press(t, m, "pgdown")
-	if m.detailOffset == 0 {
+	if m.detailPort.Offset == 0 {
 		t.Error("PgDn must move the page")
 	}
 	press(t, m, "pgup")
-	if m.detailOffset != 0 {
-		t.Errorf("PgUp must come back to the top, offset = %d", m.detailOffset)
+	if m.detailPort.Offset != 0 {
+		t.Errorf("PgUp must come back to the top, offset = %d", m.detailPort.Offset)
 	}
 
 	press(t, m, "end")
-	atEnd := m.detailOffset
+	atEnd := m.detailPort.Offset
 	if atEnd == 0 {
 		t.Error("End must reach the bottom")
 	}
 	press(t, m, "home")
-	if m.detailOffset != 0 || m.detailCursor != 0 {
-		t.Errorf("Home must return to the first row, offset = %d cursor = %d", m.detailOffset, m.detailCursor)
+	if m.detailPort.Offset != 0 || m.detailPort.Cursor != 0 {
+		t.Errorf("Home must return to the first row, offset = %d cursor = %d", m.detailPort.Offset, m.detailPort.Cursor)
 	}
 }
 

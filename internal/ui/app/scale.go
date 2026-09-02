@@ -29,8 +29,8 @@ func (m *Model) scaleTarget() tea.Cmd {
 		return m.askScale(m.objectTarget)
 	case viewApplication:
 		_, targets := m.applicationView()
-		if m.detailCursor >= 0 && m.detailCursor < len(targets) {
-			return m.askScale(targets[m.detailCursor])
+		if m.detailPort.Cursor >= 0 && m.detailPort.Cursor < len(targets) {
+			return m.askScale(targets[m.detailPort.Cursor])
 		}
 	}
 	m.notice("Select a workload to scale", theme.StatusWarning)

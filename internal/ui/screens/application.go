@@ -158,10 +158,13 @@ func sectionLines(
 			for i, c := range section.Columns {
 				titles[i] = strings.ToUpper(c)
 			}
-			lines = append(lines, muted("  "+renderRow(titles, widths, nil)))
+			lines = append(lines, muted(truncateTo("  "+renderRow(titles, widths, nil), width)))
 		}
 		for _, row := range section.Rows {
-			text := "  " + renderRow(row.Cells, widths, nil)
+			// Clipped to the screen: a section is drawn inside a viewport, and
+			// a line wider than the terminal wraps and breaks every line count
+			// the scrolling depends on.
+			text := truncateTo("  "+renderRow(row.Cells, widths, nil), width)
 			line := text
 			switch {
 			case t == nil:
@@ -241,6 +244,14 @@ func detailWidths(section DetailSection, width int) []int {
 		shrink := min(total-width, widths[widest]-6)
 		widths[widest] -= shrink
 		total -= shrink
+	}
+
+	// Still too wide: drop columns from the right, as the resource table does.
+	// The leftmost column identifies the row and is the last to go — a screen
+	// too narrow for three columns is still worth one.
+	for total > width && len(widths) > 1 {
+		total -= widths[len(widths)-1] + gap
+		widths = widths[:len(widths)-1]
 	}
 	return widths
 }

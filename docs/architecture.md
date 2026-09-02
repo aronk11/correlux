@@ -52,7 +52,7 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 | `internal/domain/fleet` | The application model one level up: several clusters merged into one answer, with each cluster's own state kept ([ADR 19](adr/0019-fleet-overview.md)). |
 | `internal/domain/diagnosis` | Thirteen deterministic rules that turn evidence into a problem, a cause, the facts behind it and what to check next. Degrades with the evidence available ([ADR 18](adr/0018-evidence-on-demand.md)). |
 | `internal/ui/async` | `Value[T]`: lifecycle plus generation counter for every remote value. |
-| `internal/ui/layout` | Screen geometry and the resize debouncer. Pure arithmetic. |
+| `internal/ui/layout` | Screen geometry, the resize debouncer and `Viewport` — the scrolling and selection rules every scrollable screen shares. Pure arithmetic. |
 | `internal/ui/theme` | Colours, glyphs, terminal capability detection. |
 | `internal/ui/palette` | Command registry and fuzzy ranking. No UI dependency. |
 | `internal/ui/components` | Reusable widgets: input, selector, header, status bar. |
@@ -101,6 +101,14 @@ object, and the cluster it will hit — marked when that cluster is production,
 where the confirmation demands the cluster's name be typed. Editing hands the
 terminal to `$EDITOR` and compares what comes back
 ([ADR 20](adr/0020-changes-go-through-one-gate.md)).
+
+## Scrolling
+
+Six screens scroll, and one type decides how: `layout.Viewport`. The selection
+stays on screen, scrolling drags it along rather than leaving it for the next
+keypress to jump back to, nothing runs past the last screenful, and a screenful
+with nothing selectable scrolls instead of jumping. Those rules were written six
+times before, and had drifted far enough apart to produce a bug.
 
 ## Rendering
 

@@ -386,21 +386,21 @@ func TestTheWheelScrollsTheResourceTable(t *testing.T) {
 	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: podTablePage(names...)})
 
 	m.Update(wheel(false))
-	if m.tableOffset == 0 {
+	if m.tablePort.Offset == 0 {
 		t.Fatal("the wheel must scroll a resource table")
 	}
-	if m.tableCursor < m.tableOffset {
-		t.Errorf("cursor %d scrolled off the top of the viewport at offset %d", m.tableCursor, m.tableOffset)
+	if m.tablePort.Cursor < m.tablePort.Offset {
+		t.Errorf("cursor %d scrolled off the top of the viewport at offset %d", m.tablePort.Cursor, m.tablePort.Offset)
 	}
 
 	for i := 0; i < 60; i++ {
 		m.Update(wheel(false))
 	}
-	if last := len(m.tableRows()) - 1; m.tableCursor > last {
-		t.Errorf("cursor %d is past the last row %d", m.tableCursor, last)
+	if last := len(m.tableRows()) - 1; m.tablePort.Cursor > last {
+		t.Errorf("cursor %d is past the last row %d", m.tablePort.Cursor, last)
 	}
-	if m.tableOffset > len(m.tableRows()) {
-		t.Errorf("the viewport scrolled past the end of the table, offset %d", m.tableOffset)
+	if m.tablePort.Offset > len(m.tableRows()) {
+		t.Errorf("the viewport scrolled past the end of the table, offset %d", m.tablePort.Offset)
 	}
 }
 

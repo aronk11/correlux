@@ -243,17 +243,17 @@ func TestTheWheelScrollsTheDashboard(t *testing.T) {
 	loadApplicationsInto(m, apps...)
 
 	m.Update(wheel(false))
-	if m.appOffset == 0 {
+	if m.appPort.Offset == 0 {
 		t.Fatal("the wheel must scroll the dashboard")
 	}
 	// The cursor is dragged along only as far as it must be to stay visible.
-	if m.appCursor < m.appOffset {
-		t.Errorf("cursor %d scrolled off the top of the viewport at offset %d", m.appCursor, m.appOffset)
+	if m.appPort.Cursor < m.appPort.Offset {
+		t.Errorf("cursor %d scrolled off the top of the viewport at offset %d", m.appPort.Cursor, m.appPort.Offset)
 	}
 
 	m.Update(wheel(true))
-	if m.appOffset != 0 {
-		t.Errorf("scrolling back up must return to the top, offset is %d", m.appOffset)
+	if m.appPort.Offset != 0 {
+		t.Errorf("scrolling back up must return to the top, offset is %d", m.appPort.Offset)
 	}
 }
 
@@ -263,12 +263,12 @@ func TestTheWheelScrollsTheOpenApplication(t *testing.T) {
 	press(t, m, "enter")
 
 	m.Update(wheel(false))
-	if m.detailOffset == 0 {
+	if m.detailPort.Offset == 0 {
 		t.Fatal("a detail view longer than the screen must scroll")
 	}
 	m.Update(wheel(true))
-	if m.detailOffset != 0 {
-		t.Errorf("scrolling back must reach the top, offset is %d", m.detailOffset)
+	if m.detailPort.Offset != 0 {
+		t.Errorf("scrolling back must reach the top, offset is %d", m.detailPort.Offset)
 	}
 }
 
@@ -279,8 +279,8 @@ func TestTheWheelDoesNotScrollPastTheEnd(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		m.Update(wheel(false))
 	}
-	if m.appOffset != 0 {
-		t.Errorf("a list that fits on screen must not scroll at all, offset is %d", m.appOffset)
+	if m.appPort.Offset != 0 {
+		t.Errorf("a list that fits on screen must not scroll at all, offset is %d", m.appPort.Offset)
 	}
 }
 
@@ -294,8 +294,8 @@ func TestTheWheelDoesNotScrollBehindAnOverlay(t *testing.T) {
 	press(t, m, "?") // the help overlay has nothing to scroll
 
 	m.Update(wheel(false))
-	if m.appOffset != 0 {
-		t.Errorf("the dashboard scrolled behind an open overlay, offset is %d", m.appOffset)
+	if m.appPort.Offset != 0 {
+		t.Errorf("the dashboard scrolled behind an open overlay, offset is %d", m.appPort.Offset)
 	}
 }
 
@@ -351,7 +351,7 @@ func TestTheFluxObjectCanBeOpenedFromTheApplication(t *testing.T) {
 		t.Fatalf("the HelmRelease must be selectable: %+v", targets)
 	}
 
-	m.detailCursor = found
+	m.detailPort.Cursor = found
 	press(t, m, "enter")
 	if m.view != viewObject || m.objectTarget.Kind != "HelmRelease" {
 		t.Errorf("view = %v target = %+v, want the Flux object open", m.view, m.objectTarget)

@@ -45,7 +45,7 @@ func (m *Model) openLogs() tea.Cmd {
 	m.logTargets = sources
 	m.logLines = nil
 	m.logDropped = 0
-	m.logOffset = 0
+	m.logPort.Offset = 0
 	m.logFollow = true
 	m.logClosed = false
 	m.logErr = nil
@@ -159,8 +159,8 @@ func (m *Model) logSources() ([]logs.Source, string, bool) {
 			return nil, "", false
 		}
 		if m.view == viewApplication {
-			if _, targets := m.applicationView(); m.detailCursor >= 0 && m.detailCursor < len(targets) {
-				if sources, title, found := m.sourcesFor(targets[m.detailCursor]); found {
+			if _, targets := m.applicationView(); m.detailPort.Cursor >= 0 && m.detailPort.Cursor < len(targets) {
+				if sources, title, found := m.sourcesFor(targets[m.detailPort.Cursor]); found {
 					return sources, title, true
 				}
 			}
@@ -168,12 +168,12 @@ func (m *Model) logSources() ([]logs.Source, string, bool) {
 		return podSources(app.Pods), "Logs of " + app.Name, len(app.Pods) > 0
 	case viewTable:
 		rows := m.tableRows()
-		if m.tableCursor < 0 || m.tableCursor >= len(rows) {
+		if m.tablePort.Cursor < 0 || m.tablePort.Cursor >= len(rows) {
 			return nil, "", false
 		}
 		return m.sourcesFor(objectRef{
-			Kind: m.resource.Kind(), Name: rows[m.tableCursor].Name,
-			Namespace: rowNamespace(rows[m.tableCursor].Namespace, m.resource.Namespaced, m.namespace, m.allNamespaces),
+			Kind: m.resource.Kind(), Name: rows[m.tablePort.Cursor].Name,
+			Namespace: rowNamespace(rows[m.tablePort.Cursor].Namespace, m.resource.Namespaced, m.namespace, m.allNamespaces),
 			Resource:  m.resource.FullName(),
 		})
 	}
@@ -332,7 +332,7 @@ func (m *Model) logsData() screens.LogsData {
 		Title:      m.logTitle,
 		Follow:     m.logFollow && !m.logClosed,
 		Wrap:       m.logWrap,
-		Offset:     m.logOffset,
+		Offset:     m.logPort.Offset,
 		ShowSource: len(m.logTargets) > 1,
 	}
 	if m.logErr != nil {
@@ -405,13 +405,14 @@ func unique(values []string) []string {
 // statement that the user wants to read what is already there.
 func (m *Model) scrollLogs(delta int) {
 	total := m.logsData().LineCount(m.screen.Body.Width)
-	height := max(m.screen.Body.Height-2, 1)
+	height := max(m.screen.Body.Height-2, 1) // the title and the state line
 	if delta < 0 {
 		m.logFollow = false
 	}
 	if m.logFollow {
-		m.logOffset = max(total-height, 0)
+		// Following pins the view to the end; nothing else decides the offset.
+		m.logPort.Offset = max(total-height, 0)
 		return
 	}
-	m.logOffset = clampInt(m.logOffset+delta, max(total-height, 0))
+	m.logPort.ScrollLines(delta, total, height)
 }

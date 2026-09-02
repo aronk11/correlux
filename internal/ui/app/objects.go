@@ -60,10 +60,10 @@ func (m *Model) openObject(ref objectRef) tea.Cmd {
 // a custom resource is opened by exactly the code that opens a Pod.
 func (m *Model) openSelectedRow() tea.Cmd {
 	rows := m.visibleRows()
-	if m.tableCursor < 0 || m.tableCursor >= len(rows) {
+	if m.tablePort.Cursor < 0 || m.tablePort.Cursor >= len(rows) {
 		return nil
 	}
-	row := rows[m.tableCursor]
+	row := rows[m.tablePort.Cursor]
 	if row.Name == "" {
 		return nil
 	}
@@ -85,8 +85,8 @@ func (m *Model) showObject(ref objectRef) tea.Cmd {
 	m.object.Reset()
 	m.objectTarget = ref
 	m.view = viewObject
-	m.objectOffset = 0
-	m.objectCursor = 0
+	m.objectPort.Offset = 0
+	m.objectPort.Cursor = 0
 	m.objectYAML = false
 	m.rebuildCommands()
 	return m.loadObject()
@@ -127,7 +127,7 @@ func (m *Model) backFromObject() tea.Cmd {
 // the server actually holds.
 func (m *Model) toggleObjectYAML() {
 	m.objectYAML = !m.objectYAML
-	m.objectOffset = 0
+	m.objectPort.Offset = 0
 	m.rebuildCommands()
 }
 
@@ -144,8 +144,8 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 		Kind:      ref.Kind,
 		Name:      ref.Name,
 		Namespace: ref.Namespace,
-		Offset:    m.objectOffset,
-		Selected:  m.objectCursor,
+		Offset:    m.objectPort.Offset,
+		Selected:  m.objectPort.Cursor,
 		ShowYAML:  m.objectYAML,
 	}
 

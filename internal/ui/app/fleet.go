@@ -45,7 +45,7 @@ func (m *Model) openFleet() tea.Cmd {
 	}
 
 	m.view = viewFleet
-	m.fleetOffset, m.fleetCursor = 0, 0
+	m.fleetPort.Offset, m.fleetPort.Cursor = 0, 0
 	m.rebuildCommands()
 	return m.startFleet(contexts)
 }
@@ -223,10 +223,10 @@ func (m *Model) stopFleet() {
 // target cluster is ambiguous.
 func (m *Model) enterFleetRow() tea.Cmd {
 	targets := m.fleetTargets()
-	if m.fleetCursor < 0 || m.fleetCursor >= len(targets) {
+	if m.fleetPort.Cursor < 0 || m.fleetPort.Cursor >= len(targets) {
 		return nil
 	}
-	target := targets[m.fleetCursor]
+	target := targets[m.fleetPort.Cursor]
 
 	m.stopFleet()
 
@@ -298,7 +298,7 @@ func (m *Model) fleetRows() []fleet.Row { return fleet.Rows(m.fleetMembers) }
 
 // fleetData assembles the overview.
 func (m *Model) fleetData() screens.FleetData {
-	d := screens.FleetData{Offset: m.fleetOffset, Selected: m.fleetCursor}
+	d := screens.FleetData{Offset: m.fleetPort.Offset, Selected: m.fleetPort.Cursor}
 
 	if len(m.fleetMembers) == 0 {
 		d.Message = "No fleet configured. List the contexts to watch under `fleet:` in " +
