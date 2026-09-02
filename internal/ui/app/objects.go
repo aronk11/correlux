@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/kubeui/internal/domain/describe"
 	"github.com/aronk11/kubeui/internal/kube/resources"
 	"github.com/aronk11/kubeui/internal/ui/async"
 	"github.com/aronk11/kubeui/internal/ui/screens"
@@ -136,12 +137,31 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 		return len(targets) - 1
 	}
 
-	d.Sections = []screens.DetailSection{
-		m.identitySection(obj),
-		m.relationsSection(obj, target),
-		m.objectEventsSection(obj, now),
+	sections := []screens.DetailSection{m.identitySection(obj)}
+	// What the object itself reports, read out of the document rather than out
+	// of a type kubeui was compiled with.
+	for _, section := range describe.Object(obj.Kind, obj.Raw) {
+		sections = append(sections, screens.DetailSection{
+			Title:   section.Title,
+			Columns: section.Columns,
+			Rows:    describeRows(section.Rows),
+			Empty:   section.Empty,
+		})
 	}
+	sections = append(sections, m.relationsSection(obj, target), m.objectEventsSection(obj, now))
+
+	d.Sections = sections
 	return d, targets
+}
+
+// describeRows turns described facts into rows nobody can navigate into: a
+// description is something to read, and only the relations are somewhere to go.
+func describeRows(rows [][]string) []screens.DetailRow {
+	out := make([]screens.DetailRow, 0, len(rows))
+	for _, cells := range rows {
+		out = append(out, screens.DetailRow{Cells: cells, Target: -1})
+	}
+	return out
 }
 
 // identitySection is what identifies the object, without repeating the YAML
@@ -149,11 +169,9 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 func (m *Model) identitySection(obj *resources.Object) screens.DetailSection {
 	section := screens.DetailSection{Title: "Identity", Columns: []string{"Field", "Value"}}
 	rows := [][2]string{
-		{"Name", obj.Name},
 		{"Namespace", orNone(obj.Namespace)},
 		{"API", groupVersionOf(obj)},
 		{"Created", obj.CreatedAt.Format(time.RFC3339)},
-		{"Version", orNone(obj.ResourceVersion)},
 	}
 	for _, r := range rows {
 		section.Rows = append(section.Rows, screens.DetailRow{Cells: []string{r[0], r[1]}, Target: -1})
