@@ -64,6 +64,7 @@ kubeui version
 | `Enter` | Open the application under the cursor |
 | `Ctrl+W` | Why is this unhealthy? |
 | `y` | Show the document the server holds, and back |
+| `b` | Decode the base64 values in it — a Secret's, above all |
 | `e` | Edit the open object in your editor |
 | `S` | Scale the selected workload |
 | `l` | Read the logs of the pod, workload or application in hand |
@@ -151,6 +152,27 @@ their images, states, restarts and limits; a workload by its replicas and pod
 template — and `y` shows that document unabridged. A kind kubeui has never heard
 of is described from its own status and conditions, which is where a custom
 controller reports itself anyway.
+
+`b` decodes the base64 in that document, which is what makes a Secret readable
+without copying a blob out to `base64 -d`:
+
+```
+Secret/database  shop
+v1   age 9d   3 values decoded from base64
+
+data:
+  keystore.jks: <binary, 2048 bytes>
+  password: hunter2
+  tls.crt: |
+    -----BEGIN CERTIFICATE-----
+```
+
+The scope comes from the document rather than from a list of kinds: `data` and
+`binaryData` are decoded, a value that is not base64 stays exactly as it was,
+and one that decodes to bytes nobody can read is shown as its size instead of
+being dumped into the terminal. The subtitle says which of the two you are
+reading, and the toggle changes only that: `e` still hands your editor — and the
+cluster — the document the server holds.
 
 ### Logs
 
@@ -345,6 +367,7 @@ keybindings:
   search: "/"
   why: ctrl+w
   object.yaml: "y"
+  object.decode: b
   edit: e
   scale: S
   logs: l

@@ -312,6 +312,7 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "↑↓", Desc: "Related", Priority: 70},
 			{Key: "Enter", Desc: "Follow", Priority: 72},
 			{Key: m.keys.Key(ActionYAML), Desc: yamlHint(m.objectYAML), Priority: 87},
+			{Key: m.keys.Key(ActionDecode), Desc: decodeHint(m.objectDecode), Priority: 83},
 			{Key: "Esc", Desc: "Back", Priority: 85},
 		}
 		object = append(object, components.KeyHint{
@@ -682,6 +683,7 @@ func (m *Model) renderHelp(width, height int) string {
 			{"↑ ↓ / j k", "Move between the objects; the page follows"},
 			{"Enter", "Open the object under the cursor, or follow the relation"},
 			{m.keys.Key(ActionYAML), "Show the document the server holds, and back"},
+			{m.keys.Key(ActionDecode), "Decode the base64 values in it — a Secret's, above all"},
 			{m.keys.Key(ActionScale), "Scale the selected workload, after confirming the blast radius"},
 			{m.keys.Key(ActionEdit), "Edit the open object in $EDITOR, then review what changed"},
 			{"Esc", "Back the way you came in"},
@@ -808,6 +810,14 @@ func yamlHint(showing bool) string {
 		return "Details"
 	}
 	return "YAML"
+}
+
+// decodeHint names what the key will show next, not what is on screen.
+func decodeHint(decoding bool) string {
+	if decoding {
+		return "Encoded"
+	}
+	return "Decode"
 }
 
 func wideHint(wide bool) string {

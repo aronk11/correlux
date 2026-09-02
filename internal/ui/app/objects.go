@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/kubeui/internal/domain/decode"
 	"github.com/aronk11/kubeui/internal/domain/describe"
 	"github.com/aronk11/kubeui/internal/kube/resources"
 	"github.com/aronk11/kubeui/internal/ui/async"
@@ -88,6 +89,7 @@ func (m *Model) showObject(ref objectRef) tea.Cmd {
 	m.objectPort.Offset = 0
 	m.objectPort.Cursor = 0
 	m.objectYAML = false
+	m.objectDecode = false
 	m.rebuildCommands()
 	return m.loadObject()
 }
@@ -131,6 +133,20 @@ func (m *Model) toggleObjectYAML() {
 	m.rebuildCommands()
 }
 
+// toggleObjectDecode switches the document between the values the server stores
+// and what they decode to.
+//
+// It reaches for the document as well, because asking to read a Secret's values
+// while the details are on screen can only mean one thing.
+func (m *Model) toggleObjectDecode() {
+	m.objectDecode = !m.objectDecode
+	if m.objectDecode {
+		m.objectYAML = true
+	}
+	m.objectPort.Offset = 0
+	m.rebuildCommands()
+}
+
 // objectData assembles the object view.
 func (m *Model) objectData() screens.ObjectData {
 	d, _ := m.objectView()
@@ -170,7 +186,14 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 	d.Name = obj.Name
 	d.Namespace = obj.Namespace
 	d.Subtitle = strings.TrimSpace(groupVersionOf(obj) + "   age " + formatAge(obj.CreatedAt, now))
-	d.YAML = strings.Split(strings.TrimRight(obj.YAML, "\n"), "\n")
+	d.YAML = splitDocument(obj.YAML)
+	if m.objectDecode && m.objectYAML {
+		document, values := decode.Document(obj.Raw)
+		if values > 0 {
+			d.YAML = splitDocument(document)
+		}
+		d.Subtitle += "   " + decodeNote(values)
+	}
 
 	if pod, ok := m.podFor(obj); ok {
 		d.Status = podStatus(pod)
@@ -199,6 +222,20 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 
 	d.Sections = sections
 	return d, targets
+}
+
+// decodeNote marks the document as decoded, so nobody has to wonder whether a
+// value on screen is the one the server stores. A document with nothing to
+// decode says that too: silence would read as a key that did not work.
+func decodeNote(values int) string {
+	switch values {
+	case 0:
+		return "nothing here is base64"
+	case 1:
+		return "1 value decoded from base64"
+	default:
+		return itoa(values) + " values decoded from base64"
+	}
 }
 
 // describeRows turns described facts into rows nobody can navigate into: a

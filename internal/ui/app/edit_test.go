@@ -173,6 +173,43 @@ func TestEditorIsTakenFromTheEnvironment(t *testing.T) {
 	}
 }
 
+// Decoding is a way of reading, and reading must not change what an edit
+// sends. A decoded Secret applied back to the cluster would store every value
+// doubly encoded, and the application reading it would get nonsense out — the
+// one way this feature could destroy data.
+func TestAnEditSendsTheServersDocumentEvenWhileTheValuesAreDecoded(t *testing.T) {
+	m := newTestModel(t)
+	openSecret(t, m)
+
+	press(t, m, "b")
+	if out := plainView(m); !strings.Contains(out, "password: hunter2") {
+		t.Fatalf("the decoded document must be on screen for this to prove anything:\n%s", out)
+	}
+
+	press(t, m, "e")
+	path := m.editPath
+	if path == "" {
+		t.Fatal("e must have prepared a document for the editor")
+	}
+	buffer, err := os.ReadFile(path) //nolint:gosec // the path kubeui just wrote
+	if err != nil {
+		t.Fatalf("read the edit buffer: %v", err)
+	}
+	if string(buffer) != secretYAML {
+		t.Errorf("the editor was handed:\n%s\nwant the document the server holds:\n%s", buffer, secretYAML)
+	}
+
+	// The editor gives back exactly what it was handed. Nothing changed, so
+	// nothing is sent: the comparison is against the server's document too.
+	m.Update(editFinishedMsg{path: path})
+	if m.overlay == overlayConfirm {
+		t.Fatal("an untouched document is not a change and must not be offered as one")
+	}
+	if out := plainView(m); !strings.Contains(out, "Nothing changed") {
+		t.Errorf("the edit was measured against something other than the stored document:\n%s", out)
+	}
+}
+
 func TestEditingRequiresTheObjectToBeOpen(t *testing.T) {
 	m := newTestModel(t)
 	loadCatalogInto(m, scalableCatalog())
