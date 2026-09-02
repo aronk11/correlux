@@ -64,7 +64,7 @@ kubeui version
 | `Ctrl+K` | Switch cluster |
 | `Ctrl+O` | Switch namespace |
 | `Ctrl+R` | Refresh |
-| `Ctrl+F` | Refresh on a timer, until you turn it off |
+| `Ctrl+F` | Refresh on a timer, until you turn it off (`auto 10s` appears in the header) |
 | `w` | Toggle the wide columns in a resource table |
 | `?` | Help |
 | `Esc` | Back / close overlay |

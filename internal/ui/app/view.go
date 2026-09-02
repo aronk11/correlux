@@ -107,6 +107,15 @@ func (m *Model) headerData() components.HeaderData {
 	return d
 }
 
+// autoRefreshHint says what Ctrl+F will do, not what is currently happening —
+// the header already shows that.
+func autoRefreshHint(on bool) string {
+	if on {
+		return "Stop auto"
+	}
+	return "Auto"
+}
+
 // autoRefreshLabel names the timed reload for the header, empty when it is off.
 func (m *Model) autoRefreshLabel() string {
 	if !m.autoRefresh {
@@ -188,39 +197,43 @@ func (m *Model) statusData() components.StatusData {
 		return components.StatusData{Message: m.message, MessageStatus: m.messageStatus}
 	}
 
+	// Priorities decide what survives a narrow terminal: the palette is the way
+	// to reach everything else, and help is the way to learn it, so those two
+	// go last.
 	hints := []components.KeyHint{
-		{Key: m.keys.Key(ActionPalette), Desc: "Commands"},
-		{Key: m.keys.Key(ActionResourcePicker), Desc: "Resources"},
-		{Key: m.keys.Key(ActionContextPicker), Desc: "Cluster"},
-		{Key: m.keys.Key(ActionNamespacePicker), Desc: "Namespace"},
-		{Key: m.keys.Key(ActionRefresh), Desc: "Refresh"},
-		{Key: m.keys.Key(ActionHelp), Desc: "Help"},
-		{Key: m.keys.Key(ActionQuit), Desc: "Quit"},
+		{Key: m.keys.Key(ActionPalette), Desc: "Commands", Priority: 100},
+		{Key: m.keys.Key(ActionResourcePicker), Desc: "Resources", Priority: 70},
+		{Key: m.keys.Key(ActionContextPicker), Desc: "Cluster", Priority: 80},
+		{Key: m.keys.Key(ActionNamespacePicker), Desc: "Namespace", Priority: 78},
+		{Key: m.keys.Key(ActionAutoRefresh), Desc: autoRefreshHint(m.autoRefresh), Priority: 76},
+		{Key: m.keys.Key(ActionRefresh), Desc: "Refresh", Priority: 60},
+		{Key: m.keys.Key(ActionHelp), Desc: "Help", Priority: 95},
+		{Key: m.keys.Key(ActionQuit), Desc: "Quit", Priority: 40},
 	}
 	switch m.view {
 	case viewTable:
 		hints = append([]components.KeyHint{
-			{Key: "↑↓", Desc: "Rows"},
-			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide)},
-			{Key: "Esc", Desc: "Applications"},
+			{Key: "↑↓", Desc: "Rows", Priority: 90},
+			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
+			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewApplications:
 		hints = append([]components.KeyHint{
-			{Key: "↑↓", Desc: "Applications"},
-			{Key: "Enter", Desc: "Open"},
-			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide)},
+			{Key: "↑↓", Desc: "Move", Priority: 90},
+			{Key: "Enter", Desc: "Open", Priority: 90},
+			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
 		}, hints...)
 	case viewApplication:
 		hints = append([]components.KeyHint{
-			{Key: "↑↓", Desc: "Scroll"},
-			{Key: "Esc", Desc: "Applications"},
+			{Key: "↑↓", Desc: "Scroll", Priority: 90},
+			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	}
 	if m.overlay != overlayNone {
 		hints = []components.KeyHint{
-			{Key: "↑↓", Desc: "Navigate"},
-			{Key: "Enter", Desc: "Select"},
-			{Key: "Esc", Desc: "Cancel"},
+			{Key: "↑↓", Desc: "Navigate", Priority: 90},
+			{Key: "Enter", Desc: "Select", Priority: 90},
+			{Key: "Esc", Desc: "Cancel", Priority: 90},
 		}
 	}
 	return components.StatusData{Hints: hints}
