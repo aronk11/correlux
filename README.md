@@ -68,6 +68,7 @@ kubeui version
 | `e` | Edit the open object in your editor |
 | `S` | Scale the selected workload |
 | `l` | Read the logs of the pod, workload or application in hand |
+| `u` | Where the pods are, and what they use against what they asked for |
 | `Ctrl+B` | Browse resource kinds, custom resources included |
 | `Enter` | Open the object under the cursor |
 | `Ctrl+K` | Switch cluster |
@@ -185,6 +186,39 @@ loop — `t` adds the server's timestamps and `w` wraps long lines.
 A container that cannot be read yet says so on its own line instead of silencing
 the others, the oldest lines are dropped once the buffer is full and the header
 admits it, and leaving the view closes every connection it opened.
+
+### Where the pods are, and what they use
+
+`u` answers the two questions a full cluster raises, in one screen: which
+machine everything landed on, and how much of what it reserved each application
+is actually using.
+
+```
+Resource usage in default
+2 nodes   3 pods of 220 slots   live usage measured 30s ago over 30s
+
+NODES
+  NODE    STATE    PODS   CPU USED    CPU REQUESTED  MEM USED    MEM REQUESTED
+  node-1  ✓ Ready  2/110  ████░░ 65%  ░░░░░░ 6%      ████░░ 63%  ░░░░░░ 6%
+  node-2  ✓ Ready  1/110  no sample   ░░░░░░ 6%      no sample   ░░░░░░ 6%
+
+APPLICATIONS
+  APPLICATION  PODS  NODES  CPU USED/REQ/LIMIT  MEMORY USED/REQ/LIMIT
+  api          2     2      — / 500m / 1000m    — / 1Gi / 2Gi
+  batch        1     1      — / — / —           — / — / —
+```
+
+The live column comes from the metrics API, which is optional. Without Metrics
+Server the column is not there at all and the rest of the screen still answers
+from the pod specs and the machines themselves — requests, limits, allocatable
+and how full each node is. A node the metrics API said nothing about reads `no
+sample`, a pod that reserved nothing reads `none set`, and neither is ever drawn
+as a zero: an unsized pod is placed anywhere and throttled by nothing, which is
+the opposite of idle.
+
+Pods that no node has taken get their own section with the scheduler's own
+verdict, because "where are the pods" is not answered by the ones that are
+somewhere. `Ctrl+R` measures again.
 
 ### Finding something
 
@@ -406,6 +440,7 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | — | Logs at pod, workload and application level | **done** |
 | — | Fleet overview across several clusters, read-only | **done** |
 | — | Helm, Flux and Argo CD recognised from what they write | **done** |
+| — | Resource usage per node and application, metrics API optional | **done** |
 | — | Exec and clipboard | next |
 | 5 | Safe mutating actions: scale and edit | **done** |
 | — | Further safe actions: delete, restart, cordon | planned |
