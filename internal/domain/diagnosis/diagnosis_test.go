@@ -107,6 +107,30 @@ func TestCrashLoopExplainsTheLastRunNotTheWait(t *testing.T) {
 	}
 }
 
+func TestFindingsReadAsEnglishForOnePodAndForSeveral(t *testing.T) {
+	crashing := waiting("CrashLoopBackOff", "")
+	crashing.LastExitCode = 1
+
+	one := find(t, diagnose(t, &Input{App: app(pod("payments-1", crashing))}), "pod.crashloop")
+	if one.Problem != "1 pod restarts in a loop" {
+		t.Errorf("problem = %q, want the singular to agree", one.Problem)
+	}
+
+	many := find(t, diagnose(t, &Input{
+		App: app(pod("payments-1", crashing), pod("payments-2", crashing)),
+	}), "pod.crashloop")
+	if many.Problem != "2 pods restart in a loop" {
+		t.Errorf("problem = %q, want the plural to agree", many.Problem)
+	}
+
+	pulling := find(t, diagnose(t, &Input{
+		App: app(pod("payments-1", waiting("ImagePullBackOff", ""))),
+	}), "pod.imagepull")
+	if !strings.Contains(pulling.Problem, "its image") {
+		t.Errorf("problem = %q, want \"its image\" for a single pod", pulling.Problem)
+	}
+}
+
 func TestCrashLoopPrefersTheMemoryKillAsTheCause(t *testing.T) {
 	oom := waiting("CrashLoopBackOff", "")
 	oom.LastExitCode = 137

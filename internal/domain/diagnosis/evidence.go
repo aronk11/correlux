@@ -78,6 +78,15 @@ func podsPhrase(n int) string {
 	return strconv.Itoa(n) + " pods"
 }
 
+// agree picks the form that goes with the count, so the rest of the sentence
+// agrees with the subject podsPhrase produced.
+func agree(n int, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
+}
+
 // containerOf names a container in a way that is useful in a sentence.
 func containerOf(c *application.Container) string {
 	if c.Init {
