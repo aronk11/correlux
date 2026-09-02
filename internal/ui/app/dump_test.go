@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/kubeui/internal/domain/usage"
 )
 
 var ansi = regexp.MustCompile("\x1b\\[[0-9;]*m")
@@ -40,6 +41,33 @@ func dumpEvidence() application.Context {
 	}
 }
 
+// dumpUsage is a small cluster with one machine under load and one that the
+// metrics API has not reported on.
+func dumpUsage() usage.Live {
+	return usage.Live{
+		Nodes: []application.Node{
+			usageNode("node-1", true, 4000, 8<<30, 110),
+			usageNode("node-2", true, 4000, 8<<30, 110),
+		},
+		Metrics: liveMetrics([]usage.NodeSample{{Name: "node-1", Used: application.Amounts{
+			CPUMilli: 2600, MemoryBytes: 5 << 30, HasCPU: true, HasMemory: true}}}, nil),
+	}
+}
+
+// dumpUsageScope is what those machines are running: an application sized by
+// its spec, and one that asked for nothing at all.
+func dumpUsageScope() ([]application.Application, []application.Pod) {
+	pods := []application.Pod{
+		usagePod("api-0", "node-1", 250, 512<<20),
+		usagePod("api-1", "node-2", 250, 512<<20),
+		usagePod("batch-0", "node-1", 0, 0),
+	}
+	return []application.Application{
+		usageApplication("api", pods[0], pods[1]),
+		usageApplication("batch", pods[2]),
+	}, pods
+}
+
 // TestDumpFrames writes plain-text renderings of the main screen and each
 // overlay to KUBEUI_DUMP_DIR. It is a development aid for reviewing the layout
 // without a terminal, and a no-op in normal test runs.
@@ -59,6 +87,7 @@ func TestDumpFrames(t *testing.T) {
 		"resources":   "ctrl+b",
 		"help":        "?",
 		"table":       "",
+		"usage":       "",
 	}
 	for name, key := range frames {
 		m := newTestModel(t)
@@ -77,6 +106,11 @@ func TestDumpFrames(t *testing.T) {
 			m.openApplication("payments")
 			loadEvidenceInto(m, dumpEvidence())
 			m.explain()
+		case "usage":
+			press(t, m, "u")
+			apps, pods := dumpUsageScope()
+			loadScopeInto(m, apps, pods...)
+			m.Update(usageLoadedMsg{gen: m.usage.Generation(), live: dumpUsage()})
 		case "session":
 			m.backToOverview()
 		}
