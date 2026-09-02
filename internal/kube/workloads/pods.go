@@ -20,16 +20,75 @@ import (
 // job (SPEC 10), not this converter's.
 func fromPod(p *corev1.Pod) application.Pod {
 	out := application.Pod{
-		Meta:  meta("Pod", p.ObjectMeta),
-		Phase: string(p.Status.Phase),
-		Ready: podReady(p),
-		Node:  p.Spec.NodeName,
+		Meta:      meta("Pod", p.ObjectMeta),
+		Phase:     string(p.Status.Phase),
+		Ready:     podReady(p),
+		Node:      p.Spec.NodeName,
+		Scheduled: true,
 	}
 	for i := range p.Status.ContainerStatuses {
 		out.Restarts += p.Status.ContainerStatuses[i].RestartCount
 	}
 	out.Reason = podReason(p)
+	out.Containers = containers(p)
+	out.Scheduled, out.ScheduledReason, out.ScheduledMessage = scheduled(p)
+	for i := range p.Spec.Volumes {
+		if claim := p.Spec.Volumes[i].PersistentVolumeClaim; claim != nil {
+			out.Claims = append(out.Claims, claim.ClaimName)
+		}
+	}
 	return out
+}
+
+// containers records both the current and the previous state of every
+// container. A pod in CrashLoopBackOff is only *waiting* right now; how its
+// last run ended is the part that explains anything.
+func containers(p *corev1.Pod) []application.Container {
+	out := make([]application.Container, 0,
+		len(p.Status.InitContainerStatuses)+len(p.Status.ContainerStatuses))
+	for i := range p.Status.InitContainerStatuses {
+		out = append(out, container(p.Status.InitContainerStatuses[i], true))
+	}
+	for i := range p.Status.ContainerStatuses {
+		out = append(out, container(p.Status.ContainerStatuses[i], false))
+	}
+	return out
+}
+
+func container(s corev1.ContainerStatus, init bool) application.Container {
+	c := application.Container{
+		Name:     s.Name,
+		Image:    s.Image,
+		Ready:    s.Ready,
+		Init:     init,
+		Restarts: s.RestartCount,
+	}
+	switch {
+	case s.State.Waiting != nil:
+		c.State, c.Reason, c.Message = "waiting", s.State.Waiting.Reason, s.State.Waiting.Message
+	case s.State.Terminated != nil:
+		t := s.State.Terminated
+		c.State, c.Reason, c.Message, c.ExitCode = "terminated", t.Reason, t.Message, t.ExitCode
+		c.OOMKilled = t.Reason == "OOMKilled"
+	case s.State.Running != nil:
+		c.State = "running"
+	}
+	if t := s.LastTerminationState.Terminated; t != nil {
+		c.LastReason, c.LastExitCode = t.Reason, t.ExitCode
+		c.OOMKilled = c.OOMKilled || t.Reason == "OOMKilled"
+	}
+	return c
+}
+
+// scheduled reports whether a node has accepted the pod, and what the scheduler
+// said when it has not.
+func scheduled(p *corev1.Pod) (bool, string, string) {
+	for _, c := range p.Status.Conditions {
+		if c.Type == corev1.PodScheduled && c.Status != corev1.ConditionTrue {
+			return false, c.Reason, c.Message
+		}
+	}
+	return p.Spec.NodeName != "" || p.Status.Phase != corev1.PodPending, "", ""
 }
 
 func podReady(p *corev1.Pod) bool {

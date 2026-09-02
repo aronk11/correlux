@@ -1,0 +1,195 @@
+package workloads
+
+import (
+	"context"
+	"sort"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+
+	"github.com/aronk11/kubeui/internal/domain/application"
+)
+
+// eventLimit bounds how many events one pass reads. A busy namespace produces
+// thousands of them and only the most recent ones explain anything; the rest
+// are history the cluster will drop within the hour anyway.
+const eventLimit = int64(500)
+
+// CollectContext reads the evidence a diagnosis reasons about: what the cluster
+// said (events), what a service actually routes to (endpoints), where the pods
+// are running (nodes) and whether their storage is bound (claims).
+//
+// It is a separate pass from Collect on purpose. The dashboard refreshes on a
+// timer and has to stay cheap, while this is fetched at the moment somebody
+// asks why one application is broken (ADR 6, ADR 18).
+func CollectContext(ctx context.Context, cs kubernetes.Interface, opts Options) (application.Context, error) {
+	out := application.Context{Scope: opts.Namespace, FetchedAt: time.Now()}
+	var g group
+
+	g.run("Event", func() (bool, error) {
+		// One page only: events are ordered by nothing in particular, and
+		// paging through a week of them to explain a pod that broke a minute
+		// ago is work nobody asked for.
+		l, err := cs.CoreV1().Events(opts.Namespace).List(ctx, metav1.ListOptions{Limit: eventLimit})
+		if err != nil {
+			return false, err
+		}
+		g.collect(func() {
+			for i := range l.Items {
+				out.Events = append(out.Events, fromEvent(&l.Items[i]))
+			}
+		})
+		return l.Continue != "", nil
+	})
+
+	g.run("EndpointSlice", func() (bool, error) {
+		slices := map[string]*application.EndpointSet{}
+		truncated, err := page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+			l, err := cs.DiscoveryV1().EndpointSlices(opts.Namespace).List(ctx, o)
+			if err != nil {
+				return "", err
+			}
+			for i := range l.Items {
+				addSlice(slices, &l.Items[i])
+			}
+			return l.Continue, nil
+		})
+		if err != nil {
+			return false, err
+		}
+		g.collect(func() {
+			for _, set := range slices {
+				out.Endpoints = append(out.Endpoints, *set)
+			}
+			sort.Slice(out.Endpoints, func(i, j int) bool {
+				return out.Endpoints[i].Service < out.Endpoints[j].Service
+			})
+		})
+		return truncated, nil
+	})
+
+	g.run("Node", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+			l, err := cs.CoreV1().Nodes().List(ctx, o)
+			if err != nil {
+				return "", err
+			}
+			g.collect(func() {
+				for i := range l.Items {
+					out.Nodes = append(out.Nodes, fromNode(&l.Items[i]))
+				}
+			})
+			return l.Continue, nil
+		})
+	})
+
+	g.run("PersistentVolumeClaim", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+			l, err := cs.CoreV1().PersistentVolumeClaims(opts.Namespace).List(ctx, o)
+			if err != nil {
+				return "", err
+			}
+			g.collect(func() {
+				for i := range l.Items {
+					out.Claims = append(out.Claims, fromClaim(&l.Items[i]))
+				}
+			})
+			return l.Continue, nil
+		})
+	})
+
+	gaps, _, err := g.wait()
+	if err != nil {
+		return application.Context{}, err
+	}
+	out.Gaps = gaps
+	return out, nil
+}
+
+// addSlice folds one EndpointSlice into its service's counts. A service is
+// described by several slices on a large cluster, and what a user needs is the
+// one number: how many ready addresses are behind this name.
+func addSlice(into map[string]*application.EndpointSet, slice *discoveryv1.EndpointSlice) {
+	service := slice.Labels[discoveryv1.LabelServiceName]
+	if service == "" {
+		return
+	}
+	set, ok := into[service]
+	if !ok {
+		set = &application.EndpointSet{Service: service, Namespace: slice.Namespace}
+		into[service] = set
+	}
+	for _, endpoint := range slice.Endpoints {
+		// Conditions are three-valued: a nil Ready means the publisher does not
+		// track readiness, which the API defines as ready.
+		if endpoint.Conditions.Ready == nil || *endpoint.Conditions.Ready {
+			set.Ready += len(endpoint.Addresses)
+			continue
+		}
+		set.NotReady += len(endpoint.Addresses)
+	}
+}
+
+func fromEvent(e *corev1.Event) application.Event {
+	out := application.Event{
+		Meta:    meta("Event", e.ObjectMeta),
+		Type:    e.Type,
+		Reason:  e.Reason,
+		Message: e.Message,
+		Count:   e.Count,
+		About: application.ObjectRef{
+			Kind: e.InvolvedObject.Kind,
+			Name: e.InvolvedObject.Name,
+			UID:  string(e.InvolvedObject.UID),
+		},
+	}
+	switch {
+	case !e.LastTimestamp.IsZero():
+		out.LastSeen = e.LastTimestamp.Time
+	case e.Series != nil && !e.Series.LastObservedTime.IsZero():
+		out.LastSeen = e.Series.LastObservedTime.Time
+	case !e.EventTime.IsZero():
+		out.LastSeen = e.EventTime.Time
+	default:
+		out.LastSeen = e.CreationTimestamp.Time
+	}
+	if out.Count == 0 {
+		out.Count = 1
+	}
+	return out
+}
+
+func fromNode(n *corev1.Node) application.Node {
+	out := application.Node{
+		Meta:          meta("Node", n.ObjectMeta),
+		Unschedulable: n.Spec.Unschedulable,
+	}
+	for _, c := range n.Status.Conditions {
+		switch {
+		case c.Type == corev1.NodeReady:
+			out.Ready = c.Status == corev1.ConditionTrue
+			if !out.Ready {
+				out.Reason, out.Message = c.Reason, c.Message
+			}
+		case c.Status == corev1.ConditionTrue:
+			// Every other node condition is a problem when it is true.
+			out.Pressure = append(out.Pressure, string(c.Type))
+		}
+	}
+	return out
+}
+
+func fromClaim(c *corev1.PersistentVolumeClaim) application.Claim {
+	claim := application.Claim{
+		Meta:   meta("PersistentVolumeClaim", c.ObjectMeta),
+		Phase:  string(c.Status.Phase),
+		Volume: c.Spec.VolumeName,
+	}
+	if c.Spec.StorageClassName != nil {
+		claim.StorageClass = *c.Spec.StorageClassName
+	}
+	return claim
+}

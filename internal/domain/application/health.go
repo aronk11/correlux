@@ -82,7 +82,8 @@ func (a *Application) evaluate() {
 	// Counted as int32 because that is what a replica count is: converting a
 	// pod tally into one would be a conversion the compiler cannot vouch for.
 	var running, notReady int32
-	for _, p := range a.Pods {
+	for i := range a.Pods {
+		p := &a.Pods[i]
 		a.Restarts += p.Restarts
 		if p.Terminal() {
 			// A completed Job pod is the successful end of its work, not a pod
