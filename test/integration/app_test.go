@@ -9,10 +9,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/config"
-	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
-	"github.com/aronk11/kubeui/internal/ui/app"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/config"
+	"github.com/aronk11/correlux/internal/kube/kubeconfig"
+	"github.com/aronk11/correlux/internal/ui/app"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // newModelFor builds the real application against the real cluster.
@@ -80,7 +80,7 @@ func TestApplicationRendersARealCluster(t *testing.T) {
 		t.Errorf("the header must show the live connection:\n%s", out)
 	}
 	if !strings.Contains(out, "Applications") {
-		t.Errorf("kubeui must open on the applications:\n%s", out)
+		t.Errorf("Correlux must open on the applications:\n%s", out)
 	}
 	if strings.Contains(out, "Looking for applications") {
 		t.Errorf("after Init the dashboard must be loaded:\n%s", out)
@@ -121,7 +121,7 @@ func TestBrowsingToACustomResourceShowsItsPrinterColumns(t *testing.T) {
 	m := newModelFor(t)
 	drain(t, m, m.Init())
 
-	drain(t, m, m.SwitchNamespaceForTest("kubeui-load-000"))
+	drain(t, m, m.SwitchNamespaceForTest("correlux-load-000"))
 	drain(t, m, m.OpenResourceForTest("widgets"))
 	out := frame(m)
 
@@ -135,7 +135,7 @@ func TestBrowsingToACustomResourceShowsItsPrinterColumns(t *testing.T) {
 func TestUnhealthyPodsAreVisibleInTheTable(t *testing.T) {
 	m := newModelFor(t)
 	drain(t, m, m.Init())
-	drain(t, m, m.SwitchNamespaceForTest("kubeui-load-000"))
+	drain(t, m, m.SwitchNamespaceForTest("correlux-load-000"))
 	drain(t, m, m.OpenResourceForTest("pods"))
 
 	out := frame(m)

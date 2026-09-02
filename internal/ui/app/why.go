@@ -6,11 +6,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/domain/diagnosis"
-	"github.com/aronk11/kubeui/internal/ui/async"
-	"github.com/aronk11/kubeui/internal/ui/screens"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/diagnosis"
+	"github.com/aronk11/correlux/internal/ui/async"
+	"github.com/aronk11/correlux/internal/ui/screens"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // rediagnose recomputes every application's findings.
@@ -115,7 +115,7 @@ func (m *Model) whyData() screens.WhyData {
 	d.HealthStatus = status
 	d.Summary = app.Summary
 	d.Notes = m.evidenceNotes()
-	d.Empty = "Nothing is wrong with " + app.Name + " that kubeui can see."
+	d.Empty = "Nothing is wrong with " + app.Name + " that Correlux can see."
 
 	now := time.Now()
 	for _, f := range m.findingsFor(app.Key()) {

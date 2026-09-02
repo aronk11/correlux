@@ -7,11 +7,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
-	"github.com/aronk11/kubeui/internal/ui/async"
-	"github.com/aronk11/kubeui/internal/ui/screens"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/domain/application"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
+	"github.com/aronk11/correlux/internal/ui/async"
+	"github.com/aronk11/correlux/internal/ui/screens"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // applicationList is one load of the dashboard: the grouped applications and

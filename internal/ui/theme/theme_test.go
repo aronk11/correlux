@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/aronk11/kubeui/internal/config"
+	"github.com/aronk11/correlux/internal/config"
 )
 
 func TestDetectColorHonoursNoColor(t *testing.T) {
@@ -42,7 +42,7 @@ func TestDetectUnicode(t *testing.T) {
 		{"latin-1 locale", map[string]string{"TERM": "xterm", "LANG": "en_US.ISO-8859-1"}, false},
 		{"no locale", map[string]string{"TERM": "xterm"}, false},
 		{"dumb terminal", map[string]string{"TERM": "dumb", "LANG": "en_US.UTF-8"}, false},
-		{"opt out", map[string]string{"TERM": "xterm", "LANG": "en_US.UTF-8", "KUBEUI_ASCII": "1"}, false},
+		{"opt out", map[string]string{"TERM": "xterm", "LANG": "en_US.UTF-8", "CORRELUX_ASCII": "1"}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

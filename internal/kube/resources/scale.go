@@ -10,9 +10,9 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// MaxReplicas bounds what kubeui will ask for. It is not the API's limit; it is
-// the point past which a typed number is far more likely to be a mistake than
-// an intention.
+// MaxReplicas bounds what Correlux will ask for. It is not the API's limit; it
+// is the point past which a typed number is far more likely to be a mistake
+// than an intention.
 const MaxReplicas = 10000
 
 // Scale sets the replica count of a workload through its scale subresource,

@@ -5,7 +5,7 @@
 
 ## Context
 
-kubeui is a single-cluster tool by construction: one context is active, one
+Correlux is a single-cluster tool by construction: one context is active, one
 scope is active, and every keystroke acts on that one place
 ([ADR 7](0007-session-local-context-switching.md)). That is what makes it safe.
 
@@ -16,12 +16,12 @@ The case for it is real. People run three to thirty clusters — dev, staging,
 production, per region — and during an incident or a fleet-wide rollout the
 first question is not about one cluster. Checking them one at a time means
 switching context, waiting for the dashboard, reading it, and holding the
-result in your head while you do it again. That is precisely the work kubeui
+result in your head while you do it again. That is precisely the work Correlux
 exists to remove, one level up.
 
 The application-first model is what makes it worth building here rather than
 anywhere else: an application deployed to five clusters is one logical thing,
-and kubeui already infers it from each cluster the same way
+and Correlux already infers it from each cluster the same way
 ([ADR 16](0016-application-inference.md)). A fleet view is that inference,
 grouped by name across clusters, with health per cluster. No other terminal
 Kubernetes tool does this, and it falls out of work already done.
@@ -39,8 +39,8 @@ The case against is cost and risk, and both are concrete:
   cluster a keystroke hits. A screen showing eight clusters at once makes that
   ambiguous, and "which cluster was that?" is the mistake that ends careers.
 - **An aggregate can lie.** "12 applications healthy" is false if two of eight
-  clusters could not be read. kubeui's whole posture is that loading, empty and
-  denied never look alike; a fleet view multiplies the ways to get that wrong.
+clusters could not be read. Correlux's whole posture is that loading, empty and
+denied never look alike; a fleet view multiplies the ways to get that wrong.
 - **Scope becomes two-dimensional.** Today a scope is a namespace (SPEC 8). A
   fleet scope is a set of context/namespace pairs, and namespaces differ
   between clusters.
@@ -51,10 +51,10 @@ Build it, as an explicitly opt-in **read-only overview**, under five rules.
 
 1. **Only the contexts the user names.** A fleet is configured, or assembled in
    a picker; never "every context in the kubeconfig" by default. Nobody should
-   discover that opening kubeui authenticated against every production cluster
+   discover that opening Correlux authenticated against every production cluster
    they have credentials for.
 2. **Read-only, and drilling in switches the session.** Enter on a row switches
-   kubeui to that cluster and opens the application there. Nothing is ever
+   Correlux to that cluster and opens the application there. Nothing is ever
    mutated from the fleet view, and there is never a keystroke whose target
    cluster is ambiguous: either you are in the overview and looking, or you are
    in a cluster and acting.
@@ -79,14 +79,14 @@ answer.
 - SPEC 8 needs extending: a scope becomes a set of context/namespace pairs, and
   the configuration file grows a `fleets:` section. SPEC 5's navigation model
   gains one level above the cluster: Fleet → Cluster → Scope → Application.
-- SPEC 31 says kubeui is not a cloud management platform. A read-only overview
+- SPEC 31 says Correlux is not a cloud management platform. A read-only overview
   does not cross that line; the moment the fleet view could act on many clusters
   at once, it would.
 - The domain layer needs nothing. `application.Group` already produces a list
   per snapshot; the fleet view groups those lists by application name and keeps
   the cluster on each row. The work is in the model (per-context async values, a
   bounded loader) and in one new screen.
-- This is a phase of its own, and it is not urgent: it makes kubeui better for
+- This is a phase of its own, and it is not urgent: it makes Correlux better for
   people who already use it, while object inspection and safe actions (phases 4
   and 5) are what make it usable at all. Sequence it after those.
 - If it turns out that people mostly want "which of my clusters is on fire",

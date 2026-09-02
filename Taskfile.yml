@@ -1,4 +1,4 @@
-# kubeui — task runner (https://taskup.dev).
+# Correlux — task runner (https://taskup.dev).
 #
 # Everything CI does is available here, so a contributor can reproduce a failed
 # pipeline with a single command. Tools are pinned and installed into .tools/ on
@@ -10,15 +10,15 @@
 version: "3"
 
 vars:
-  BINARY: kubeui
-  MODULE: github.com/aronk11/kubeui
+  BINARY: correlux
+  MODULE: github.com/aronk11/correlux
   TOOLS_DIR: "{{.ROOT_DIR}}/.tools"
   # Pinned tool versions. CI uses the same ones.
   GOLANGCI_VERSION: v2.6.2
   GORELEASER_VERSION: v2.18.0
   KIND_VERSION: v0.33.0
   # kind cluster used by the integration and load tasks.
-  KIND_CLUSTER: kubeui-test
+  KIND_CLUSTER: correlux-test
   KIND_KUBECONFIG: "{{.ROOT_DIR}}/.tools/kind.kubeconfig"
   VERSION:
     sh: git describe --tags --dirty 2>/dev/null || echo dev
@@ -46,12 +46,12 @@ tasks:
     sources: ["**/*.go", go.mod, go.sum]
     generates: ["bin/{{.BINARY}}"]
     cmds:
-      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/{{.BINARY}} ./cmd/kubeui
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/{{.BINARY}} ./cmd/correlux
 
   install:
     desc: Install the binary into $GOBIN
     cmds:
-      - go install -trimpath -ldflags "{{.LDFLAGS}}" ./cmd/kubeui
+      - go install -trimpath -ldflags "{{.LDFLAGS}}" ./cmd/correlux
 
   dist:
     desc: Build the release artefacts for every platform into ./dist
@@ -70,17 +70,17 @@ tasks:
       - "{{.TOOLS_DIR}}/goreleaser release --clean --snapshot --skip=publish,announce"
 
   run:
-    desc: Run kubeui against your current kubeconfig
+    desc: Run Correlux against your current kubeconfig
     cmds:
-      - go run ./cmd/kubeui {{.CLI_ARGS}}
+      - go run ./cmd/correlux {{.CLI_ARGS}}
 
   run:kind:
-    desc: Run kubeui against the local kind cluster
+    desc: Run Correlux against the local kind cluster
     deps: [kind:up]
     env:
       KUBECONFIG: "{{.KIND_KUBECONFIG}}"
     cmds:
-      - go run ./cmd/kubeui {{.CLI_ARGS}}
+      - go run ./cmd/correlux {{.CLI_ARGS}}
 
   # ----------------------------------------------------------------- test ---
 
@@ -105,7 +105,7 @@ tasks:
     desc: Run the integration tests against the kind cluster
     deps: [kind:up]
     env:
-      KUBEUI_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
+      CORRELUX_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
     cmds:
       - go test -tags integration -timeout 20m -count=1 ./test/integration/... {{.CLI_ARGS}}
 
@@ -120,7 +120,7 @@ tasks:
     desc: Benchmark listing and rendering against the seeded kind cluster
     deps: [kind:up]
     env:
-      KUBEUI_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
+      CORRELUX_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
     cmds:
       - go test -tags integration -run '^$' -bench . -benchmem -benchtime 3x -timeout 30m ./test/integration/... {{.CLI_ARGS}}
 
@@ -152,7 +152,7 @@ tasks:
     desc: 'Fill the kind cluster with load (task kind:seed -- --pods 5000)'
     deps: [kind:up]
     env:
-      KUBEUI_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
+      CORRELUX_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
     cmds:
       - go run ./test/cmd/seed --kubeconfig {{.KIND_KUBECONFIG}} {{.CLI_ARGS}}
 
@@ -229,7 +229,7 @@ tasks:
   frames:
     desc: Render the TUI to plain text files for review (no terminal needed)
     env:
-      KUBEUI_DUMP_DIR: "{{.ROOT_DIR}}/.frames"
+      CORRELUX_DUMP_DIR: "{{.ROOT_DIR}}/.frames"
     cmds:
       - mkdir -p .frames
       - go test ./internal/ui/app -run TestDumpFrames -count=1
@@ -239,8 +239,8 @@ tasks:
     desc: Render the TUI against the kind cluster to plain text files
     deps: [kind:up]
     env:
-      KUBEUI_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
-      KUBEUI_DUMP_DIR: "{{.ROOT_DIR}}/.frames"
+      CORRELUX_TEST_KUBECONFIG: "{{.KIND_KUBECONFIG}}"
+      CORRELUX_DUMP_DIR: "{{.ROOT_DIR}}/.frames"
     cmds:
       - mkdir -p .frames
       - go test -tags integration -count=1 ./test/integration -run TestDumpRealFrames

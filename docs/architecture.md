@@ -1,6 +1,7 @@
 # Architecture
 
-How kubeui is put together today. The *why* lives in [the ADRs](adr/README.md).
+How Correlux is put together today. The *why* lives in
+[the ADRs](adr/README.md).
 
 ## Data flow
 
@@ -36,7 +37,7 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 
 | Package | Responsibility |
 |---------|----------------|
-| `cmd/kubeui` | Process entry point; nothing but a call into `internal/cli`. |
+| `cmd/correlux` | Process entry point; nothing but a call into `internal/cli`. |
 | `internal/cli` | Flags, subcommands (`version`, `doctor`), start-up wiring, log silencing. |
 | `internal/config` | User configuration: OS-appropriate paths, defaults, strict parsing. |
 | `internal/buildinfo` | Version stamps, filled by ldflags or VCS metadata. |
@@ -73,8 +74,9 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 6. Probe the cluster, load namespaces, discover the resource catalog and collect
    the applications, as four independent asynchronous commands.
 
-Step 5 is the important one: kubeui is usable and informative against a cluster
-that is down, because reaching the cluster is never a precondition for drawing.
+Step 5 is the important one: Correlux is usable and informative against a
+cluster that is down, because reaching the cluster is never a precondition for
+drawing.
 
 ## Concurrency
 

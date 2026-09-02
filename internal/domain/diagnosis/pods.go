@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 // affected pairs a pod with the container that is failing inside it.

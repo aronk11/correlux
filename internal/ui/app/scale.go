@@ -8,10 +8,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
-	"github.com/aronk11/kubeui/internal/kube/resources"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/domain/application"
+	kubediscovery "github.com/aronk11/correlux/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // scaledMsg reports the outcome of a scale.
@@ -46,7 +46,7 @@ func (m *Model) askScale(ref objectRef) tea.Cmd {
 	}
 	if !res.Scalable {
 		// Read from discovery, so this is the server's answer rather than a
-		// list of kinds kubeui happens to know.
+		// list of kinds Correlux happens to know.
 		m.notice(ref.Kind+" has no scale subresource; it cannot be scaled", theme.StatusWarning)
 		return m.expireNotice()
 	}
@@ -239,7 +239,7 @@ func (m *Model) resourceFor(ref objectRef) (kubediscovery.Resource, bool) {
 	return catalog.Lookup(ref.lookup())
 }
 
-// The replica counts kubeui refuses before they cost a round trip.
+// The replica counts Correlux refuses before they cost a round trip.
 var (
 	errEmptyReplicas    = errors.New("type a replica count")
 	errNotANumber       = errors.New("that is not a number")

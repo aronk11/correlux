@@ -5,10 +5,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/diff"
+	"github.com/aronk11/correlux/internal/domain/diff"
 
-	"github.com/aronk11/kubeui/internal/ui/components"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/ui/components"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // pendingAction is a change to the cluster that is waiting for consent.

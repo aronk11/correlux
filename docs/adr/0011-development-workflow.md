@@ -5,9 +5,9 @@
 
 ## Context
 
-kubeui is an open-source tool intended for production use. Contributors will be
-strangers, releases must be reproducible, and the changelog has to be trustworthy
-without anyone hand-writing it.
+Correlux is an open-source tool intended for production use. Contributors will
+be strangers, releases must be reproducible, and the changelog has to be
+trustworthy without anyone hand-writing it.
 
 ## Decision
 

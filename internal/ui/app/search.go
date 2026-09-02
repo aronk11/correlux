@@ -7,14 +7,14 @@ import (
 
 	"github.com/sahilm/fuzzy"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/kube/resources"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // Searching filters what is already on screen.
 //
-// It is a filter, not a query: kubeui narrows the rows it has rather than
+// It is a filter, not a query: Correlux narrows the rows it has rather than
 // asking the API server a different question. That distinction is not a
 // shortcut, it is the honest one — a server-side selector cannot match on the
 // cells a printer produced, and a table that silently changed what it was

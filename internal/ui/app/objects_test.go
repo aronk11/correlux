@@ -7,9 +7,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
-	"github.com/aronk11/kubeui/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/domain/application"
+	kubediscovery "github.com/aronk11/correlux/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/kube/resources"
 )
 
 // loadObjectInto feeds a fetched object to the model the way the runtime would.

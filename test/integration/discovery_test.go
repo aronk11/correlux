@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 )
 
 func TestProbeReportsTheServerVersion(t *testing.T) {
@@ -69,7 +69,7 @@ func TestCatalogFindsSeededCustomResources(t *testing.T) {
 	if widgets.Builtin {
 		t.Error("a CRD-backed resource must not be classified as native")
 	}
-	if widgets.Kind() != "Widget" || widgets.GVR.Group != "load.kubeui.dev" {
+	if widgets.Kind() != "Widget" || widgets.GVR.Group != "load.correlux.dev" {
 		t.Errorf("resource = %+v", widgets)
 	}
 	if !widgets.Namespaced {
@@ -77,7 +77,7 @@ func TestCatalogFindsSeededCustomResources(t *testing.T) {
 	}
 
 	// The same lookups a user would type.
-	for _, name := range []string{"widget", "wid", "widgets.load.kubeui.dev", "Widget"} {
+	for _, name := range []string{"widget", "wid", "widgets.load.correlux.dev", "Widget"} {
 		if _, ok := catalog.Lookup(name); !ok {
 			t.Errorf("Lookup(%q) failed for a custom resource", name)
 		}
@@ -114,7 +114,7 @@ func TestNamespaceListingSeesTheSeededNamespaces(t *testing.T) {
 
 	var seeded int
 	for _, ns := range list.Names {
-		if strings.HasPrefix(ns, "kubeui-load-") {
+		if strings.HasPrefix(ns, "correlux-load-") {
 			seeded++
 		}
 	}

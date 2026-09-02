@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 // maxEvidence bounds how many objects a finding quotes. Three pods are enough

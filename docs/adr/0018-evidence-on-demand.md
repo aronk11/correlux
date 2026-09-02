@@ -45,8 +45,8 @@ pure function cheap enough to run on every keystroke.
 
 ## Consequences
 
-- Opening kubeui costs one pass; asking why costs a second one. Nobody pays for
-  the second unless they ask a question.
+- Opening Correlux costs one pass; asking why costs a second one. Nobody pays
+  for the second unless they ask a question.
 - An explanation can be shown before its evidence arrives, and it says so on
   screen ("Events, endpoints and node state have not been read yet"). It then
   improves in place. A partial answer that admits what it is missing is more

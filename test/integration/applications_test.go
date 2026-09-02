@@ -7,16 +7,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/kube/workloads"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/kube/workloads"
 )
 
 // budgetDashboard is what one namespace's application view may cost. It is the
-// number that decides whether kubeui opens on something useful or on a spinner.
+// number that decides whether Correlux opens on something useful or on a
+// spinner.
 const budgetDashboard = 5 * time.Second
 
 // seededNamespace is the first namespace `task kind:seed` creates.
-const seededNamespace = "kubeui-load-000"
+const seededNamespace = "correlux-load-000"
 
 func applicationsIn(t *testing.T, namespace string) ([]application.Application, application.Snapshot) {
 	t.Helper()
@@ -152,7 +153,7 @@ func seededNamespaces(t *testing.T) []string {
 	}
 	var out []string
 	for _, name := range list.Names {
-		if strings.HasPrefix(name, "kubeui-load-") {
+		if strings.HasPrefix(name, "correlux-load-") {
 			out = append(out, name)
 		}
 	}

@@ -5,8 +5,8 @@
 
 ## Context
 
-kubeui will eventually offer destructive actions: restart, scale, delete, edit.
-A terminal UI where a single unlabelled keystroke can delete a production
+Correlux will eventually offer destructive actions: restart, scale, delete,
+edit. A terminal UI where a single unlabelled keystroke can delete a production
 Deployment is a liability, and "the user should pay attention" is not a design.
 
 Kubernetes itself has no notion of "this cluster is production". The information
@@ -14,7 +14,7 @@ exists only in naming conventions and in the operator's head.
 
 ## Decision
 
-- kubeui classifies a context as production by matching case-insensitive
+- Correlux classifies a context as production by matching case-insensitive
   patterns against the context name, the cluster name **and the API server
   URL** — a context named `eu` pointing at `api.prod.example.com` is production.
   The default pattern set covers `prod`, `prd`, `production` and `live` as whole

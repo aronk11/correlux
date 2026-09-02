@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 
-	"github.com/aronk11/kubeui/internal/kube/discovery"
-	"github.com/aronk11/kubeui/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/kube/resources"
 )
 
 // GetObject fetches one object of any kind — native or custom.

@@ -26,7 +26,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// GroupPath is where the Metrics API lives. `kubeui doctor` probes it to say
+// GroupPath is where the Metrics API lives. `correlux doctor` probes it to say
 // whether metrics are available at all.
 const GroupPath = "/apis/metrics.k8s.io/v1beta1"
 
@@ -131,7 +131,7 @@ func get(ctx context.Context, client rest.Interface, path string) ([]byte, error
 	return client.Get().AbsPath(path).SetHeader("Accept", "application/json").DoRaw(ctx)
 }
 
-// nodeList and podList are the parts of the metrics documents kubeui reads.
+// nodeList and podList are the parts of the metrics documents Correlux reads.
 // Everything else the API sends is ignored rather than decoded, so a field
 // added in a later version costs nothing.
 type nodeList struct {

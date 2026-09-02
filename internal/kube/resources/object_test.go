@@ -53,7 +53,7 @@ func TestGetAddressesTheObjectAndRendersItAsYAML(t *testing.T) {
 	if !strings.Contains(obj.YAML, "image: registry/payments:1.4") {
 		t.Errorf("the YAML must be readable:\n%s", obj.YAML)
 	}
-	// Fields kubeui knows nothing about must survive: on a custom resource that
+	// Fields Correlux knows nothing about must survive: on a custom resource that
 	// is most of the document.
 	if !strings.Contains(obj.YAML, "unknownFieldFromANewerServer") {
 		t.Errorf("unknown fields were dropped:\n%s", obj.YAML)

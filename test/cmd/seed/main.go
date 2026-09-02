@@ -1,18 +1,19 @@
-// Command seed fills a Kubernetes cluster with realistic load for kubeui's
+// Command seed fills a Kubernetes cluster with realistic load for Correlux's
 // integration and performance tests.
 //
 // It creates native resources (namespaces, deployments, replica sets, pods,
 // services, config maps, secrets, ingresses) and custom ones (CRDs with printer
 // columns, plus their custom resources), wired together with the owner
-// references and selectors kubeui's application inference will rely on.
+// references and selectors Correlux's application inference will rely on.
 //
 // Nothing it creates actually runs. Pods are attached to a node object that has
 // no kubelet behind it and their status is written directly, which is how ten
 // thousand pods can exist on a laptop: the API server and etcd carry exactly
 // the load they would in production, and no container is started.
 //
-// Everything it creates carries the label app.kubernetes.io/managed-by=kubeui-seed,
-// so --clean removes precisely the load and nothing else.
+// Everything it creates carries the label
+// app.kubernetes.io/managed-by=Correlux-seed, so --clean removes precisely the
+// load and nothing else.
 package main
 
 import (
@@ -39,12 +40,12 @@ import (
 
 const (
 	managedByLabel = "app.kubernetes.io/managed-by"
-	managedByValue = "kubeui-seed"
-	nodeName       = "kubeui-load-node"
+	managedByValue = "correlux-seed"
+	nodeName       = "correlux-load-node"
 	// seededLabel marks pods the seeder created itself, so pods a controller
 	// created during a resize can be told apart and removed.
-	seededLabel = "kubeui.dev/seeded"
-	crdGroup    = "load.kubeui.dev"
+	seededLabel = "correlux.dev/seeded"
+	crdGroup    = "load.correlux.dev"
 )
 
 type options struct {
@@ -69,7 +70,7 @@ func main() {
 	flag.IntVar(&opts.crds, "crds", 2, "number of CustomResourceDefinitions to install")
 	flag.IntVar(&opts.customResources, "custom-resources", 20, "custom resources per CRD")
 	flag.IntVar(&opts.workers, "workers", 24, "parallel API writers")
-	flag.StringVar(&opts.prefix, "prefix", "kubeui-load", "name prefix for everything created")
+	flag.StringVar(&opts.prefix, "prefix", "correlux-load", "name prefix for everything created")
 	flag.BoolVar(&opts.clean, "clean", false, "delete everything the seeder created and exit")
 	flag.BoolVar(&opts.quiet, "quiet", false, "only print the summary")
 	flag.Parse()
@@ -257,12 +258,12 @@ func ensureNode(ctx context.Context, cs kubernetes.Interface) error {
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   nodeName,
-			Labels: labels(map[string]string{"kubernetes.io/hostname": nodeName, "kubeui.dev/synthetic": "true"}),
+			Labels: labels(map[string]string{"kubernetes.io/hostname": nodeName, "correlux.dev/synthetic": "true"}),
 		},
 		Spec: corev1.NodeSpec{
 			// Nothing real may be scheduled here by accident.
 			Taints: []corev1.Taint{{
-				Key:    "kubeui.dev/synthetic",
+				Key:    "correlux.dev/synthetic",
 				Value:  "true",
 				Effect: corev1.TaintEffectNoSchedule,
 			}},
@@ -280,7 +281,7 @@ func createNode(ctx context.Context, cs kubernetes.Interface, node *corev1.Node)
 }
 
 // setNodeReady writes a Ready condition and a plausible capacity, so the node
-// looks like a node to anything that reads it — kubeui included.
+// looks like a node to anything that reads it — Correlux included.
 //
 // The node lifecycle controller is writing to the same object (it has noticed
 // there is no kubelet), so this races by construction and retries on conflict.
@@ -301,12 +302,12 @@ func setNodeReadyOnce(ctx context.Context, cs kubernetes.Interface) error {
 		corev1.ResourcePods:   resource.MustParse("20000"),
 	}
 	node.Status.Allocatable = node.Status.Capacity
-	node.Status.NodeInfo.KubeletVersion = "v0.0.0-kubeui-seed"
+	node.Status.NodeInfo.KubeletVersion = "v0.0.0-correlux-seed"
 	node.Status.Conditions = []corev1.NodeCondition{{
 		Type:               corev1.NodeReady,
 		Status:             corev1.ConditionTrue,
 		Reason:             "KubeletReady",
-		Message:            "synthetic node created by the kubeui load seeder",
+		Message:            "synthetic node created by the correlux load seeder",
 		LastHeartbeatTime:  metav1.Now(),
 		LastTransitionTime: metav1.Now(),
 	}}

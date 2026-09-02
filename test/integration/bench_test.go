@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aronk11/kubeui/internal/config"
-	"github.com/aronk11/kubeui/internal/kube/resources"
-	"github.com/aronk11/kubeui/internal/ui/screens"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/config"
+	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/ui/screens"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // Budgets for the assertions below. They are deliberately loose: the point is
@@ -100,7 +100,7 @@ func syntheticTable(rows int) screens.TableData {
 	for i := 0; i < rows; i++ {
 		name := "app-" + strings.Repeat("x", i%12) + "-" + itoa(i)
 		d.Rows = append(d.Rows, screens.TableRow{
-			Cells: []string{name, "1/1", "Running", "0", "3d", "kubeui-load-node"},
+			Cells: []string{name, "1/1", "Running", "0", "3d", "correlux-load-node"},
 		})
 	}
 	return d

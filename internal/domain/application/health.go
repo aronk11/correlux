@@ -8,7 +8,7 @@ import "sort"
 type Health int
 
 const (
-	// Unknown means kubeui cannot tell — nothing is running and nothing is
+	// Unknown means Correlux cannot tell — nothing is running and nothing is
 	// meant to be, or the objects that would say were not readable.
 	Unknown Health = iota
 	// Healthy means every replica the cluster wants is ready and no pod is in
@@ -37,7 +37,7 @@ func (h Health) String() string {
 }
 
 // severity orders health for "worst first" sorting. Unknown sits above healthy:
-// something kubeui cannot vouch for deserves a look before something it can.
+// something Correlux cannot vouch for deserves a look before something it can.
 func (h Health) severity() int {
 	switch h {
 	case Down:
@@ -162,7 +162,7 @@ func classify(s state) (Health, string) {
 		// A workload can report every replica ready while a pod underneath it
 		// is not — the controller's status lags, or a node stopped reporting.
 		// Saying "3 of 3 pods ready" next to a degraded badge would read as a
-		// bug in kubeui rather than a state of the cluster.
+		// bug in Correlux rather than a state of the cluster.
 		summary := replicaSummary(s.ready, s.desired)
 		if s.ready >= s.desired && s.notReady > 0 {
 			summary += ", " + itoa(int(s.notReady)) + notReadyPhrase(s.notReady)

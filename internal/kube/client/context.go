@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/kube/workloads"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/kube/workloads"
 )
 
 // ApplicationContext reads the evidence a diagnosis needs for one scope:

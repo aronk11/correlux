@@ -1,6 +1,6 @@
 // Package logs reads container logs.
 //
-// Logs are the one thing in kubeui that arrive over time rather than in one
+// Logs are the one thing in Correlux that arrive over time rather than in one
 // answer, and that shapes everything here: a read is a stream that is handed
 // back line by line, it is bounded on both ends — how much history, how much is
 // kept — and it stops the moment its context is cancelled, because a user who
@@ -21,7 +21,7 @@ import (
 )
 
 // Defaults for a read. The tail is what `kubectl logs` shows by default on a
-// crash loop investigation; the line cap is what kubeui keeps in memory.
+// crash loop investigation; the line cap is what Correlux keeps in memory.
 const (
 	DefaultTail  = int64(1000)
 	MaxTail      = int64(10000)
@@ -83,7 +83,7 @@ type Line struct {
 // error, which the caller is expected to read as "the user moved on".
 //
 // emit is called from the caller's goroutine, not the UI's, so it must be safe
-// to call from anywhere — in kubeui it writes to a channel.
+// to call from anywhere — in Correlux it writes to a channel.
 func Stream(
 	ctx context.Context,
 	cs kubernetes.Interface,

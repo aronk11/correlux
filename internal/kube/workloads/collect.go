@@ -7,7 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 // group runs several listings concurrently and collects their results.

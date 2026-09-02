@@ -283,9 +283,9 @@ func appName(m Meta) string {
 }
 
 // The labels and annotations Helm, Flux and Argo CD write on what they create.
-// Recognising them is the whole of kubeui's support for those tools: nothing is
-// installed, nothing is asked of them, and an application says who manages it
-// because the objects already say so.
+// Recognising them is the whole of Correlux's support for those tools: nothing
+// is installed, nothing is asked of them, and an application says who manages
+// it because the objects already say so.
 const (
 	helmManagedBy       = "app.kubernetes.io/managed-by"
 	helmReleaseName     = "meta.helm.sh/release-name"

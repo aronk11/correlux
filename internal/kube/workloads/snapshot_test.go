@@ -17,7 +17,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 func ptr[T any](v T) *T { return &v }

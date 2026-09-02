@@ -1,4 +1,4 @@
-# The cluster kubeui's integration and load tests run against.
+# The cluster Correlux's integration and load tests run against.
 #
 # One control plane is enough: the load generator never actually runs a
 # container. It attaches pods to a node object that has no kubelet behind it, so
@@ -6,7 +6,7 @@
 # cost in production, and cost the laptop nothing.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
-name: kubeui-test
+name: correlux-test
 nodes:
   - role: control-plane
     kubeadmConfigPatches:

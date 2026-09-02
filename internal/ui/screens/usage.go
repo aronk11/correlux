@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // UsageData is the resource-usage view: where the pods are, and what they use.

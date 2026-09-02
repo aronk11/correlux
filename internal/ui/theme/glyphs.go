@@ -1,8 +1,8 @@
-// Package theme owns every colour and symbol kubeui draws.
+// Package theme owns every colour and symbol Correlux draws.
 //
 // Two rules drive the design:
 //   - Information is never encoded in colour alone. Every state has a glyph and
-//     a word as well, so kubeui stays readable on monochrome terminals, for
+//     a word as well, so Correlux stays readable on monochrome terminals, for
 //     colour-blind users, and in a `script`/CI capture.
 //   - Terminals that cannot render a symbol get a plain-ASCII substitute rather
 //     than a replacement box.
@@ -97,7 +97,7 @@ func GlyphsFor(unicodeOK bool) Glyphs {
 // Unicode glyph set. It errs towards ASCII, because a wrong guess in that
 // direction is merely plain, while the other direction is unreadable.
 func DetectUnicode(env Env) bool {
-	if truthy(get(env, "KUBEUI_ASCII")) {
+	if truthy(get(env, "CORRELUX_ASCII")) {
 		return false
 	}
 	term := get(env, "TERM")

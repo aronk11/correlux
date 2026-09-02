@@ -1,18 +1,19 @@
-# Build output. The binary patterns are anchored: an unanchored `kubeui`
-# would also match the cmd/kubeui/ source directory.
+# Build output. The binary patterns are anchored: an unanchored `correlux`
+# would also match the cmd/correlux/ source directory.
 /bin/
 /dist/
-/kubeui
-/kubeui.exe
+/correlux
+/correlux.exe
 
 # Test and coverage artefacts
 *.test
 *.out
 coverage.*
 
-# Editor and OS noise
+# Editor, agent and OS noise
 .idea/
 .vscode/
+.claude/
 .DS_Store
 /.tools/
 /.frames/
