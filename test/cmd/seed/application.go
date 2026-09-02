@@ -54,6 +54,17 @@ func healthFor(index int) health {
 func seedApplication(ctx context.Context, c *clients, opts options, namespace, app string) error {
 	state := healthFor(hash(namespace + app))
 	selector := map[string]string{"app.kubernetes.io/name": app}
+
+	// Two label sets, deliberately different. The pod template used by the
+	// Deployment and the ReplicaSet does *not* carry the seeder's marker, so a
+	// pod a controller creates from that template is distinguishable from one
+	// the seeder created — which is what lets the settling pass remove exactly
+	// the pods that can never run.
+	templateLabels := labels(map[string]string{
+		"app.kubernetes.io/name":     app,
+		"app.kubernetes.io/instance": app,
+		"pod-template-hash":          "seed",
+	})
 	podLabels := labels(map[string]string{
 		"app.kubernetes.io/name":     app,
 		"app.kubernetes.io/instance": app,
@@ -72,7 +83,7 @@ func seedApplication(ctx context.Context, c *clients, opts options, namespace, a
 		ready = 0
 	}
 
-	deployment, err := ensureDeployment(ctx, c, namespace, app, selector, podLabels, replicas)
+	deployment, err := ensureDeployment(ctx, c, namespace, app, selector, templateLabels, replicas)
 	if err != nil {
 		return err
 	}
@@ -103,7 +114,7 @@ func seedApplication(ctx context.Context, c *clients, opts options, namespace, a
 		return err
 	}
 
-	if err := ensureReplicaSet(ctx, c, namespace, app, deployment, podLabels, replicas); err != nil {
+	if err := ensureReplicaSet(ctx, c, namespace, app, deployment, templateLabels, replicas); err != nil {
 		return err
 	}
 	if err := seedService(ctx, c, namespace, app, selector); err != nil {
@@ -119,7 +130,7 @@ func ensureDeployment(
 	ctx context.Context,
 	c *clients,
 	namespace, app string,
-	selector, podLabels map[string]string,
+	selector, templateLabels map[string]string,
 	replicas int32,
 ) (*appsv1.Deployment, error) {
 	deployment := &appsv1.Deployment{
@@ -132,7 +143,7 @@ func ensureDeployment(
 			Replicas: &replicas,
 			Paused:   true,
 			Selector: &metav1.LabelSelector{MatchLabels: selector},
-			Template: podTemplate(app, podLabels),
+			Template: podTemplate(app, templateLabels),
 		},
 	}
 	if err := created(createDeployment(ctx, c, namespace, deployment)); err != nil {
@@ -192,7 +203,7 @@ func ensureReplicaSet(
 	c *clients,
 	namespace, app string,
 	deployment *appsv1.Deployment,
-	podLabels map[string]string,
+	templateLabels map[string]string,
 	replicas int32,
 ) error {
 	rsName := app + "-seed"
@@ -200,7 +211,7 @@ func ensureReplicaSet(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      rsName,
 			Namespace: namespace,
-			Labels:    podLabels,
+			Labels:    templateLabels,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(deployment, appsv1.SchemeGroupVersion.WithKind("Deployment")),
 			},
@@ -211,7 +222,7 @@ func ensureReplicaSet(
 				"app.kubernetes.io/name": app,
 				"pod-template-hash":      "seed",
 			}},
-			Template: podTemplate(app, podLabels),
+			Template: podTemplate(app, templateLabels),
 		},
 	}
 	if err := created(createReplicaSet(ctx, c, namespace, rs)); err != nil {
