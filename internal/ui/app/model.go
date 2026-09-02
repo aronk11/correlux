@@ -305,6 +305,14 @@ func (m *Model) ShowSessionForTest() tea.Cmd { return m.backToOverview() }
 // OpenApplicationForTest opens one application's detail view by name.
 func (m *Model) OpenApplicationForTest(name string) tea.Cmd { return m.openApplication(name) }
 
+// OpenObjectForTest opens one object by kind and name.
+func (m *Model) OpenObjectForTest(kind, name, namespace string) tea.Cmd {
+	return m.openObject(objectRef{Kind: kind, Name: name, Namespace: namespace})
+}
+
+// ShowYAMLForTest switches the object view to the server's document.
+func (m *Model) ShowYAMLForTest() { m.toggleObjectYAML() }
+
 // ExplainForTest opens the WHY view for the named application.
 func (m *Model) ExplainForTest(name string) tea.Cmd {
 	if cmd := m.openApplication(name); cmd != nil {

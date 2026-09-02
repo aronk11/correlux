@@ -149,3 +149,33 @@ func seededNamespaces(t *testing.T) []string {
 	}
 	return out
 }
+
+func TestOpeningAnObjectFromTheClusterShowsItsDocument(t *testing.T) {
+	m := newModelFor(t)
+	drain(t, m, m.Init())
+	drain(t, m, m.SwitchNamespaceForTest(seededNamespace))
+	drain(t, m, m.OpenApplicationForTest("app-00"))
+	drain(t, m, m.OpenObjectForTest("Deployment", "app-00", seededNamespace))
+
+	out := frame(m)
+	for _, want := range []string{"Deployment/app-00", "IDENTITY", "RELATED"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the object view must show %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "Loading Deployment") {
+		t.Errorf("the object must have been fetched by now:\n%s", out)
+	}
+
+	// The ReplicaSet the Deployment owns must be reachable from here, which is
+	// what makes walking the ownership chain possible at all.
+	if !strings.Contains(out, "ReplicaSet") {
+		t.Errorf("the objects it owns must be listed:\n%s", out)
+	}
+
+	m.ShowYAMLForTest()
+	yaml := frame(m)
+	if !strings.Contains(yaml, "apiVersion:") || !strings.Contains(yaml, "kind: Deployment") {
+		t.Errorf("the document the server holds must be readable:\n%s", yaml)
+	}
+}
