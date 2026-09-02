@@ -146,6 +146,15 @@ func (m *Model) breadcrumb() []string {
 			return append(crumbs, "Why")
 		}
 		return crumbs
+	case viewObject:
+		crumbs = append(crumbs, "Applications")
+		if a, ok := m.currentApplication(); ok {
+			crumbs = append(crumbs, a.Name)
+		}
+		for _, ref := range m.objectTrail {
+			crumbs = append(crumbs, ref.label())
+		}
+		return append(crumbs, m.objectTarget.label())
 	case viewOverview:
 		return append(crumbs, "Session")
 	default:
@@ -231,7 +240,8 @@ func (m *Model) statusData() components.StatusData {
 		}, hints...)
 	case viewApplication:
 		hints = append([]components.KeyHint{
-			{Key: "↑↓", Desc: "Scroll", Priority: 90},
+			{Key: "↑↓", Desc: "Objects", Priority: 90},
+			{Key: "Enter", Desc: "Open", Priority: 89},
 			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
@@ -240,6 +250,13 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "↑↓", Desc: "Scroll", Priority: 90},
 			{Key: "Enter", Desc: "Objects", Priority: 86},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
+		}, hints...)
+	case viewObject:
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Related", Priority: 90},
+			{Key: "Enter", Desc: "Follow", Priority: 89},
+			{Key: m.keys.Key(ActionYAML), Desc: yamlHint(m.objectYAML), Priority: 87},
+			{Key: "Esc", Desc: "Back", Priority: 85},
 		}, hints...)
 	}
 	if m.overlay != overlayNone {
@@ -264,6 +281,8 @@ func (m *Model) renderBody() string {
 		content = screens.RenderApplication(m.theme, m.applicationData(), body.Width, body.Height)
 	case viewWhy:
 		content = screens.RenderWhy(m.theme, m.whyData(), body.Width, body.Height)
+	case viewObject:
+		content = screens.RenderObject(m.theme, m.objectData(), body.Width, body.Height)
 	default:
 		content = screens.RenderOverview(m.theme, m.overviewData(), body.Width, body.Height)
 	}
@@ -522,6 +541,12 @@ func (m *Model) renderHelp(width, height int) string {
 			{m.keys.Key(ActionWhy), "Explain why it is unhealthy, from the cluster's own evidence"},
 			{"Esc", "Back to the dashboard"},
 		}},
+		{"In an application or an object", [][2]string{
+			{"↑ ↓ / j k", "Move between the objects; the page follows"},
+			{"Enter", "Open the object under the cursor, or follow the relation"},
+			{m.keys.Key(ActionYAML), "Show the document the server holds, and back"},
+			{"Esc", "Back the way you came in"},
+		}},
 		{"Cluster", [][2]string{
 			{m.keys.Key(ActionResourcePicker), "Browse resource kinds, including custom resources"},
 			{m.keys.Key(ActionRefresh), "Refresh"},
@@ -594,6 +619,14 @@ func padTo(s string, width int) string {
 		return s + strings.Repeat(" ", gap)
 	}
 	return s
+}
+
+// yamlHint names what the key will show next, not what is on screen.
+func yamlHint(showing bool) string {
+	if showing {
+		return "Details"
+	}
+	return "YAML"
 }
 
 func wideHint(wide bool) string {

@@ -22,6 +22,7 @@ const (
 	paletteOpenApps        palette.ActionID = "open.applications"
 	paletteOpenApp         palette.ActionID = "open.application"
 	paletteExplain         palette.ActionID = "explain"
+	paletteToggleYAML      palette.ActionID = "object.yaml"
 	paletteOpenResources   palette.ActionID = "open.resources"
 	paletteOpenResource    palette.ActionID = "open.resource"
 	paletteToggleWide      palette.ActionID = "toggle.wide"
@@ -182,6 +183,20 @@ func (m *Model) rebuildCommands() {
 				Enabled:  true,
 			},
 		)
+	}
+
+	if m.view == viewObject {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.yaml",
+			Action:   paletteToggleYAML,
+			Title:    yamlTitle(m.objectYAML),
+			Subtitle: m.objectTarget.label(),
+			Category: "View",
+			Keywords: []string{"yaml", "manifest", "document", "source", "describe"},
+			Shortcut: m.keys.Key(ActionYAML),
+			Weight:   85,
+			Enabled:  true,
+		})
 	}
 
 	if m.view == viewTable {
@@ -347,6 +362,14 @@ func (m *Model) wideSubject() string {
 	return "Applications"
 }
 
+// yamlTitle names what the command will do next.
+func yamlTitle(showing bool) string {
+	if showing {
+		return "Show what kubeui knows about this object"
+	}
+	return "Show the document the server holds"
+}
+
 func wideTitle(wide bool) string {
 	if wide {
 		return "Hide wide columns"
@@ -441,6 +464,9 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.openResource(cmd.Arg)
 	case paletteToggleWide:
 		return m.toggleWide()
+	case paletteToggleYAML:
+		m.toggleObjectYAML()
+		return nil
 	case paletteBackToOverview:
 		return m.backToOverview()
 	case paletteSwitchContext:
@@ -486,9 +512,11 @@ func (m *Model) switchContext(name string) tea.Cmd {
 	m.table.Reset()
 	m.apps.Reset()
 	m.evidence.Reset()
+	m.object.Reset()
 	m.findings = nil
-	m.appCursor, m.appOffset, m.detailOffset = 0, 0, 0
+	m.appCursor, m.appOffset, m.detailOffset, m.detailCursor = 0, 0, 0, 0
 	m.selectedApp = ""
+	m.objectTarget, m.objectTrail = objectRef{}, nil
 	m.view = viewApplications
 	m.nsPicker.Reset()
 	m.resPicker.Reset()
@@ -532,10 +560,12 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	// The dashboard is always scoped, so it always reloads.
 	m.apps.Reset()
 	m.evidence.Reset()
+	m.object.Reset()
 	m.findings = nil
-	m.appCursor, m.appOffset, m.detailOffset = 0, 0, 0
+	m.appCursor, m.appOffset, m.detailOffset, m.detailCursor = 0, 0, 0, 0
 	m.selectedApp = ""
-	if m.view == viewApplication || m.view == viewWhy {
+	m.objectTarget, m.objectTrail = objectRef{}, nil
+	if m.view == viewApplication || m.view == viewWhy || m.view == viewObject {
 		m.view = viewApplications
 	}
 	reload := m.loadApplications()

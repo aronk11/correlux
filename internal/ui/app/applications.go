@@ -49,7 +49,7 @@ func (m *Model) openApplication(name string) tea.Cmd {
 		if a.Key() == name || a.Name == name {
 			m.selectedApp = a.Key()
 			m.view = viewApplication
-			m.detailOffset = 0
+			m.detailOffset, m.detailCursor = 0, 0
 			m.rebuildCommands()
 			// Opening an application is the moment its evidence becomes worth
 			// fetching: the events belong on this screen, and the explanation
@@ -258,16 +258,30 @@ func workloadSummary(a application.Application) string {
 
 // applicationData assembles the detail view.
 func (m *Model) applicationData() screens.ApplicationData {
-	d := screens.ApplicationData{Offset: m.detailOffset}
+	d, _ := m.applicationView()
+	return d
+}
+
+// applicationView assembles the detail view and, in the same pass, the list of
+// objects its rows point at. One function for both, because a cursor that
+// indexes a list built somewhere else is a bug waiting for the first time the
+// two disagree.
+func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
+	d := screens.ApplicationData{Offset: m.detailOffset, Selected: m.detailCursor}
+	var targets []objectRef
+	target := func(ref objectRef) int {
+		targets = append(targets, ref)
+		return len(targets) - 1
+	}
 
 	switch m.apps.State() {
 	case async.Idle, async.Loading:
 		d.Message = "Loading…"
-		return d
+		return d, nil
 	case async.Failed:
 		d.Message = "Could not read " + m.scopeLabel() + ": " + shortError(m.apps.Err())
 		d.MessageStatus = theme.StatusCritical
-		return d
+		return d, nil
 	}
 
 	a, ok := m.currentApplication()
@@ -276,7 +290,7 @@ func (m *Model) applicationData() screens.ApplicationData {
 		// an empty screen that looks like a bug.
 		d.Message = "Application " + m.selectedApp + " is no longer in " + m.scopeLabel() + "."
 		d.MessageStatus = theme.StatusWarning
-		return d
+		return d, nil
 	}
 
 	status := healthStatus(a.Health)
@@ -304,7 +318,10 @@ func (m *Model) applicationData() screens.ApplicationData {
 		if w.Replicated {
 			ready = itoa(int(w.Ready)) + "/" + itoa(int(w.Desired))
 		}
-		row := screens.DetailRow{Cells: []string{w.Kind, w.Name, ready, formatAge(w.CreatedAt, now)}}
+		row := screens.DetailRow{
+			Cells:  []string{w.Kind, w.Name, ready, formatAge(w.CreatedAt, now)},
+			Target: target(objectRef{Kind: w.Kind, Name: w.Name, Namespace: w.Namespace}),
+		}
 		switch {
 		case w.Replicated && w.Desired > 0 && w.Ready == 0:
 			row.Status = theme.StatusCritical
@@ -321,9 +338,12 @@ func (m *Model) applicationData() screens.ApplicationData {
 	}
 	for i := range a.Pods {
 		p := &a.Pods[i]
-		row := screens.DetailRow{Cells: []string{
-			p.Name, p.Phase, readyLabel(p.Ready), itoa(int(p.Restarts)), orNone(p.Node), orNone(p.Reason),
-		}}
+		row := screens.DetailRow{
+			Cells: []string{
+				p.Name, p.Phase, readyLabel(p.Ready), itoa(int(p.Restarts)), orNone(p.Node), orNone(p.Reason),
+			},
+			Target: target(objectRef{Kind: "Pod", Name: p.Name, Namespace: p.Namespace}),
+		}
 		switch {
 		case p.Reason != "" && !p.Terminal():
 			row.Status = theme.StatusCritical
@@ -343,16 +363,20 @@ func (m *Model) applicationData() screens.ApplicationData {
 		if len(s.Ports) > 0 {
 			detail += "  " + strings.Join(s.Ports, ",")
 		}
-		network.Rows = append(network.Rows, screens.DetailRow{Cells: []string{"Service", s.Name, detail}})
+		network.Rows = append(network.Rows, screens.DetailRow{
+			Cells:  []string{"Service", s.Name, detail},
+			Target: target(objectRef{Kind: "Service", Name: s.Name, Namespace: s.Namespace}),
+		})
 	}
 	for _, i := range a.Ingresses {
 		network.Rows = append(network.Rows, screens.DetailRow{
-			Cells: []string{"Ingress", i.Name, strings.Join(i.Hosts, ", ")},
+			Cells:  []string{"Ingress", i.Name, strings.Join(i.Hosts, ", ")},
+			Target: target(objectRef{Kind: "Ingress", Name: i.Name, Namespace: i.Namespace}),
 		})
 	}
 
 	d.Sections = []screens.DetailSection{workloads, pods, network, m.eventsSection(a, now)}
-	return d
+	return d, targets
 }
 
 // eventsSection shows what the cluster said about this application, which is
@@ -392,9 +416,13 @@ func (m *Model) eventsSection(a application.Application, now time.Time) screens.
 	}
 
 	for _, e := range events {
-		row := screens.DetailRow{Cells: []string{
-			formatAge(e.LastSeen, now), e.Type, e.About.Kind + "/" + e.About.Name, e.Reason, e.Message,
-		}}
+		row := screens.DetailRow{
+			Cells: []string{
+				formatAge(e.LastSeen, now), e.Type, e.About.Kind + "/" + e.About.Name, e.Reason, e.Message,
+			},
+			// An event is something to read, not somewhere to go.
+			Target: -1,
+		}
 		if e.Type == "Warning" {
 			row.Status = theme.StatusWarning
 		}

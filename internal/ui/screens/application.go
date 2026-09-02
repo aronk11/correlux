@@ -13,6 +13,9 @@ type DetailRow struct {
 	Cells []string
 	// Status colours the row; StatusUnknown renders it plain.
 	Status theme.Status
+	// Target indexes the caller's list of navigable objects, or -1 when the row
+	// is something to read rather than somewhere to go.
+	Target int
 }
 
 // DetailSection groups rows of one kind under a heading.
@@ -40,6 +43,8 @@ type ApplicationData struct {
 	Sections []DetailSection
 	// Offset is the first visible line, so a long application scrolls.
 	Offset int
+	// Selected is the target index under the cursor, or -1 for none.
+	Selected int
 	// Message replaces the whole body while loading or after a failure.
 	Message       string
 	MessageStatus theme.Status
@@ -59,8 +64,8 @@ func RenderApplication(t *theme.Theme, d ApplicationData, width, height int) str
 		return t.Style(d.MessageStatus).Render(truncateTo(d.Message, width))
 	}
 
-	lines := applicationLines(t, d, width)
-	offset := clamp(d.Offset, 0, max(len(lines)-1, 0))
+	lines, _ := applicationLines(t, d, width)
+	offset := clamp(d.Offset, max(len(lines)-1, 0))
 	end := min(offset+height, len(lines))
 	return strings.Join(lines[offset:end], "\n")
 }
@@ -68,12 +73,24 @@ func RenderApplication(t *theme.Theme, d ApplicationData, width, height int) str
 // LineCount reports how many lines the detail view renders, so the model can
 // bound scrolling without rendering twice.
 func (d ApplicationData) LineCount(width int) int {
-	return len(applicationLines(nil, d, width))
+	lines, _ := applicationLines(nil, d, width)
+	return len(lines)
 }
 
-// applicationLines renders the view to individual lines. A nil theme measures
-// without styling, which is what LineCount needs.
-func applicationLines(t *theme.Theme, d ApplicationData, width int) []string {
+// LineOfTarget reports which line a navigable row lands on, so the model can
+// keep the cursor on screen. It returns -1 when the target is not rendered.
+func (d ApplicationData) LineOfTarget(width, target int) int {
+	_, lines := applicationLines(nil, d, width)
+	if line, ok := lines[target]; ok {
+		return line
+	}
+	return -1
+}
+
+// applicationLines renders the view to individual lines, and reports which line
+// each navigable row landed on. A nil theme measures without styling, which is
+// what the two functions above need.
+func applicationLines(t *theme.Theme, d ApplicationData, width int) ([]string, map[int]int) {
 	style := func(get func(*theme.Theme) lipgloss.Style, s string) string {
 		if t == nil {
 			return s
@@ -100,14 +117,40 @@ func applicationLines(t *theme.Theme, d ApplicationData, width int) []string {
 		lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.Muted }, truncateTo(note, width)))
 	}
 
-	for _, section := range d.Sections {
+	body, targets := sectionLines(t, d.Sections, d.Selected, width, len(lines))
+	lines = append(lines, body...)
+	return lines, targets
+}
+
+// sectionLines renders titled sections of rows, reporting which line each
+// navigable row landed on. Both the application view and the object view are
+// made of these, and they must behave identically: the same keys move through
+// them and the same highlight marks the row in hand.
+func sectionLines(
+	t *theme.Theme,
+	sections []DetailSection,
+	selected, width, offset int,
+) ([]string, map[int]int) {
+	style := func(get func(*theme.Theme) lipgloss.Style, s string) string {
+		if t == nil {
+			return s
+		}
+		return get(t).Render(s)
+	}
+	muted := func(s string) string {
+		return style(func(t *theme.Theme) lipgloss.Style { return t.Muted }, s)
+	}
+
+	targets := map[int]int{}
+	lines := make([]string, 0, len(sections)*4)
+
+	for _, section := range sections {
 		lines = append(lines, "", style(func(t *theme.Theme) lipgloss.Style { return t.PanelTitle },
 			truncateTo(strings.ToUpper(section.Title), width)))
 
 		if len(section.Rows) == 0 {
 			if section.Empty != "" {
-				lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.Muted },
-					"  "+truncateTo(section.Empty, max(width-2, 1))))
+				lines = append(lines, muted("  "+truncateTo(section.Empty, max(width-2, 1))))
 			}
 			continue
 		}
@@ -118,18 +161,34 @@ func applicationLines(t *theme.Theme, d ApplicationData, width int) []string {
 			for i, c := range section.Columns {
 				titles[i] = strings.ToUpper(c)
 			}
-			header := renderRow(titles, widths, nil)
-			lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.Muted }, "  "+header))
+			lines = append(lines, muted("  "+renderRow(titles, widths, nil)))
 		}
 		for _, row := range section.Rows {
-			line := "  " + renderRow(row.Cells, widths, nil)
-			if t != nil && row.Status != theme.StatusUnknown {
-				line = t.Style(row.Status).Render(line)
+			text := "  " + renderRow(row.Cells, widths, nil)
+			line := text
+			switch {
+			case t == nil:
+			case row.Target >= 0 && row.Target == selected:
+				line = t.SelectedRow.Render(padTo(text, width))
+			case row.Status != theme.StatusUnknown:
+				line = t.Style(row.Status).Render(text)
+			}
+			if row.Target >= 0 {
+				targets[row.Target] = offset + len(lines)
 			}
 			lines = append(lines, line)
 		}
 	}
-	return lines
+	return lines, targets
+}
+
+// padTo pads a line to the full width so a selected row is highlighted across
+// the screen rather than only under its text.
+func padTo(s string, width int) string {
+	if gap := width - lipgloss.Width(s); gap > 0 {
+		return s + strings.Repeat(" ", gap)
+	}
+	return truncateTo(s, width)
 }
 
 // detailWidths sizes a section's columns to its own content: the sections are

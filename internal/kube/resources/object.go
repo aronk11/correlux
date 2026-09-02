@@ -28,6 +28,7 @@ type Object struct {
 	// YAML is Raw rendered for reading.
 	YAML string
 
+	UID         string
 	CreatedAt   time.Time
 	Labels      map[string]string
 	Annotations map[string]string
@@ -70,6 +71,7 @@ func decodeObject(target Target, raw []byte) (*Object, error) {
 		Metadata struct {
 			Name              string            `json:"name"`
 			Namespace         string            `json:"namespace"`
+			UID               string            `json:"uid"`
 			CreationTimestamp time.Time         `json:"creationTimestamp"`
 			Labels            map[string]string `json:"labels"`
 			Annotations       map[string]string `json:"annotations"`
@@ -100,6 +102,7 @@ func decodeObject(target Target, raw []byte) (*Object, error) {
 		Kind:            meta.Kind,
 		Name:            meta.Metadata.Name,
 		Namespace:       meta.Metadata.Namespace,
+		UID:             meta.Metadata.UID,
 		Raw:             raw,
 		CreatedAt:       meta.Metadata.CreationTimestamp,
 		Labels:          meta.Metadata.Labels,

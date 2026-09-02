@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -54,6 +56,12 @@ type evidenceLoadedMsg struct {
 	gen     uint64
 	context application.Context
 	err     error
+}
+
+type objectLoadedMsg struct {
+	gen    uint64
+	object *resources.Object
+	err    error
 }
 
 type kubeconfigReloadedMsg struct {
@@ -228,6 +236,48 @@ func (m *Model) loadEvidence() tea.Cmd {
 		defer cancel()
 		evidence, err := factory.ApplicationContext(ctx, name, opts)
 		return evidenceLoadedMsg{gen: gen, context: evidence, err: err}
+	}
+}
+
+// loadObject fetches the object the inspector is pointed at.
+//
+// The kind is resolved through the discovery catalog, which is what lets the
+// inspector open a custom resource with no more code than a Pod.
+func (m *Model) loadObject() tea.Cmd {
+	if m.cancelObject != nil {
+		m.cancelObject()
+	}
+	ref := m.objectTarget
+	gen := m.object.Start()
+
+	catalog := m.catalog.Get()
+	if catalog == nil {
+		// Discovery has not answered yet; ask for it and let the object load
+		// follow once it has.
+		m.object.Fail(gen, errors.New("resource kinds are not discovered yet"))
+		return m.loadCatalog()
+	}
+	res, ok := catalog.Lookup(ref.Kind)
+	if !ok {
+		m.object.Fail(gen, fmt.Errorf("this cluster does not serve %s", ref.Kind))
+		return nil
+	}
+
+	m.objectLoading = true
+	ctx, cancel := context.WithTimeout(context.Background(), m.factory.Timeout())
+	m.cancelObject = cancel
+
+	factory := m.factory
+	name := m.contextName
+	namespace := ref.Namespace
+	if !res.Namespaced {
+		namespace = ""
+	}
+
+	return func() tea.Msg {
+		defer cancel()
+		obj, err := factory.GetObject(ctx, name, res, namespace, ref.Name)
+		return objectLoadedMsg{gen: gen, object: obj, err: err}
 	}
 }
 

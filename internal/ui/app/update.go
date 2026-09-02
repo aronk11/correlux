@@ -91,6 +91,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case applicationsLoadedMsg:
 		return m, m.applyApplications(msg)
 
+	case objectLoadedMsg:
+		if m.object.Accepts(msg.gen) {
+			m.objectLoading = false
+		}
+		if msg.err != nil {
+			m.object.Fail(msg.gen, msg.err)
+			return m, nil
+		}
+		m.object.Succeed(msg.gen, msg.object)
+		return m, nil
+
 	case evidenceLoadedMsg:
 		if m.evidence.Accepts(msg.gen) {
 			m.evidenceLoading = false
@@ -393,28 +404,140 @@ func (m *Model) handleApplicationsKey(keystroke string) (tea.Cmd, bool) {
 	return nil, true
 }
 
-// handleApplicationKey scrolls the detail view.
+// handleApplicationKey moves through the objects an application is made of.
+//
+// Up and down move the selection rather than the viewport, because the point of
+// the screen is to pick something and open it; the viewport follows the
+// selection, and scrolls on its own once there is nothing left to select.
 func (m *Model) handleApplicationKey(keystroke string) (tea.Cmd, bool) {
 	page := max(m.screen.Body.Height-1, 1)
 	switch keystroke {
 	case "up", "k":
-		m.scrollDetail(-1)
+		m.moveDetailCursor(-1)
 	case "down", "j":
-		m.scrollDetail(1)
+		m.moveDetailCursor(1)
 	case "pgup":
 		m.scrollDetail(-page)
 	case "pgdown", " ":
 		m.scrollDetail(page)
 	case "home", "g":
-		m.detailOffset = 0
+		m.detailCursor, m.detailOffset = 0, 0
 	case "end", "G":
 		m.scrollDetail(m.detailLines())
+	case "enter", "right", "l":
+		return m.openSelectedObject(), true
 	case "left", "h":
 		return m.backToApplications(), true
 	default:
 		return nil, false
 	}
 	return nil, true
+}
+
+// moveDetailCursor moves the selection, and scrolls instead when the selection
+// has nowhere left to go.
+func (m *Model) moveDetailCursor(delta int) {
+	data, targets := m.applicationView()
+	if len(targets) == 0 {
+		m.scrollDetail(delta)
+		return
+	}
+	next := clampInt(m.detailCursor+delta, len(targets)-1)
+	if next == m.detailCursor {
+		// At either end: keep moving the page so the rows below the last
+		// selectable one — the events — are still reachable.
+		m.scrollDetail(delta)
+		return
+	}
+	m.detailCursor = next
+	m.keepVisible(data.LineOfTarget(m.screen.Body.Width, m.detailCursor), data.LineCount(m.screen.Body.Width),
+		&m.detailOffset)
+}
+
+// openSelectedObject opens whatever the detail cursor is on.
+func (m *Model) openSelectedObject() tea.Cmd {
+	_, targets := m.applicationView()
+	if m.detailCursor < 0 || m.detailCursor >= len(targets) {
+		return nil
+	}
+	return m.openObject(targets[m.detailCursor])
+}
+
+// handleObjectKey moves through one object's relations, and its document.
+func (m *Model) handleObjectKey(keystroke string) (tea.Cmd, bool) {
+	page := max(m.screen.Body.Height-1, 1)
+	switch keystroke {
+	case "up", "k":
+		m.moveObjectCursor(-1)
+	case "down", "j":
+		m.moveObjectCursor(1)
+	case "pgup":
+		m.scrollObject(-page)
+	case "pgdown", " ":
+		m.scrollObject(page)
+	case "home", "g":
+		m.objectCursor, m.objectOffset = 0, 0
+	case "end", "G":
+		m.scrollObject(m.objectLines())
+	case "enter", "right", "l":
+		return m.openSelectedRelation(), true
+	case "esc", "left", "h":
+		return m.backFromObject(), true
+	default:
+		return nil, false
+	}
+	return nil, true
+}
+
+// moveObjectCursor moves through the related objects; in the YAML view there is
+// nothing to select, so it scrolls.
+func (m *Model) moveObjectCursor(delta int) {
+	data, targets := m.objectView()
+	if m.objectYAML || len(targets) == 0 {
+		m.scrollObject(delta)
+		return
+	}
+	next := clampInt(m.objectCursor+delta, len(targets)-1)
+	if next == m.objectCursor {
+		m.scrollObject(delta)
+		return
+	}
+	m.objectCursor = next
+	m.keepVisible(data.LineOfTarget(m.screen.Body.Width, m.objectCursor), data.LineCount(m.screen.Body.Width),
+		&m.objectOffset)
+}
+
+// openSelectedRelation follows the owner or child under the cursor.
+func (m *Model) openSelectedRelation() tea.Cmd {
+	_, targets := m.objectView()
+	if m.objectCursor < 0 || m.objectCursor >= len(targets) {
+		return nil
+	}
+	return m.openObject(targets[m.objectCursor])
+}
+
+func (m *Model) objectLines() int {
+	return m.objectData().LineCount(m.screen.Body.Width)
+}
+
+func (m *Model) scrollObject(delta int) {
+	height := max(m.screen.Body.Height, 1)
+	m.objectOffset = clampInt(m.objectOffset+delta, max(m.objectLines()-height, 0))
+}
+
+// keepVisible scrolls a viewport just far enough to show a line.
+func (m *Model) keepVisible(line, total int, offset *int) {
+	if line < 0 {
+		return
+	}
+	height := max(m.screen.Body.Height, 1)
+	if line < *offset {
+		*offset = line
+	}
+	if line >= *offset+height {
+		*offset = line - height + 1
+	}
+	*offset = clampInt(*offset, max(total-height, 0))
 }
 
 // handleWhyKey scrolls the explanation. Nothing here needs to fetch anything:
@@ -500,6 +623,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			if m.handleWhyKey(keystroke) {
 				return nil
 			}
+		case viewObject:
+			if cmd, handled := m.handleObjectKey(keystroke); handled {
+				return cmd
+			}
 		}
 	}
 
@@ -542,6 +669,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.backToApplications()
 	case ActionWhy:
 		return m.explain()
+	case ActionYAML:
+		if m.view == viewObject {
+			m.toggleObjectYAML()
+		}
+		return nil
 	}
 	return nil
 }
@@ -581,6 +713,8 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 		m.scrollDetail(delta)
 	case viewWhy:
 		m.scrollWhy(delta)
+	case viewObject:
+		m.scrollObject(delta)
 	}
 	return nil
 }
