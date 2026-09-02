@@ -33,13 +33,15 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 | `internal/config` | User configuration: OS-appropriate paths, defaults, strict parsing. |
 | `internal/buildinfo` | Version stamps, filled by ldflags or VCS metadata. |
 | `internal/kube/kubeconfig` | Reads and merges the kubeconfig; classifies production contexts. Never writes. |
-| `internal/kube/client` | REST configs and clientsets per context, connectivity probes, error classification, namespace listing. |
+| `internal/kube/client` | REST configs and clientsets per context, connectivity probes, error classification, namespace listing, discovery and table listing. |
+| `internal/kube/discovery` | The catalog of every resource kind the cluster serves, native and custom, tolerant of partially broken discovery. |
+| `internal/kube/resources` | Lists any resource as a server-rendered table, paged and cancellable. |
 | `internal/ui/async` | `Value[T]`: lifecycle plus generation counter for every remote value. |
 | `internal/ui/layout` | Screen geometry and the resize debouncer. Pure arithmetic. |
 | `internal/ui/theme` | Colours, glyphs, terminal capability detection. |
 | `internal/ui/palette` | Command registry and fuzzy ranking. No UI dependency. |
 | `internal/ui/components` | Reusable widgets: input, selector, header, status bar. |
-| `internal/ui/screens` | Full-window views; data in, string out. |
+| `internal/ui/screens` | Full-window views (overview, resource table); data in, string out. |
 | `internal/ui/app` | The Bubble Tea model: keys, overlays, commands, rendering. |
 
 ## Start-up sequence
@@ -73,15 +75,34 @@ that is down, because reaching the cluster is never a precondition for drawing.
   window emits dozens of events per second.
 - Overlays are composed with Lip Gloss layers on a canvas, so the palette floats
   over the dashboard instead of replacing it.
-- `make frames` renders the UI to plain text files — layout can be reviewed, and
+- `task frames` renders the UI to plain text files — layout can be reviewed, and
   regression-tested, without a terminal.
 
 ## Testing
 
-- Pure packages (`layout`, `palette`, `async`, `theme`, `config`, `kubeconfig`)
-  are unit-tested directly.
-- `kube/client` is tested against `client-go`'s fake clientset, including the
-  denied-permission path.
+Two layers, with different jobs.
+
+**Unit tests** (`go test ./...`, no cluster, no Docker):
+
+- Pure packages (`layout`, `palette`, `async`, `theme`, `config`, `kubeconfig`,
+  `discovery`) are tested directly.
+- `kube/client` uses `client-go`'s fake clientset, including the
+  denied-permission path; `kube/resources` uses an HTTP stub, so table decoding
+  and path construction are covered without a cluster.
 - `ui/app` is tested by driving the model with synthetic key and message events
-  and asserting on the rendered frame, including that no overlay ever overflows
+  and asserting on the rendered frame — including that no overlay ever overflows
   the terminal at any of five sizes.
+
+**Integration tests** (`task test:integration`, behind the `integration` build
+tag, against a seeded kind cluster):
+
+- Discovery really finds CRDs; the API server really renders their printer
+  columns; paging really terminates without repeating an object.
+- A deliberately broken aggregated API degrades discovery to a partial result
+  instead of an empty screen.
+- The application is driven end to end against the live cluster: commands are
+  plain functions, so a test can run them and feed the messages back exactly as
+  the runtime would.
+- Benchmarks and budget assertions cover the first page, discovery, and a
+  ten-thousand-row render. See
+  [ADR 14](adr/0014-load-testing-with-kind.md).

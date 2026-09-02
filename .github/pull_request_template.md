@@ -8,7 +8,8 @@
 
 ## Checklist
 
-- [ ] `make check` passes locally (vet, lint, race tests)
+- [ ] `task check` passes locally (vet, lint, race tests)
+- [ ] Commits are signed and follow Conventional Commits (`task commits`)
 - [ ] New behaviour is covered by tests
 - [ ] Kubernetes API failures and missing permissions are handled, not assumed away
 - [ ] No information is conveyed by colour alone

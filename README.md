@@ -10,11 +10,13 @@ It is inspired by how useful K9s is, and it is deliberately not a K9s clone: the
 first screen is your **applications and their health**, not a list of resource
 types.
 
-> **Status: early.** Phase 1 (the shell) is implemented: kubeconfig loading,
-> cluster and namespace switching, the command palette, connection diagnostics
-> and a responsive, accessible TUI. The application dashboard, the WHY diagnosis
-> engine, logs and exec are next. See [the roadmap](#roadmap). Nothing in the UI
-> is a mock-up: if kubeui does not know something yet, it says so.
+> **Status: early.** Implemented so far: kubeconfig loading, cluster and
+> namespace switching, the command palette, connection diagnostics, and a
+> resource browser that lists **every** kind the cluster serves — custom
+> resources included — with the API server's own columns. The application
+> dashboard, the WHY diagnosis engine, logs and exec are next. See
+> [the roadmap](#roadmap). Nothing in the UI is a mock-up: if kubeui does not
+> know something yet, it says so.
 
 ## Why
 
@@ -55,14 +57,28 @@ kubeui version
 | Key | Action |
 |-----|--------|
 | `Ctrl+P` | Command palette — every action, searchable by name |
+| `Ctrl+B` | Browse resource kinds, custom resources included |
 | `Ctrl+K` | Switch cluster |
 | `Ctrl+O` | Switch namespace |
 | `Ctrl+R` | Refresh |
+| `w` | Toggle the wide columns in a resource table |
 | `?` | Help |
-| `Esc` | Close overlay |
+| `Esc` | Back / close overlay |
 | `Ctrl+C` / `q` | Quit |
 
 You are not expected to memorise those. Press `Ctrl+P` and type what you want.
+
+### Custom resources are not second-class
+
+kubeui asks the API server to render every resource table, using the same
+`Table` content type `kubectl get` uses. A CustomResourceDefinition that
+declares `additionalPrinterColumns` shows exactly those columns — with the same
+`-o wide` behaviour — and kubeui contains no code for it
+([ADR 13](docs/adr/0013-server-side-tables.md)).
+
+The same applies when a cluster is half broken: if an aggregated API server is
+down, discovery degrades to "sixty kinds, one group unavailable" instead of
+showing nothing.
 
 ### Switching context is session-local
 
@@ -117,11 +133,13 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | Phase | Scope | State |
 |-------|-------|-------|
 | 1 | TUI shell, kubeconfig, cluster/namespace switching, command palette | **done** |
+| — | Resource browser for every kind, native and custom | **done** |
+| — | kind-based integration and load testing harness | **done** |
 | 2 | Application discovery and the application-first dashboard | next |
 | 3 | Deterministic WHY diagnosis engine | planned |
-| 4 | Logs, exec, resource inspection, clipboard | planned |
+| 4 | Logs, exec, object detail, clipboard | planned |
 | 5 | Safe mutating actions | planned |
-| 6 | Large-cluster performance (1k/5k/10k pod benchmarks) | planned |
+| 6 | Large-cluster performance work, guided by the benchmarks | planned |
 | 7 | Platform polish across macOS, Linux and Windows | planned |
 
 The full product specification is in [SPEC.md](SPEC.md).
@@ -139,8 +157,17 @@ optional explanation layer over a deterministic engine
 See [CONTRIBUTING.md](CONTRIBUTING.md). In short:
 
 ```bash
-make check   # vet, lint, race tests — everything CI runs
+go install github.com/go-task/task/v3/cmd/task@latest
+task check           # vet, lint, race tests — everything CI runs
+task kind:up
+task kind:seed       # a local cluster with realistic, deliberately broken load
+task run:kind
 ```
+
+The load generator can fill a local cluster with thousands of pods, deployments,
+services and custom resources without starting a single container, which is how
+kubeui's large-cluster claims are measured rather than asserted
+([ADR 14](docs/adr/0014-load-testing-with-kind.md)).
 
 Architecture and the reasoning behind it: [docs/architecture.md](docs/architecture.md)
 and [docs/adr](docs/adr/README.md).

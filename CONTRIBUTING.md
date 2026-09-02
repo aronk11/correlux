@@ -5,17 +5,50 @@ your change are the ones worth reading.
 
 ## Getting started
 
-Requirements: Go 1.25 or newer. Nothing else.
+Requirements: Go 1.25 or newer, plus Docker if you want to run the integration
+tests. Nothing else — the tools are pinned and installed on demand into
+`.tools/`.
 
 ```bash
+go install github.com/go-task/task/v3/cmd/task@latest
+
 git clone https://github.com/aronk11/kubeui
 cd kubeui
-make check       # vet + lint + race tests: exactly what CI runs
-make run         # run against your current kubeconfig
-make frames      # render the TUI into .frames/*.txt without a terminal
+task              # list every task
+task check        # vet + lint + race tests: exactly what CI runs on a PR
+task run          # run against your current kubeconfig
+task frames       # render the TUI into .frames/*.txt without a terminal
 ```
 
-`make lint` downloads a pinned golangci-lint into `.tools/` on first use.
+### A cluster to develop against
+
+```bash
+task kind:up                                   # local kind cluster
+task kind:seed                                 # a small, realistically broken cluster
+task kind:seed -- --namespaces 50 --pods-per-app 10   # thousands of pods
+task run:kind                                  # kubeui, pointed at it
+task test:integration                          # the integration suite
+task bench:cluster                             # the benchmarks
+task kind:down                                 # tear it down
+```
+
+The seeder never runs a container: pods are attached to a node object with no
+kubelet behind it, so ten thousand of them cost the API server what they would
+in production and cost your laptop nothing
+([ADR 14](docs/adr/0014-load-testing-with-kind.md)). Everything it creates is
+labelled `app.kubernetes.io/managed-by=kubeui-seed`, and `task kind:reset`
+removes exactly that.
+
+### Signing
+
+Every commit must be signed ([ADR 15](docs/adr/0015-signed-commits.md)):
+
+```bash
+git config --global gpg.format ssh
+git config --global user.signingkey ~/.ssh/id_ed25519.pub
+git config --global commit.gpgsign true
+gh ssh-key add ~/.ssh/id_ed25519.pub --type signing --title "$(hostname)"
+```
 
 ## Workflow
 
@@ -23,7 +56,7 @@ We use trunk-based development ([ADR 11](docs/adr/0011-development-workflow.md))
 
 1. Branch off `main`: `feat/application-dashboard`, `fix/kubeconfig-reload`.
 2. Keep the branch short-lived and the pull request reviewable.
-3. Make sure `make check` passes.
+3. Make sure `task check` passes.
 4. Open a pull request. It is squash-merged, so **the pull request title becomes
    the commit message on `main`**.
 
@@ -49,7 +82,7 @@ feat(cli)!: remove the deprecated --context-name flag
 Check locally before pushing:
 
 ```bash
-./scripts/check-conventional-commits.sh
+task commits   # conventional commits and signatures
 ```
 
 ## What reviewers will look for
@@ -66,6 +99,9 @@ negotiable by writing a new ADR.
   cluster-wide watch "just in case" ([ADR 6](docs/adr/0006-lazy-scoped-loading.md)).
 - **Colour is never the only signal.** Glyph plus word, always
   ([ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md)).
+- **Nothing hard-codes the set of known resource types.** Custom resources go
+  through the same path as native ones
+  ([ADR 13](docs/adr/0013-server-side-tables.md)).
 - **Missing or oddly shaped resources must not panic.** CRDs and unknown types
   are normal. A cluster that returns something unexpected is a Tuesday.
 - **No mock functionality.** If a view cannot show real data yet, it says so.
@@ -79,6 +115,9 @@ negotiable by writing a new ADR.
   `ui/app` is tested by driving the model with synthetic events and asserting on
   the rendered frame.
 - `go test -race ./...` must pass. CI runs it on Linux and macOS.
+- Behaviour that depends on a real API server — discovery, paging, printer
+  columns — belongs in `test/integration`, behind the `integration` build tag,
+  so `go test ./...` stays fast and needs no cluster.
 
 ## Reporting bugs
 
