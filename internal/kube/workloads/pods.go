@@ -58,12 +58,14 @@ func containers(p *corev1.Pod) []application.Container {
 	}
 
 	out := make([]application.Container, 0, len(p.Spec.InitContainers)+len(p.Spec.Containers))
+	claimed := make(map[string]bool, cap(out))
 	for i := range p.Spec.InitContainers {
 		spec := &p.Spec.InitContainers[i]
 		c := container(statuses[spec.Name], true)
 		c.Name, c.Sidecar = spec.Name, spec.RestartPolicy != nil &&
 			*spec.RestartPolicy == corev1.ContainerRestartPolicyAlways
 		fillResources(&c, spec)
+		claimed[spec.Name] = true
 		out = append(out, c)
 	}
 	for i := range p.Spec.Containers {
@@ -71,7 +73,22 @@ func containers(p *corev1.Pod) []application.Container {
 		c := container(statuses[spec.Name], false)
 		c.Name = spec.Name
 		fillResources(&c, spec)
+		claimed[spec.Name] = true
 		out = append(out, c)
+	}
+
+	// A status naming a container the spec does not is not supposed to happen,
+	// and it carries the reason a container died. Keeping it costs a map lookup
+	// and losing it would cost an explanation.
+	for i := range p.Status.InitContainerStatuses {
+		if s := &p.Status.InitContainerStatuses[i]; !claimed[s.Name] {
+			out = append(out, container(s, true))
+		}
+	}
+	for i := range p.Status.ContainerStatuses {
+		if s := &p.Status.ContainerStatuses[i]; !claimed[s.Name] {
+			out = append(out, container(s, false))
+		}
 	}
 	return out
 }
