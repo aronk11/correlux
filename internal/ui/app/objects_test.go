@@ -251,3 +251,98 @@ func TestTheObjectViewDescribesWhatTheDocumentSays(t *testing.T) {
 		}
 	}
 }
+
+// smallScreen shrinks the terminal so a list actually overflows it. A resize
+// message would be debounced and not yet applied, so the geometry is set the
+// way the debouncer eventually would.
+func smallScreen(m *Model, width, height int) {
+	m.width, m.height = width, height
+	m.applyLayout()
+}
+
+// openLongApplication opens an application with more pods than fit on screen.
+func openLongApplication(t *testing.T, m *Model) {
+	t.Helper()
+	smallScreen(m, 100, 20)
+	loadApplicationsInto(m, testApplication("payments", application.Degraded, 1, 12))
+	press(t, m, "enter")
+}
+
+func TestScrollingTheApplicationDoesNotSnapBack(t *testing.T) {
+	m := newTestModel(t)
+	openLongApplication(t, m)
+
+	for i := 0; i < 5; i++ {
+		m.Update(wheel(false))
+	}
+	scrolled := m.detailOffset
+	if scrolled == 0 {
+		t.Fatal("the wheel must scroll an application that overflows the screen")
+	}
+
+	// The bug this guards: the page jumped back to the selection the moment an
+	// arrow key was pressed, which reads as "scrolling does not work here".
+	press(t, m, "down")
+	if m.detailOffset < scrolled {
+		t.Errorf("the page jumped back from %d to %d", scrolled, m.detailOffset)
+	}
+}
+
+func TestScrollingDragsTheSelectionOntoTheScreen(t *testing.T) {
+	m := newTestModel(t)
+	openLongApplication(t, m)
+
+	data, _ := m.applicationView()
+	for i := 0; i < 5; i++ {
+		m.Update(wheel(false))
+	}
+
+	lines := data.TargetLines(m.screen.Body.Width)
+	line, known := lines[m.detailCursor]
+	if !known {
+		t.Fatalf("the selection %d is not rendered at all", m.detailCursor)
+	}
+	if line < m.detailOffset || line >= m.detailOffset+m.screen.Body.Height {
+		t.Errorf("the selection sits on line %d, outside the visible %d..%d",
+			line, m.detailOffset, m.detailOffset+m.screen.Body.Height)
+	}
+}
+
+func TestPageKeysMoveTheApplicationView(t *testing.T) {
+	m := newTestModel(t)
+	openLongApplication(t, m)
+
+	press(t, m, "pgdown")
+	if m.detailOffset == 0 {
+		t.Error("PgDn must move the page")
+	}
+	press(t, m, "pgup")
+	if m.detailOffset != 0 {
+		t.Errorf("PgUp must come back to the top, offset = %d", m.detailOffset)
+	}
+
+	press(t, m, "end")
+	atEnd := m.detailOffset
+	if atEnd == 0 {
+		t.Error("End must reach the bottom")
+	}
+	press(t, m, "home")
+	if m.detailOffset != 0 || m.detailCursor != 0 {
+		t.Errorf("Home must return to the first row, offset = %d cursor = %d", m.detailOffset, m.detailCursor)
+	}
+}
+
+func TestEverythingBelowTheLastSelectableRowIsReachable(t *testing.T) {
+	m := newTestModel(t)
+	openLongApplication(t, m)
+	loadEvidenceInto(m, application.Context{})
+
+	// The events sit below the last row that can be selected; pressing down
+	// past it must keep moving the page.
+	for i := 0; i < 40; i++ {
+		press(t, m, "down")
+	}
+	if out := plainView(m); !strings.Contains(out, "RECENT EVENTS") {
+		t.Errorf("the sections below the last selectable row must be reachable:\n%s", out)
+	}
+}

@@ -447,7 +447,10 @@ func (m *Model) handleApplicationKey(keystroke string) (tea.Cmd, bool) {
 // has nowhere left to go.
 func (m *Model) moveDetailCursor(delta int) {
 	data, targets := m.applicationView()
-	if len(targets) == 0 {
+	lines := data.TargetLines(m.screen.Body.Width)
+	if len(targets) == 0 || !m.onScreen(lines[m.detailCursor], hasLine(lines, m.detailCursor), m.detailOffset) {
+		// Nothing to select, or the selection is not on screen because the
+		// page was scrolled away from it: the arrows move the page.
 		m.scrollDetail(delta)
 		return
 	}
@@ -459,8 +462,7 @@ func (m *Model) moveDetailCursor(delta int) {
 		return
 	}
 	m.detailCursor = next
-	m.keepVisible(data.LineOfTarget(m.screen.Body.Width, m.detailCursor), data.LineCount(m.screen.Body.Width),
-		&m.detailOffset)
+	m.keepVisible(lines[m.detailCursor], data.LineCount(m.screen.Body.Width), &m.detailOffset)
 }
 
 // openSelectedObject opens whatever the detail cursor is on.
@@ -502,7 +504,9 @@ func (m *Model) handleObjectKey(keystroke string) (tea.Cmd, bool) {
 // nothing to select, so it scrolls.
 func (m *Model) moveObjectCursor(delta int) {
 	data, targets := m.objectView()
-	if m.objectYAML || len(targets) == 0 {
+	lines := data.TargetLines(m.screen.Body.Width)
+	if m.objectYAML || len(targets) == 0 ||
+		!m.onScreen(lines[m.objectCursor], hasLine(lines, m.objectCursor), m.objectOffset) {
 		m.scrollObject(delta)
 		return
 	}
@@ -512,8 +516,7 @@ func (m *Model) moveObjectCursor(delta int) {
 		return
 	}
 	m.objectCursor = next
-	m.keepVisible(data.LineOfTarget(m.screen.Body.Width, m.objectCursor), data.LineCount(m.screen.Body.Width),
-		&m.objectOffset)
+	m.keepVisible(lines[m.objectCursor], data.LineCount(m.screen.Body.Width), &m.objectOffset)
 }
 
 // openSelectedRelation follows the owner or child under the cursor.
@@ -529,9 +532,14 @@ func (m *Model) objectLines() int {
 	return m.objectData().LineCount(m.screen.Body.Width)
 }
 
+// scrollObject moves the object viewport, dragging the selection along.
 func (m *Model) scrollObject(delta int) {
+	data, targets := m.objectView()
 	height := max(m.screen.Body.Height, 1)
-	m.objectOffset = clampInt(m.objectOffset+delta, max(m.objectLines()-height, 0))
+	total := data.LineCount(m.screen.Body.Width)
+	m.objectOffset = clampInt(m.objectOffset+delta, max(total-height, 0))
+	m.objectCursor = m.visibleTarget(data.TargetLines(m.screen.Body.Width), len(targets),
+		m.objectCursor, m.objectOffset)
 }
 
 // keepVisible scrolls a viewport just far enough to show a line.
@@ -583,12 +591,62 @@ func (m *Model) detailLines() int {
 	return m.applicationData().LineCount(m.screen.Body.Width)
 }
 
-// scrollDetail moves the detail viewport, never past the last screenful: a view
-// scrolled into empty space looks broken.
+// scrollDetail moves the detail viewport, never past the last screenful — a
+// view scrolled into empty space looks broken — and drags the selection along
+// with it.
+//
+// Without that last part the page snaps back to the selection the moment an
+// arrow key is pressed, which reads as "scrolling does not work here".
 func (m *Model) scrollDetail(delta int) {
+	data, targets := m.applicationView()
 	height := max(m.screen.Body.Height, 1)
-	limit := max(m.detailLines()-height, 0)
-	m.detailOffset = clampInt(m.detailOffset+delta, limit)
+	total := data.LineCount(m.screen.Body.Width)
+	m.detailOffset = clampInt(m.detailOffset+delta, max(total-height, 0))
+	m.detailCursor = m.visibleTarget(data.TargetLines(m.screen.Body.Width), len(targets),
+		m.detailCursor, m.detailOffset)
+}
+
+// visibleTarget returns the selection to use once the viewport has moved: the
+// one in hand while it is still on screen, otherwise the nearest one that is.
+// When the page shows no selectable row at all — a screenful of events — the
+// selection stays where it was and the arrows keep scrolling.
+func (m *Model) visibleTarget(lines map[int]int, count, cursor, offset int) int {
+	if count == 0 {
+		return 0
+	}
+	cursor = clampInt(cursor, count-1)
+	if m.onScreen(lines[cursor], hasLine(lines, cursor), offset) {
+		return cursor
+	}
+
+	first, last, found := 0, 0, false
+	for i := 0; i < count; i++ {
+		if !m.onScreen(lines[i], hasLine(lines, i), offset) {
+			continue
+		}
+		if !found {
+			first, found = i, true
+		}
+		last = i
+	}
+	if !found {
+		return cursor
+	}
+	if line, ok := lines[cursor]; ok && line < offset {
+		return first
+	}
+	return last
+}
+
+// onScreen reports whether a line is inside the viewport.
+func (m *Model) onScreen(line int, known bool, offset int) bool {
+	height := max(m.screen.Body.Height, 1)
+	return known && line >= offset && line < offset+height
+}
+
+func hasLine(lines map[int]int, target int) bool {
+	_, ok := lines[target]
+	return ok
 }
 
 // clampInt keeps v inside [0, hi]: every position kubeui tracks is an index

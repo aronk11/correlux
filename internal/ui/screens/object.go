@@ -59,13 +59,10 @@ func (d ObjectData) LineCount(width int) int {
 	return len(lines)
 }
 
-// LineOfTarget reports which line a navigable row landed on, or -1.
-func (d ObjectData) LineOfTarget(width, target int) int {
+// TargetLines reports which line each navigable row landed on.
+func (d ObjectData) TargetLines(width int) map[int]int {
 	_, targets := objectLines(nil, d, width)
-	if line, ok := targets[target]; ok {
-		return line
-	}
-	return -1
+	return targets
 }
 
 func objectLines(t *theme.Theme, d ObjectData, width int) ([]string, map[int]int) {
