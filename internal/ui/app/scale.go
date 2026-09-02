@@ -39,7 +39,7 @@ func (m *Model) scaleTarget() tea.Cmd {
 
 // askScale opens the prompt for a workload's new replica count.
 func (m *Model) askScale(ref objectRef) tea.Cmd {
-	res, ok := m.resourceFor(ref.Kind)
+	res, ok := m.resourceFor(ref)
 	if !ok {
 		m.notice("This cluster does not serve "+ref.Kind, theme.StatusWarning)
 		return m.expireNotice()
@@ -130,7 +130,7 @@ func (m *Model) confirmScale(ref objectRef, current int32, value string) tea.Cmd
 
 // scale performs the change.
 func (m *Model) scale(ref objectRef, replicas int32) tea.Cmd {
-	res, ok := m.resourceFor(ref.Kind)
+	res, ok := m.resourceFor(ref)
 	if !ok {
 		return nil
 	}
@@ -229,14 +229,14 @@ func (m *Model) workloadFor(ref objectRef) (*application.Workload, bool) {
 	return nil, false
 }
 
-// resourceFor resolves a kind through the discovery catalog, which is what lets
-// every action work on a custom resource with no code of its own.
-func (m *Model) resourceFor(kind string) (kubediscovery.Resource, bool) {
+// resourceFor resolves an object's kind through the discovery catalog, which is
+// what lets every action work on a custom resource with no code of its own.
+func (m *Model) resourceFor(ref objectRef) (kubediscovery.Resource, bool) {
 	catalog := m.catalog.Get()
 	if catalog == nil {
 		return kubediscovery.Resource{}, false
 	}
-	return catalog.Lookup(kind)
+	return catalog.Lookup(ref.lookup())
 }
 
 // The replica counts kubeui refuses before they cost a round trip.

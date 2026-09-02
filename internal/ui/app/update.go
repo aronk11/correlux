@@ -385,6 +385,8 @@ func (m *Model) handleTableKey(keystroke string) (tea.Cmd, bool) {
 		return m.moveTableCursor(-len(m.tableRows())), true
 	case "end", "G":
 		return m.moveTableCursor(len(m.tableRows())), true
+	case "enter", "right", "l":
+		return m.openSelectedRow(), true
 	}
 	return nil, false
 }

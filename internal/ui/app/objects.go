@@ -21,11 +21,24 @@ type objectRef struct {
 	Kind      string
 	Name      string
 	Namespace string
+	// Resource is the fully qualified name ("widgets.load.kubeui.dev") when the
+	// caller knows it. Two groups may serve the same kind, and a browser that
+	// listed one of them must open that one.
+	Resource string
 }
 
 func (r objectRef) empty() bool { return r.Kind == "" || r.Name == "" }
 
 func (r objectRef) label() string { return r.Kind + "/" + r.Name }
+
+// lookup is the name the discovery catalog is asked for: the exact resource
+// when it is known, the kind otherwise.
+func (r objectRef) lookup() string {
+	if r.Resource != "" {
+		return r.Resource
+	}
+	return r.Kind
+}
 
 // openObject opens an object, remembering where it was opened from so Esc can
 // walk back out the way it came in.
@@ -37,8 +50,34 @@ func (m *Model) openObject(ref objectRef) tea.Cmd {
 		m.objectTrail = append(m.objectTrail, m.objectRef())
 	} else {
 		m.objectTrail = nil
+		m.objectFrom = m.view
 	}
 	return m.showObject(ref)
+}
+
+// openSelectedRow opens the object under the cursor in a resource table. It is
+// the same inspector the application view opens, reached from the other side:
+// a custom resource is opened by exactly the code that opens a Pod.
+func (m *Model) openSelectedRow() tea.Cmd {
+	rows := m.tableRows()
+	if m.tableCursor < 0 || m.tableCursor >= len(rows) {
+		return nil
+	}
+	row := rows[m.tableCursor]
+	if row.Name == "" {
+		return nil
+	}
+	namespace := row.Namespace
+	if namespace == "" && m.resource.Namespaced && !m.allNamespaces {
+		// A table scoped to one namespace need not repeat it in every row.
+		namespace = m.namespace
+	}
+	return m.openObject(objectRef{
+		Kind:      m.resource.Kind(),
+		Name:      row.Name,
+		Namespace: namespace,
+		Resource:  m.resource.FullName(),
+	})
 }
 
 // showObject switches to an object without touching the trail.
@@ -68,7 +107,15 @@ func (m *Model) backFromObject() tea.Cmd {
 		m.cancelObject()
 	}
 	m.object.Reset()
-	if m.selectedApp != "" {
+
+	// Back the way it came in: to the table that listed it, or to the
+	// application it belongs to.
+	switch {
+	case m.objectFrom == viewTable && m.table.HasValue():
+		m.view = viewTable
+		m.rebuildCommands()
+		return nil
+	case m.selectedApp != "":
 		m.view = viewApplication
 		m.rebuildCommands()
 		return nil

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -57,56 +56,11 @@ func press(t *testing.T, m *Model, keystroke string) tea.Cmd {
 	return cmd
 }
 
-// keyMsg builds the key event for a keystroke like "ctrl+k", "enter" or "a".
-func keyMsg(keystroke string) tea.KeyPressMsg {
-	key := tea.Key{}
-	rest := keystroke
-	for {
-		switch {
-		case strings.HasPrefix(rest, "ctrl+"):
-			key.Mod |= tea.ModCtrl
-			rest = strings.TrimPrefix(rest, "ctrl+")
-			continue
-		case strings.HasPrefix(rest, "alt+"):
-			key.Mod |= tea.ModAlt
-			rest = strings.TrimPrefix(rest, "alt+")
-			continue
-		}
-		break
-	}
-	switch rest {
-	case "enter":
-		key.Code = tea.KeyEnter
-	case "esc":
-		key.Code = tea.KeyEscape
-	case "up":
-		key.Code = tea.KeyUp
-	case "down":
-		key.Code = tea.KeyDown
-	case "backspace":
-		key.Code = tea.KeyBackspace
-	case "left":
-		key.Code = tea.KeyLeft
-	case "right":
-		key.Code = tea.KeyRight
-	case "pgup":
-		key.Code = tea.KeyPgUp
-	case "pgdown":
-		key.Code = tea.KeyPgDown
-	case "home":
-		key.Code = tea.KeyHome
-	case "end":
-		key.Code = tea.KeyEnd
-	default:
-		r, _ := utf8.DecodeRuneInString(rest)
-		key.Code = r
-		if key.Mod == 0 {
-			key.Text = rest
-		}
-	}
-	return tea.KeyPressMsg(key)
-}
+// keyMsg builds the key event for a keystroke like "ctrl+k", "enter" or "a",
+// through the same function the application itself uses.
+func keyMsg(keystroke string) tea.KeyPressMsg { return keyPress(keystroke) }
 
+// typeInto sends a string one keystroke at a time, the way a person types.
 func typeInto(t *testing.T, m *Model, s string) {
 	t.Helper()
 	for _, r := range s {

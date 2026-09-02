@@ -66,6 +66,7 @@ kubeui version
 | `e` | Edit the open object in your editor |
 | `S` | Scale the selected workload |
 | `Ctrl+B` | Browse resource kinds, custom resources included |
+| `Enter` | Open the object under the cursor |
 | `Ctrl+K` | Switch cluster |
 | `Ctrl+O` | Switch namespace |
 | `Ctrl+R` | Refresh |
@@ -136,7 +137,8 @@ timer ([ADR 18](docs/adr/0018-evidence-on-demand.md)).
 ### From an application to the object, and back
 
 `Enter` on an application opens what it is made of; `Enter` again opens the
-object under the cursor. From there, its relations lead up to the controller
+object under the cursor. The same key does the same thing in the resource
+browser, custom resources included. From there, its relations lead up to the controller
 that made it and down to the objects it made, so Deployment to ReplicaSet to Pod
 is three keystrokes in either direction, and `Esc` retraces the path it came in
 by.

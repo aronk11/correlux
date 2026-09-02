@@ -116,7 +116,10 @@ type Model struct {
 	// objectTrail is the way back out: opening an owner or a child pushes the
 	// object it was opened from, so Esc retraces the path instead of dumping
 	// the user at the top.
-	objectTrail  []objectRef
+	objectTrail []objectRef
+	// objectFrom is the view the inspector was opened from, so Esc returns
+	// there rather than to a fixed screen.
+	objectFrom   viewKind
 	objectOffset int
 	objectCursor int
 	objectYAML   bool
@@ -332,6 +335,13 @@ func (m *Model) OpenApplicationForTest(name string) tea.Cmd { return m.openAppli
 // OpenObjectForTest opens one object by kind and name.
 func (m *Model) OpenObjectForTest(kind, name, namespace string) tea.Cmd {
 	return m.openObject(objectRef{Kind: kind, Name: name, Namespace: namespace})
+}
+
+// PressForTest delivers one keystroke, so an integration test can drive kubeui
+// the way a user does rather than through a back door.
+func (m *Model) PressForTest(keystroke string) tea.Cmd {
+	_, cmd := m.Update(keyPress(keystroke))
+	return cmd
 }
 
 // ShowYAMLForTest switches the object view to the server's document.

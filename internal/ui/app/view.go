@@ -147,9 +147,16 @@ func (m *Model) breadcrumb() []string {
 		}
 		return crumbs
 	case viewObject:
-		crumbs = append(crumbs, "Applications")
-		if a, ok := m.currentApplication(); ok {
-			crumbs = append(crumbs, a.Name)
+		// The trail says where the object was reached from, and the breadcrumb
+		// has to agree with it: an object opened from the resource browser did
+		// not come through an application.
+		if m.objectFrom == viewTable {
+			crumbs = append(crumbs, m.resource.Kind())
+		} else {
+			crumbs = append(crumbs, "Applications")
+			if a, ok := m.currentApplication(); ok {
+				crumbs = append(crumbs, a.Name)
+			}
 		}
 		for _, ref := range m.objectTrail {
 			crumbs = append(crumbs, ref.label())
@@ -228,6 +235,7 @@ func (m *Model) statusData() components.StatusData {
 	case viewTable:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Rows", Priority: 90},
+			{Key: "Enter", Desc: "Open", Priority: 89},
 			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
@@ -584,6 +592,7 @@ func (m *Model) renderHelp(width, height int) string {
 		}},
 		{"In a resource table", [][2]string{
 			{"↑ ↓ / j k", "Move; the next page loads as you reach the end"},
+			{"Enter", "Open the object under the cursor, custom resources included"},
 			{m.keys.Key(ActionToggleWide), "Toggle the wide columns"},
 			{"Esc", "Back to the overview"},
 		}},
