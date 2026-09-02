@@ -134,6 +134,10 @@ func (m *Model) startFleet(contexts []string) tea.Cmd {
 						// must not hold up the rest of the fleet.
 						readCtx, readCancel := context.WithTimeout(ctx, factory.Timeout())
 						apps, snapshot, err := factory.Applications(readCtx, name, workloads.Options{})
+						// The machines are read in the same breath: a broken
+						// node belongs to no application, and a fleet that
+						// counts only applications would never mention it.
+						nodes, nodesErr := factory.Nodes(readCtx, name)
 						readCancel()
 
 						switch {
@@ -144,6 +148,7 @@ func (m *Model) startFleet(contexts []string) tea.Cmd {
 							member.Applications = apps
 							member.Gaps = snapshot.Gaps
 							member.ReadAt = snapshot.FetchedAt
+							member.Nodes, member.NodesErr = nodes, nodesErr
 						}
 						select {
 						case results <- member:
@@ -230,13 +235,20 @@ func (m *Model) enterFleetRow() tea.Cmd {
 		// dashboard for this cluster is already loaded.
 		m.view = viewApplications
 		m.rebuildCommands()
-		if target.application != "" {
+		switch {
+		case target.node != "":
+			return m.openObject(objectRef{Kind: "Node", Name: target.node, Resource: "nodes"})
+		case target.application != "":
 			return m.openApplication(target.application)
 		}
 		return nil
 	}
 
 	cmd := m.switchContextScoped(target.context, target.namespace)
+	if target.node != "" {
+		m.pendingObject = objectRef{Kind: "Node", Name: target.node, Resource: "nodes"}
+		return cmd
+	}
 	if target.application == "" {
 		return cmd
 	}
@@ -252,6 +264,9 @@ type fleetTarget struct {
 	context     string
 	application string
 	namespace   string
+	// node names a machine rather than an application; Enter opens it in its
+	// cluster, like any other object.
+	node string
 }
 
 // fleetTargets lists the rows in the order the screen renders them.
@@ -259,6 +274,11 @@ func (m *Model) fleetTargets() []fleetTarget {
 	targets := make([]fleetTarget, 0, len(m.fleetMembers))
 	for _, member := range m.fleetMembers {
 		targets = append(targets, fleetTarget{context: member.Context})
+	}
+	for _, member := range m.fleetMembers {
+		for _, node := range member.UnhealthyNodes() {
+			targets = append(targets, fleetTarget{context: member.Context, node: node.Name})
+		}
 	}
 	for _, row := range m.fleetRows() {
 		for _, instance := range row.Instances {
@@ -308,6 +328,27 @@ func (m *Model) fleetData() screens.FleetData {
 		target++
 	}
 
+	nodes := screens.DetailSection{
+		Title:   "Nodes",
+		Columns: []string{"Cluster", "Node", "State", "Detail"},
+		Empty:   nodesEmpty(m.fleetMembers),
+	}
+	for _, member := range m.fleetMembers {
+		for _, node := range member.UnhealthyNodes() {
+			nodes.Rows = append(nodes.Rows, screens.DetailRow{
+				Cells: []string{
+					memberLabel(member.Context, member.Production),
+					node.Name,
+					nodeState(node),
+					nodeDetail(node),
+				},
+				Status: nodeStatus(node),
+				Target: target,
+			})
+			target++
+		}
+	}
+
 	applications := screens.DetailSection{
 		Title: "What is broken",
 		// The namespace is not decoration: the same application name in five
@@ -337,7 +378,7 @@ func (m *Model) fleetData() screens.FleetData {
 		}
 	}
 
-	d.Sections = []screens.DetailSection{clusters, applications}
+	d.Sections = []screens.DetailSection{clusters, nodes, applications}
 	return d
 }
 
@@ -359,6 +400,12 @@ func fleetSubtitle(s fleet.Summary) string {
 		parts = append(parts, count)
 		if s.Unhealthy > 0 {
 			parts = append(parts, itoa(s.Unhealthy)+" not healthy")
+		}
+		switch {
+		case s.NodesNotReady > 0:
+			parts = append(parts, itoa(s.NodesNotReady)+" of "+itoa(s.Nodes)+" nodes not ready")
+		case s.NodesPressure > 0:
+			parts = append(parts, itoa(s.NodesPressure)+" nodes under pressure")
 		}
 	}
 	return strings.Join(parts, "   ")
@@ -416,6 +463,19 @@ func memberDetail(m fleet.Member) string {
 	if counts.Degraded > 0 {
 		parts = append(parts, itoa(counts.Degraded)+" degraded")
 	}
+
+	trouble := m.NodeTrouble()
+	switch {
+	case m.NodesErr != nil:
+		parts = append(parts, "nodes not readable")
+	case trouble.NotReady > 0:
+		parts = append(parts, itoa(trouble.NotReady)+" of "+itoa(trouble.Total)+" nodes not ready")
+	case trouble.Pressure > 0:
+		parts = append(parts, itoa(trouble.Pressure)+" nodes under pressure")
+	case trouble.Cordoned > 0:
+		parts = append(parts, itoa(trouble.Cordoned)+" nodes cordoned")
+	}
+
 	if len(m.Gaps) > 0 {
 		parts = append(parts, itoa(len(m.Gaps))+" kind(s) unreadable")
 	}
@@ -423,6 +483,71 @@ func memberDetail(m fleet.Member) string {
 		return "nothing broken"
 	}
 	return strings.Join(parts, ", ")
+}
+
+// nodeState names what is wrong with a machine, in the order it matters.
+func nodeState(n application.Node) string {
+	switch {
+	case !n.Ready:
+		return "not ready"
+	case len(n.Pressure) > 0:
+		return "under pressure"
+	case n.Unschedulable:
+		return "cordoned"
+	default:
+		return "ready"
+	}
+}
+
+func nodeDetail(n application.Node) string {
+	var parts []string
+	if n.Message != "" {
+		parts = append(parts, n.Message)
+	} else if n.Reason != "" {
+		parts = append(parts, n.Reason)
+	}
+	if len(n.Pressure) > 0 {
+		parts = append(parts, strings.Join(n.Pressure, ", "))
+	}
+	if n.Unschedulable {
+		parts = append(parts, "no new pods will be placed here")
+	}
+	return strings.Join(parts, "; ")
+}
+
+func nodeStatus(n application.Node) theme.Status {
+	switch {
+	case !n.Ready:
+		return theme.StatusCritical
+	case len(n.Pressure) > 0:
+		return theme.StatusWarning
+	default:
+		return theme.StatusUnknown
+	}
+}
+
+// nodesEmpty says which nothing this is: no trouble, or nothing read yet.
+func nodesEmpty(members []fleet.Member) string {
+	answered, unreadable := 0, 0
+	for _, member := range members {
+		if member.State != fleet.Ready {
+			continue
+		}
+		answered++
+		if member.NodesErr != nil {
+			unreadable++
+		}
+	}
+	switch {
+	case answered == 0:
+		return "no cluster has answered yet"
+	case unreadable == answered:
+		return "the nodes could not be listed in any cluster"
+	case unreadable > 0:
+		return "nothing wrong with the nodes that could be read"
+	default:
+		return "every node is ready"
+	}
 }
 
 func memberStatus(m fleet.Member) theme.Status {

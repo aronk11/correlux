@@ -64,6 +64,14 @@ type Member struct {
 	Err   error
 	// Applications are what was found there, worst first.
 	Applications []application.Application
+	// Nodes are the cluster's own machines. A broken node is the most common
+	// thing that is wrong with a cluster and belongs to no application, so a
+	// fleet view that only counts applications misses it entirely.
+	Nodes []application.Node
+	// NodesErr reports that the nodes could not be listed — a scoped service
+	// account often may not — which is different from a cluster with no
+	// problems.
+	NodesErr error
 	// Gaps are the kinds that could not be read in this cluster.
 	Gaps []application.Gap
 	// ReadAt is when the answer arrived.
@@ -73,13 +81,65 @@ type Member struct {
 // Counts summarises one member by health.
 func (m Member) Counts() application.Counts { return application.Summarise(m.Applications) }
 
-// Healthy reports whether the member answered and nothing in it is broken.
+// NodeTrouble is what is wrong with a cluster's machines.
+type NodeTrouble struct {
+	Total    int
+	NotReady int
+	// Pressure counts nodes reporting memory, disk or PID pressure.
+	Pressure int
+	// Cordoned counts nodes that will take no new pods. Nothing is wrong with
+	// them yet, and a rollout will not land there.
+	Cordoned int
+}
+
+// Any reports whether anything about the nodes is worth showing.
+func (n NodeTrouble) Any() bool { return n.NotReady > 0 || n.Pressure > 0 || n.Cordoned > 0 }
+
+// Nodes summarises the member's machines.
+func (m Member) NodeTrouble() NodeTrouble {
+	trouble := NodeTrouble{Total: len(m.Nodes)}
+	for _, node := range m.Nodes {
+		switch {
+		case !node.Ready:
+			trouble.NotReady++
+		case len(node.Pressure) > 0:
+			trouble.Pressure++
+		case node.Unschedulable:
+			trouble.Cordoned++
+		}
+	}
+	return trouble
+}
+
+// UnhealthyNodes returns the nodes worth naming, worst first.
+func (m Member) UnhealthyNodes() []application.Node {
+	out := make([]application.Node, 0, len(m.Nodes))
+	for _, node := range m.Nodes {
+		if !node.Ready || len(node.Pressure) > 0 || node.Unschedulable {
+			out = append(out, node)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Ready != out[j].Ready {
+			return !out[i].Ready
+		}
+		if len(out[i].Pressure) != len(out[j].Pressure) {
+			return len(out[i].Pressure) > len(out[j].Pressure)
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+// Healthy reports whether the member answered and nothing in it is broken —
+// applications and machines both.
 func (m Member) Healthy() bool {
 	if m.State != Ready {
 		return false
 	}
 	counts := m.Counts()
-	return counts.Down == 0 && counts.Degraded == 0
+	trouble := m.NodeTrouble()
+	return counts.Down == 0 && counts.Degraded == 0 && trouble.NotReady == 0 && trouble.Pressure == 0
 }
 
 // Instance is one application as it exists in one cluster.
@@ -131,6 +191,10 @@ type Summary struct {
 	Counts   application.Counts
 	// Unhealthy is how many application instances are degraded or down.
 	Unhealthy int
+	// Nodes across the fleet, and how many of them are not well.
+	Nodes         int
+	NodesNotReady int
+	NodesPressure int
 }
 
 // Rows merges the members' applications into one list, worst first.
@@ -184,6 +248,10 @@ func Summarise(members []Member) Summary {
 		switch member.State {
 		case Ready:
 			s.Answered++
+			trouble := member.NodeTrouble()
+			s.Nodes += trouble.Total
+			s.NodesNotReady += trouble.NotReady
+			s.NodesPressure += trouble.Pressure
 			counts := member.Counts()
 			s.Counts.Total += counts.Total
 			s.Counts.Healthy += counts.Healthy
