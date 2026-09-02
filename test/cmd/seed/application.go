@@ -4,12 +4,16 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 )
 
@@ -35,13 +39,18 @@ func healthFor(index int) health {
 	}
 }
 
-// seedApplication creates one application: a paused Deployment, the ReplicaSet
-// it owns, the pods that ReplicaSet owns, and the Service, ConfigMap and Secret
-// that belong with them.
+// seedApplication creates one application: a paused Deployment, the pods that
+// belong to it, the ReplicaSet that adopts them, and the Service, ConfigMap and
+// Secret that go with them.
 //
-// The Deployment is paused and the ReplicaSet is already at its desired count,
-// so the real controllers observe a satisfied state and create nothing of their
-// own — the cluster stays exactly as large as the seeder made it.
+// The order matters, and it is the whole trick. A ReplicaSet whose selector
+// matches fewer pods than it wants has the controller create the difference —
+// and those pods go through the scheduler, which cannot place them on a node
+// with no kubelet, so they sit Pending forever. Creating the pods *first*, as
+// orphans, and the ReplicaSet *after* means the controller finds its desired
+// count already satisfied and adopts them, writing the owner references itself.
+// The result is the ownership chain a real cluster has, and nothing to
+// reconcile.
 func seedApplication(ctx context.Context, c *clients, opts options, namespace, app string) error {
 	state := healthFor(hash(namespace + app))
 	selector := map[string]string{"app.kubernetes.io/name": app}
@@ -49,22 +58,70 @@ func seedApplication(ctx context.Context, c *clients, opts options, namespace, a
 		"app.kubernetes.io/name":     app,
 		"app.kubernetes.io/instance": app,
 		"pod-template-hash":          "seed",
+		seededLabel:                  "true",
 	})
 
-	// Clamped to the int32 range just above, so the conversion cannot overflow.
-	//nolint:gosec // G115: the value is bounded by the clamp on the previous line
+	// Clamped to the int32 range, so the conversion cannot overflow.
+	//nolint:gosec // G115: the value is bounded by the clamp on this line
 	replicas := int32(min(max(opts.podsPerApp, 0), math.MaxInt32))
 	ready := replicas
 	switch state {
 	case degraded:
-		ready = replicas - 1
+		ready = max(replicas-1, 0)
 	case down:
 		ready = 0
 	}
-	if ready < 0 {
-		ready = 0
+
+	deployment, err := ensureDeployment(ctx, c, namespace, app, selector, podLabels, replicas)
+	if err != nil {
+		return err
 	}
 
+	// Before touching the pods, release an existing ReplicaSet whose size no
+	// longer matches. Deleting it with Orphan propagation leaves the pods
+	// running and strips their owner references, so no controller reacts while
+	// the set is being resized; the ReplicaSet recreated at the end adopts
+	// whatever is there.
+	if err := releaseReplicaSetIfResized(ctx, c, namespace, app, replicas); err != nil {
+		return err
+	}
+	if err := sweepControllerPods(ctx, c, namespace, app); err != nil {
+		return err
+	}
+
+	for i := 0; i < opts.podsPerApp; i++ {
+		podState := healthy
+		if int64(i) >= int64(ready) {
+			podState = state
+		}
+		if err := seedPod(ctx, c, namespace, app, podLabels, i, podState); err != nil {
+			return err
+		}
+	}
+	// A previous run may have asked for more pods than this one does.
+	if err := trimSurplusPods(ctx, c, namespace, app, opts.podsPerApp); err != nil {
+		return err
+	}
+
+	if err := ensureReplicaSet(ctx, c, namespace, app, deployment, podLabels, replicas); err != nil {
+		return err
+	}
+	if err := seedService(ctx, c, namespace, app, selector); err != nil {
+		return err
+	}
+	return seedConfig(ctx, c, namespace, app)
+}
+
+// ensureDeployment creates the paused Deployment at the head of the chain.
+// Paused, so the deployment controller does not create a ReplicaSet of its own
+// alongside the seeded one.
+func ensureDeployment(
+	ctx context.Context,
+	c *clients,
+	namespace, app string,
+	selector, podLabels map[string]string,
+	replicas int32,
+) (*appsv1.Deployment, error) {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      app,
@@ -79,13 +136,65 @@ func seedApplication(ctx context.Context, c *clients, opts options, namespace, a
 		},
 	}
 	if err := created(createDeployment(ctx, c, namespace, deployment)); err != nil {
-		return fmt.Errorf("deployment %s/%s: %w", namespace, app, err)
-	}
-	deployment, getErr := c.core.AppsV1().Deployments(namespace).Get(ctx, app, metav1.GetOptions{})
-	if getErr != nil {
-		return getErr
+		return nil, fmt.Errorf("deployment %s/%s: %w", namespace, app, err)
 	}
 
+	current, err := c.core.AppsV1().Deployments(namespace).Get(ctx, app, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if current.Spec.Replicas != nil && *current.Spec.Replicas == replicas {
+		return current, nil
+	}
+	if err := resizeDeployment(ctx, c, current, replicas); err != nil {
+		return nil, fmt.Errorf("resize deployment %s/%s: %w", namespace, app, err)
+	}
+	return current, nil
+}
+
+// releaseReplicaSetIfResized removes a ReplicaSet whose desired count no longer
+// matches, without touching the pods it owns.
+func releaseReplicaSetIfResized(ctx context.Context, c *clients, namespace, app string, replicas int32) error {
+	rsName := app + "-seed"
+	existing, err := c.core.AppsV1().ReplicaSets(namespace).Get(ctx, rsName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	if existing.Spec.Replicas != nil && *existing.Spec.Replicas == replicas {
+		return nil
+	}
+
+	orphan := metav1.DeletePropagationOrphan
+	if delErr := c.core.AppsV1().ReplicaSets(namespace).Delete(ctx, rsName, metav1.DeleteOptions{
+		PropagationPolicy: &orphan,
+	}); delErr != nil && !apierrors.IsNotFound(delErr) {
+		return fmt.Errorf("release replicaset %s/%s: %w", namespace, rsName, delErr)
+	}
+
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, time.Minute, true,
+		func(ctx context.Context) (bool, error) {
+			_, getErr := c.core.AppsV1().ReplicaSets(namespace).Get(ctx, rsName, metav1.GetOptions{})
+			if apierrors.IsNotFound(getErr) {
+				return true, nil
+			}
+			return false, getErr
+		})
+}
+
+// ensureReplicaSet creates the ReplicaSet that adopts the pods seeded above.
+// By the time it runs, the pods already match the desired count, so the
+// controller has nothing to create.
+func ensureReplicaSet(
+	ctx context.Context,
+	c *clients,
+	namespace, app string,
+	deployment *appsv1.Deployment,
+	podLabels map[string]string,
+	replicas int32,
+) error {
 	rsName := app + "-seed"
 	rs := &appsv1.ReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -108,25 +217,54 @@ func seedApplication(ctx context.Context, c *clients, opts options, namespace, a
 	if err := created(createReplicaSet(ctx, c, namespace, rs)); err != nil {
 		return fmt.Errorf("replicaset %s/%s: %w", namespace, rsName, err)
 	}
-	rs, getErr = c.core.AppsV1().ReplicaSets(namespace).Get(ctx, rsName, metav1.GetOptions{})
-	if getErr != nil {
-		return getErr
-	}
 
-	for i := 0; i < opts.podsPerApp; i++ {
-		podState := healthy
-		if int64(i) >= int64(ready) {
-			podState = state
-		}
-		if err := seedPod(ctx, c, namespace, app, rs, podLabels, i, podState); err != nil {
-			return err
-		}
-	}
+	return nil
+}
 
-	if err := seedService(ctx, c, namespace, app, selector); err != nil {
-		return err
+// sweepControllerPods removes pods a ReplicaSet controller created itself.
+// They are recognisable by the absence of the seeder's own label, they can
+// never run — the scheduler cannot place a pod on a node with no kubelet — and
+// leaving them would skew every count in the cluster.
+func sweepControllerPods(ctx context.Context, c *clients, namespace, app string) error {
+	pods, err := c.core.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=" + app + ",!" + seededLabel,
+	})
+	if err != nil {
+		return fmt.Errorf("list controller pods in %s: %w", namespace, err)
 	}
-	return seedConfig(ctx, c, namespace, app)
+	for i := range pods.Items {
+		name := pods.Items[i].Name
+		if delErr := c.core.CoreV1().Pods(namespace).Delete(ctx, name, metav1.DeleteOptions{
+			GracePeriodSeconds: ptr(int64(0)),
+		}); delErr != nil && !apierrors.IsNotFound(delErr) {
+			return fmt.Errorf("delete controller pod %s/%s: %w", namespace, name, delErr)
+		}
+	}
+	return nil
+}
+
+// trimSurplusPods removes the pods a previous, larger run left behind, so the
+// ReplicaSet finds exactly the count it wants and creates nothing.
+func trimSurplusPods(ctx context.Context, c *clients, namespace, app string, want int) error {
+	pods, err := c.core.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/name=" + app,
+	})
+	if err != nil {
+		return fmt.Errorf("list pods of %s/%s: %w", namespace, app, err)
+	}
+	if len(pods.Items) <= want {
+		return nil
+	}
+	sort.Slice(pods.Items, func(i, j int) bool { return pods.Items[i].Name < pods.Items[j].Name })
+	for i := want; i < len(pods.Items); i++ {
+		name := pods.Items[i].Name
+		if delErr := c.core.CoreV1().Pods(namespace).Delete(ctx, name, metav1.DeleteOptions{
+			GracePeriodSeconds: ptr(int64(0)),
+		}); delErr != nil && !apierrors.IsNotFound(delErr) {
+			return fmt.Errorf("delete surplus pod %s/%s: %w", namespace, name, delErr)
+		}
+	}
+	return nil
 }
 
 func podTemplate(app string, podLabels map[string]string) corev1.PodTemplateSpec {
@@ -136,6 +274,10 @@ func podTemplate(app string, podLabels map[string]string) corev1.PodTemplateSpec
 			// Bound directly to the synthetic node: no scheduler involved and
 			// no kubelet to start anything.
 			NodeName: nodeName,
+			// No kubelet also means nobody confirms a deletion, so a pod with
+			// the usual grace period would sit in Terminating forever. Zero
+			// makes the API server remove the object immediately.
+			TerminationGracePeriodSeconds: ptr(int64(0)),
 			Tolerations: []corev1.Toleration{
 				{Key: "kubeui.dev/synthetic", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
 				// The node has no kubelet, so the node lifecycle controller will
@@ -157,7 +299,6 @@ func seedPod(
 	ctx context.Context,
 	c *clients,
 	namespace, app string,
-	rs *appsv1.ReplicaSet,
 	podLabels map[string]string,
 	index int,
 	state health,
@@ -166,13 +307,12 @@ func seedPod(
 	template := podTemplate(app, podLabels)
 
 	pod := &corev1.Pod{
+		// No owner reference: the ReplicaSet created afterwards adopts the pod
+		// and writes one itself, exactly as it would for any orphan.
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 			Labels:    podLabels,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(rs, appsv1.SchemeGroupVersion.WithKind("ReplicaSet")),
-			},
 		},
 		Spec: template.Spec,
 	}
@@ -290,6 +430,22 @@ func seedConfig(ctx context.Context, c *clients, namespace, app string) error {
 	}
 	return nil
 }
+
+// resizeDeployment keeps a repeated run with a different --pods-per-app
+// consistent. The deployment is paused, so this only changes what it reports.
+func resizeDeployment(ctx context.Context, c *clients, obj *appsv1.Deployment, replicas int32) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := c.core.AppsV1().Deployments(obj.Namespace).Get(ctx, obj.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		current.Spec.Replicas = &replicas
+		_, err = c.core.AppsV1().Deployments(obj.Namespace).Update(ctx, current, metav1.UpdateOptions{})
+		return err
+	})
+}
+
+func ptr[T any](v T) *T { return &v }
 
 // hash is a small, stable string hash: the health mix must be identical between
 // runs so a benchmark comparison is meaningful.

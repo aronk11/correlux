@@ -41,7 +41,10 @@ const (
 	managedByLabel = "app.kubernetes.io/managed-by"
 	managedByValue = "kubeui-seed"
 	nodeName       = "kubeui-load-node"
-	crdGroup       = "load.kubeui.dev"
+	// seededLabel marks pods the seeder created itself, so pods a controller
+	// created during a resize can be told apart and removed.
+	seededLabel = "kubeui.dev/seeded"
+	crdGroup    = "load.kubeui.dev"
 )
 
 type options struct {
@@ -167,7 +170,19 @@ func seed(ctx context.Context, c *clients, opts options) error {
 		return err
 	}
 
+	// The ReplicaSet controllers work from an informer cache, so one may create
+	// a pod or two before it observes the ones the seeder just made. Those are
+	// scheduler-bound, can never run, and would skew every count — so settle
+	// the cluster before declaring the run finished.
+	strays, err := settle(ctx, c)
+	if err != nil {
+		return err
+	}
+
 	elapsed := time.Since(start)
+	if strays > 0 {
+		logf(opts, "removed %d pod(s) created by controllers during seeding\n", strays)
+	}
 	fmt.Printf("seeded %d pods across %d namespaces in %s (%.0f objects/s)\n",
 		total, opts.namespaces, elapsed.Round(time.Millisecond),
 		float64(objectCount(opts))/elapsed.Seconds())
@@ -176,6 +191,40 @@ func seed(ctx context.Context, c *clients, opts options) error {
 
 // objectCount is the number of API objects a full run creates, used for the
 // throughput figure the load workflow records.
+// settle repeatedly removes pods no controller can ever schedule, until a pass
+// finds none. It returns how many it removed.
+func settle(ctx context.Context, c *clients) (int, error) {
+	const passes = 8
+	removed := 0
+
+	for pass := 0; pass < passes; pass++ {
+		pods, err := c.core.CoreV1().Pods("").List(ctx, metav1.ListOptions{
+			LabelSelector: managedByLabel + "=" + managedByValue + ",!" + seededLabel,
+		})
+		if err != nil {
+			return removed, fmt.Errorf("list unmanaged pods: %w", err)
+		}
+		if len(pods.Items) == 0 {
+			return removed, nil
+		}
+		for i := range pods.Items {
+			pod := &pods.Items[i]
+			if delErr := c.core.CoreV1().Pods(pod.Namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{
+				GracePeriodSeconds: ptr(int64(0)),
+			}); delErr != nil && !apierrors.IsNotFound(delErr) {
+				return removed, fmt.Errorf("delete pod %s/%s: %w", pod.Namespace, pod.Name, delErr)
+			}
+			removed++
+		}
+		select {
+		case <-ctx.Done():
+			return removed, ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+	return removed, nil
+}
+
 func objectCount(opts options) int {
 	perApp := 1 + 1 + 1 + 1 + 1 + opts.podsPerApp // deployment, rs, service, configmap, secret, pods
 	return opts.namespaces*(opts.appsPerNamespace*perApp+opts.crds*opts.customResources) + opts.namespaces
