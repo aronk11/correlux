@@ -46,8 +46,13 @@ Around that:
   deletion when there is no kubelet, so ordinary pods would sit in Terminating
   forever and a namespace holding one could never be deleted.
 - The seeded cluster is deliberately **not healthy**: a fixed, reproducible
-  share of applications are degraded or down. A tool for finding what is broken
-  must be tested on a cluster that has something broken in it.
+  share of applications are degraded (ImagePullBackOff) or down (a
+  CrashLoopBackOff whose last termination was OOMKilled). A tool for finding
+  what is broken must be tested on a cluster that has something broken in it.
+  Breakage is modelled the way a real cluster expresses it — a pod stuck in a
+  restart loop stays in phase Running — which is also what stops the ReplicaSet
+  controller from treating those pods as gone and creating replacements the
+  scheduler could never place.
 - CRDs are installed with `additionalPrinterColumns`, including one with
   `priority: 1`, so the table rendering in
   [ADR 13](0013-server-side-tables.md) is verified end to end rather than
