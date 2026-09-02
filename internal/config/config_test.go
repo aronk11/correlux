@@ -178,3 +178,114 @@ func TestTheFleetIsEmptyUntilItIsNamed(t *testing.T) {
 		t.Errorf("fleet = %v, want the two named contexts", cfg.Fleet)
 	}
 }
+
+func TestTheConfigLivesWhereTheOperatingSystemPutsIt(t *testing.T) {
+	// KUBEUI_CONFIG_DIR wins over everything, which is what the tests and a
+	// container image both need.
+	override := t.TempDir()
+	t.Setenv("KUBEUI_CONFIG_DIR", override)
+
+	dir, err := Dir()
+	if err != nil {
+		t.Fatalf("Dir: %v", err)
+	}
+	if dir != override {
+		t.Errorf("dir = %q, want the override %q", dir, override)
+	}
+
+	path, err := Path()
+	if err != nil {
+		t.Fatalf("Path: %v", err)
+	}
+	if path != filepath.Join(override, "config.yaml") {
+		t.Errorf("path = %q, want the file inside the directory", path)
+	}
+}
+
+func TestXDGIsHonouredWhereItApplies(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows uses APPDATA")
+	}
+	xdg := t.TempDir()
+	t.Setenv("KUBEUI_CONFIG_DIR", "")
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	dir, err := Dir()
+	if err != nil {
+		t.Fatalf("Dir: %v", err)
+	}
+	if dir != filepath.Join(xdg, "kubeui") {
+		t.Errorf("dir = %q, want the XDG location", dir)
+	}
+}
+
+func TestLoadDefaultReadsTheFileWhereItLives(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("KUBEUI_CONFIG_DIR", dir)
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"),
+		[]byte("theme: light\nfleet: [prod-eu]\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	cfg, err := LoadDefault()
+	if err != nil {
+		t.Fatalf("LoadDefault: %v", err)
+	}
+	if cfg.Theme != ThemeLight || len(cfg.Fleet) != 1 {
+		t.Errorf("config = %+v, want the file's contents", cfg)
+	}
+	if cfg.SourcePath == "" {
+		t.Error("the config must record where it came from, so help can say so")
+	}
+}
+
+func TestNoFileAtAllIsNotAnError(t *testing.T) {
+	t.Setenv("KUBEUI_CONFIG_DIR", t.TempDir())
+
+	cfg, err := LoadDefault()
+	if err != nil {
+		t.Fatalf("running without a config file must work: %v", err)
+	}
+	if cfg.Theme != ThemeAuto {
+		t.Errorf("theme = %q, want the default", cfg.Theme)
+	}
+	if cfg.SourcePath != "" {
+		t.Errorf("source = %q, want nothing: no file was read", cfg.SourcePath)
+	}
+}
+
+func TestAnUnknownThemeFallsBackRatherThanFailing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("theme: neon\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("a theme nobody has is not worth refusing to start over: %v", err)
+	}
+	if cfg.Theme != ThemeAuto {
+		t.Errorf("theme = %q, want the automatic one", cfg.Theme)
+	}
+}
+
+func TestDefaultsSurviveAFileThatSetsNothing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("startup:\n  namespace: payments\n"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Safety.ProductionPatterns) == 0 {
+		t.Error("the production patterns must not be emptied by a file that never mentioned them")
+	}
+	if cfg.Keybindings == nil {
+		t.Error("keybindings must always be a map, so callers need not check")
+	}
+	if cfg.Startup.Namespace != "payments" {
+		t.Errorf("what the file did say must survive: %+v", cfg.Startup)
+	}
+}
