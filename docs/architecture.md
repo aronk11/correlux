@@ -7,6 +7,11 @@ How kubeui is put together today. The *why* lives in [the ADRs](adr/README.md).
 ```
 kubeconfig ──▶ kube/kubeconfig ──▶ kube/client (REST config, clientset, probes)
                                           │
+                                          ├──▶ kube/workloads   one bounded pass over a scope
+                                          │            │
+                                          │            ▼
+                                          │    domain/application   grouping + health (pure)
+                                          │
                                           │  cancellable, generation-tagged
                                           ▼
                                    ui/app  (tea.Cmd)
@@ -36,12 +41,14 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 | `internal/kube/client` | REST configs and clientsets per context, connectivity probes, error classification, namespace listing, discovery and table listing. |
 | `internal/kube/discovery` | The catalog of every resource kind the cluster serves, native and custom, tolerant of partially broken discovery. |
 | `internal/kube/resources` | Lists any resource as a server-rendered table, paged and cancellable. |
+| `internal/kube/workloads` | One bounded, concurrent pass over a scope, converted into a domain snapshot. A kind that cannot be read becomes a gap, not a failure. |
+| `internal/domain/application` | Infers applications from ownership, labels and selectors, and derives their health. Pure; knows nothing about client-go ([ADR 16](adr/0016-application-inference.md)). |
 | `internal/ui/async` | `Value[T]`: lifecycle plus generation counter for every remote value. |
 | `internal/ui/layout` | Screen geometry and the resize debouncer. Pure arithmetic. |
 | `internal/ui/theme` | Colours, glyphs, terminal capability detection. |
 | `internal/ui/palette` | Command registry and fuzzy ranking. No UI dependency. |
 | `internal/ui/components` | Reusable widgets: input, selector, header, status bar. |
-| `internal/ui/screens` | Full-window views (overview, resource table); data in, string out. |
+| `internal/ui/screens` | Full-window views (application dashboard, application detail, resource table, session); data in, string out. |
 | `internal/ui/app` | The Bubble Tea model: keys, overlays, commands, rendering. |
 
 ## Start-up sequence
@@ -52,7 +59,8 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 4. Resolve the starting context: `--context` → config `startup.context` →
    `current-context` → the only context.
 5. Build the model and **render the first frame**. No API call has happened yet.
-6. Probe the cluster and load namespaces as asynchronous commands.
+6. Probe the cluster, load namespaces, discover the resource catalog and collect
+   the applications, as four independent asynchronous commands.
 
 Step 5 is the important one: kubeui is usable and informative against a cluster
 that is down, because reaching the cluster is never a precondition for drawing.
@@ -67,6 +75,16 @@ that is down, because reaching the cluster is never a precondition for drawing.
 - The model itself is only touched from `Update`, on Bubble Tea's own goroutine.
   Shared state below that (the client cache) is mutex-protected.
 - CI runs the test suite under `-race`.
+
+## Refreshing
+
+Nothing polls until the user asks it to (`Ctrl+F`). When they do, a `tea.Tick`
+loop reloads **only what the current screen shows**, never stacks a request on
+one still in flight, idles behind an overlay, leaves a deeply paged table alone
+and backs off while the cluster is unreachable. The cursor follows the object it
+was on rather than the row number, because both the dashboard and a refreshed
+table re-sort underneath it. The reasoning, and why this is not informers, is in
+[ADR 17](adr/0017-timed-refresh-not-watches.md).
 
 ## Rendering
 
@@ -89,15 +107,23 @@ Two layers, with different jobs.
 - `kube/client` uses `client-go`'s fake clientset, including the
   denied-permission path; `kube/resources` uses an HTTP stub, so table decoding
   and path construction are covered without a cluster.
+- `domain/application` is tested by writing down objects and the grouping they
+  must produce: every inference rule is one table-free test.
+- `kube/workloads` uses the fake clientset, including the denied-kind and
+  page-budget paths.
 - `ui/app` is tested by driving the model with synthetic key and message events
   and asserting on the rendered frame — including that no overlay ever overflows
-  the terminal at any of five sizes.
+  the terminal at any of five sizes, that loading never reads as empty, and that
+  a timed refresh does not move the cursor.
 
 **Integration tests** (`task test:integration`, behind the `integration` build
 tag, against a seeded kind cluster):
 
 - Discovery really finds CRDs; the API server really renders their printer
   columns; paging really terminates without repeating an object.
+- Applications inferred from the seeded cluster own their real pods and
+  services, no ReplicaSet is presented as a workload, and health agrees with the
+  replica counts the cluster reports.
 - A deliberately broken aggregated API degrades discovery to a partial result
   instead of an empty screen.
 - The application is driven end to end against the live cluster: commands are
