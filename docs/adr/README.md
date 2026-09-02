@@ -22,6 +22,7 @@ for the process; the format is Michael Nygard's: context, decision, consequences
 | [15](0015-signed-commits.md) | Every commit is signed | accepted |
 | [16](0016-application-inference.md) | Applications are inferred from the cluster, not declared to kubeui | accepted |
 | [17](0017-timed-refresh-not-watches.md) | The screen reloads on a timer the user turns on, not on watches | accepted |
+| [18](0018-evidence-on-demand.md) | A diagnosis is built from evidence fetched on demand, not from a cache | accepted |
 
 ## Adding one
 

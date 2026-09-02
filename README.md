@@ -13,9 +13,10 @@ types.
 > **Status: early.** Implemented so far: the application dashboard, which infers
 > applications from the cluster's own ownership, labels and selectors and sorts
 > them worst first; cluster and namespace switching; the command palette; an
-> optional timed refresh; and a resource browser that lists **every** kind the
-> cluster serves — custom resources included — with the API server's own
-> columns. The WHY diagnosis engine, logs and exec are next. See
+> optional timed refresh; the deterministic WHY engine that explains an
+> unhealthy application from the cluster's own evidence; and a resource browser
+> that lists **every** kind the cluster serves — custom resources included —
+> with the API server's own columns. Logs and exec are next. See
 > [the roadmap](#roadmap). Nothing in the UI is a mock-up: if kubeui does not
 > know something yet, it says so.
 
@@ -60,6 +61,7 @@ kubeui version
 | `Ctrl+P` | Command palette — every action, searchable by name |
 | `Ctrl+A` | Back to the application dashboard |
 | `Enter` | Open the application under the cursor |
+| `Ctrl+W` | Why is this unhealthy? |
 | `Ctrl+B` | Browse resource kinds, custom resources included |
 | `Ctrl+K` | Switch cluster |
 | `Ctrl+O` | Switch namespace |
@@ -93,8 +95,40 @@ workloads, pods and network it is actually made of
 ([ADR 16](docs/adr/0016-application-inference.md)).
 
 Health comes from what the cluster reports — replica counts and pod states —
-and stops there. *Why* something is broken is the diagnosis engine's job, and
-that is Phase 3.
+and stops there. *Why* something is broken is the next section's question.
+
+### Why is it broken?
+
+`Ctrl+W` explains the selected application, deterministically and without a
+model anywhere near it:
+
+```
+✖ 3 pods restart in a loop
+  Deployment/payments → Pods → CrashLoopBackOff → OOMKilled
+  WHY
+    the container is killed for exceeding its memory limit (exit 137)
+  EVIDENCE
+    Pod/payments-7d8f-0
+      container payments was killed for exceeding its memory limit, restarted 12 times
+    Event/payments-7d8f-0  1m ago
+      BackOff: Back-off restarting failed container payments (x41)
+  WHAT TO CHECK
+    • Read the logs of the run that failed, not of the one waiting to start
+      kubectl logs -n shop payments-7d8f-0 -c payments --previous
+  confidence: high
+```
+
+Thirteen rules cover crash loops, image pulls, missing config, OOM kills,
+unschedulable pods, failing probes, missing replicas, services without
+endpoints, ingresses without a backend, unhealthy nodes and unbound volumes.
+Each one reads what the cluster reported and stops there: where the cluster did
+not say why, kubeui says so and lowers its confidence rather than inventing a
+plausible cause. Every finding carries the evidence it rests on, attributed to
+the object that stated it.
+
+The evidence — events, endpoints, node conditions, volume claims — is fetched
+when you open an application or ask the question, never on the dashboard's
+timer ([ADR 18](docs/adr/0018-evidence-on-demand.md)).
 
 ### Keeping up with a rollout
 
@@ -154,6 +188,7 @@ dangerousActions:
 keybindings:
   palette: ctrl+p
   applications: ctrl+a
+  why: ctrl+w
   context.picker: ctrl+k
   namespace.picker: ctrl+o
   resource.picker: ctrl+b
@@ -181,8 +216,8 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | — | kind-based integration and load testing harness | **done** |
 | 2 | Application discovery and the application-first dashboard | **done** |
 | — | Timed refresh, mouse-wheel scrolling | **done** |
-| 3 | Deterministic WHY diagnosis engine | next |
-| 4 | Logs, exec, object detail, clipboard | planned |
+| 3 | Deterministic WHY diagnosis engine | **done** |
+| 4 | Logs, exec, object detail, clipboard | next |
 | 5 | Safe mutating actions | planned |
 | 6 | Large-cluster performance work, guided by the benchmarks | planned |
 | 7 | Platform polish across macOS, Linux and Windows | planned |
