@@ -510,8 +510,12 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 		return nil
 	}
 
-	if sel := m.activeSelector(); sel != nil {
-		sel.ScrollBy(delta)
+	if m.overlay != overlayNone {
+		// The overlay owns the pointer while it is open, even the help, which
+		// has nothing to scroll: the view behind it must not move.
+		if sel := m.activeSelector(); sel != nil {
+			sel.ScrollBy(delta)
+		}
 		return nil
 	}
 	switch m.view {
