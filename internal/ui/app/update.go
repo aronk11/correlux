@@ -820,6 +820,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.toggleObjectYAML()
 		}
 		return nil
+	case ActionDecode:
+		if m.view == viewObject {
+			m.toggleObjectDecode()
+		}
+		return nil
 	case ActionScale:
 		return m.scaleTarget()
 	case ActionEdit:

@@ -30,6 +30,7 @@ const (
 	ActionSearch          = "search"
 	ActionWhy             = "why"
 	ActionYAML            = "object.yaml"
+	ActionDecode          = "object.decode"
 	ActionScale           = "scale"
 	ActionEdit            = "edit"
 	ActionLogs            = "logs"
@@ -68,6 +69,7 @@ var DefaultBindings = map[string]string{
 	ActionSearch:          "/",
 	ActionWhy:             "ctrl+w",
 	ActionYAML:            "y",
+	ActionDecode:          "b",
 	ActionScale:           "S",
 	ActionEdit:            "e",
 	ActionLogs:            "l",

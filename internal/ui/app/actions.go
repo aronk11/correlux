@@ -27,6 +27,7 @@ const (
 	paletteOpenApp         palette.ActionID = "open.application"
 	paletteExplain         palette.ActionID = "explain"
 	paletteToggleYAML      palette.ActionID = "object.yaml"
+	paletteToggleDecode    palette.ActionID = "object.decode"
 	paletteScale           palette.ActionID = "scale"
 	paletteEdit            palette.ActionID = "edit"
 	paletteLogs            palette.ActionID = "logs"
@@ -270,6 +271,16 @@ func (m *Model) rebuildCommands() {
 			Shortcut: m.keys.Key(ActionYAML),
 			Weight:   85,
 			Enabled:  true,
+		}, palette.Command{
+			ID:       "cmd.decode",
+			Action:   paletteToggleDecode,
+			Title:    decodeTitle(m.objectDecode),
+			Subtitle: m.objectTarget.label(),
+			Category: "View",
+			Keywords: []string{"base64", "decode", "secret", "reveal", "plain", "value"},
+			Shortcut: m.keys.Key(ActionDecode),
+			Weight:   84,
+			Enabled:  true,
 		})
 	}
 
@@ -501,6 +512,14 @@ func yamlTitle(showing bool) string {
 	return "Show the document the server holds"
 }
 
+// decodeTitle names what the command will do next.
+func decodeTitle(decoding bool) string {
+	if decoding {
+		return "Show the values as the server stores them"
+	}
+	return "Decode the base64 values in this document"
+}
+
 func wideTitle(wide bool) string {
 	if wide {
 		return "Hide wide columns"
@@ -604,6 +623,9 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.toggleWide()
 	case paletteToggleYAML:
 		m.toggleObjectYAML()
+		return nil
+	case paletteToggleDecode:
+		m.toggleObjectDecode()
 		return nil
 	case paletteScale:
 		return m.scaleTarget()
