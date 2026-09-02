@@ -66,7 +66,7 @@ func RenderTable(t *theme.Theme, d TableData, width, height int) string {
 
 	visible := d.Visible(height)
 	end := min(d.Offset+visible, len(d.Rows))
-	start := clamp(d.Offset, 0, max(len(d.Rows)-1, 0))
+	start := clamp(d.Offset, max(len(d.Rows)-1, 0))
 	if start > end {
 		start = end
 	}
@@ -220,9 +220,11 @@ func pad(s string, width int) string {
 	return truncateTo(s, width)
 }
 
-func clamp(v, lo, hi int) int {
-	if v < lo {
-		return lo
+// clamp keeps v inside [0, hi]: every position a screen tracks is an index
+// into lines or rows, and those start at zero.
+func clamp(v, hi int) int {
+	if v < 0 {
+		return 0
 	}
 	if v > hi {
 		return hi

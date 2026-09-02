@@ -74,7 +74,7 @@ func RenderWhy(t *theme.Theme, d WhyData, width, height int) string {
 	}
 
 	lines := whyLines(t, d, width)
-	offset := clamp(d.Offset, 0, max(len(lines)-1, 0))
+	offset := clamp(d.Offset, max(len(lines)-1, 0))
 	end := min(offset+height, len(lines))
 	return strings.Join(lines[offset:end], "\n")
 }

@@ -44,6 +44,9 @@ const (
 	viewApplication
 	// viewWhy is the explanation of why an application is unhealthy.
 	viewWhy
+	// viewObject is one object: what it is, what it is related to, and the
+	// document the server holds for it.
+	viewObject
 	// viewOverview is the session and connection summary.
 	viewOverview
 	// viewTable lists the objects of one resource kind.
@@ -90,6 +93,7 @@ type Model struct {
 	// evidence is the extra context a diagnosis needs. It is loaded for the
 	// scope the user is looking at, never for the whole cluster.
 	evidence async.Value[application.Context]
+	object   async.Value[*resources.Object]
 
 	// The application dashboard.
 	appCursor int
@@ -99,7 +103,18 @@ type Model struct {
 	// would then follow the ranking instead of the application.
 	selectedApp  string
 	detailOffset int
+	detailCursor int
 	whyOffset    int
+
+	// The object inspector.
+	objectTarget objectRef
+	// objectTrail is the way back out: opening an owner or a child pushes the
+	// object it was opened from, so Esc retraces the path instead of dumping
+	// the user at the top.
+	objectTrail  []objectRef
+	objectOffset int
+	objectCursor int
+	objectYAML   bool
 	// findings are the diagnoses per application key, computed once per load
 	// rather than on every frame: View must stay a cheap pure function.
 	findings map[string][]diagnosis.Diagnosis
@@ -123,6 +138,7 @@ type Model struct {
 	// top of one that has not answered yet.
 	appsLoading     bool
 	evidenceLoading bool
+	objectLoading   bool
 	tableLoading    bool
 	clusterLoading  bool
 
@@ -133,6 +149,7 @@ type Model struct {
 	cancelTable      context.CancelFunc
 	cancelApps       context.CancelFunc
 	cancelEvidence   context.CancelFunc
+	cancelObject     context.CancelFunc
 
 	// Geometry.
 	screen        layout.Screen
