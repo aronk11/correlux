@@ -136,6 +136,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.object.Succeed(msg.gen, msg.object)
 		return m, nil
 
+	case usageLoadedMsg:
+		m.applyUsage(msg)
+		return m, nil
+
 	case scaledMsg:
 		return m, m.applyScaled(msg)
 
@@ -301,6 +305,14 @@ func (m *Model) autoReload() []tea.Cmd {
 			cmds = append(cmds, m.loadEvidence())
 		}
 		return cmds
+	case viewUsage:
+		// Two requests a tick — the pods, and the nodes with the metrics — and
+		// only while somebody is looking at this screen. The dashboard's own
+		// timer never pays for them.
+		if m.appsLoading || m.usageLoading {
+			return nil
+		}
+		return []tea.Cmd{m.loadApplications(), m.loadUsage()}
 	case viewTable:
 		// Only the first page is refreshed. Someone who has paged deep into a
 		// large resource would otherwise watch their rows disappear every tick.
@@ -355,6 +367,9 @@ func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
 	m.refreshFailures = 0
 	m.keepCursorOnApplication(previous)
 	m.rediagnose()
+	// The usage view is built on this snapshot; a reload of one is a reload of
+	// the other.
+	m.recomputeUsage()
 	m.rebuildCommands()
 
 	if m.pendingApplication != "" {
@@ -742,6 +757,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			if cmd, handled := m.handleLogsKey(keystroke); handled {
 				return cmd
 			}
+		case viewUsage:
+			if cmd, handled := m.handleUsageKey(keystroke); handled {
+				return cmd
+			}
 		case viewFleet:
 			if cmd, handled := m.handleFleetKey(keystroke); handled {
 				return cmd
@@ -788,6 +807,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			return m.closeLogs()
 		}
 		return m.openLogs()
+	case ActionUsage:
+		return m.openUsage()
 	case ActionRefresh:
 		return m.refresh()
 	case ActionAutoRefresh:
@@ -895,6 +916,8 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 		m.scrollFleetTable(delta)
 	case viewLogs:
 		m.scrollLogs(delta)
+	case viewUsage:
+		m.scrollUsage(delta)
 	}
 	return nil
 }

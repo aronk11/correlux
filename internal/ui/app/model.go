@@ -11,6 +11,7 @@ import (
 	"github.com/aronk11/kubeui/internal/domain/application"
 	"github.com/aronk11/kubeui/internal/domain/diagnosis"
 	"github.com/aronk11/kubeui/internal/domain/fleet"
+	"github.com/aronk11/kubeui/internal/domain/usage"
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
 	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
 	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
@@ -64,6 +65,8 @@ const (
 	viewOverview
 	// viewTable lists the objects of one resource kind.
 	viewTable
+	// viewUsage is where the pods are and what they use.
+	viewUsage
 )
 
 // Options configures the application at start-up.
@@ -107,6 +110,12 @@ type Model struct {
 	// scope the user is looking at, never for the whole cluster.
 	evidence async.Value[application.Context]
 	object   async.Value[*resources.Object]
+	// usage is the rollup of where the pods are and what they use. The report
+	// is computed when its inputs land rather than on every frame, and
+	// usageLive keeps those inputs so a newer snapshot can be rolled up
+	// against the same reading.
+	usage     async.Value[usage.Report]
+	usageLive usage.Live
 
 	// One viewport per scrollable screen. The rules they follow live in
 	// layout.Viewport, written once (ADR 4: arithmetic below the UI).
@@ -116,6 +125,7 @@ type Model struct {
 	objectPort     layout.Viewport
 	whyPort        layout.Viewport
 	logPort        layout.Viewport
+	usagePort      layout.Viewport
 	fleetPort      layout.Viewport
 	fleetTablePort layout.Viewport
 	// selectedApp is the application the detail view shows, addressed by key
@@ -197,6 +207,7 @@ type Model struct {
 	objectLoading   bool
 	tableLoading    bool
 	clusterLoading  bool
+	usageLoading    bool
 
 	// In-flight work, cancelled when it becomes irrelevant.
 	cancelCluster    context.CancelFunc
@@ -206,6 +217,7 @@ type Model struct {
 	cancelApps       context.CancelFunc
 	cancelEvidence   context.CancelFunc
 	cancelObject     context.CancelFunc
+	cancelUsage      context.CancelFunc
 	cancelLogs       context.CancelFunc
 	cancelFleet      context.CancelFunc
 
@@ -411,6 +423,9 @@ func (m *Model) OpenFleetForTest(contexts ...string) tea.Cmd {
 func (m *Model) BrowseAcrossFleetForTest(name string) tea.Cmd {
 	return m.openFleetResourceByName(name)
 }
+
+// OpenUsageForTest opens the resource-usage view.
+func (m *Model) OpenUsageForTest() tea.Cmd { return m.openUsage() }
 
 // OpenLogsForTest reads the logs of one object.
 func (m *Model) OpenLogsForTest(kind, name, namespace string) tea.Cmd {

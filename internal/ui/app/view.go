@@ -176,6 +176,8 @@ func (m *Model) breadcrumb() []string {
 		// The body already carries the full title; the breadcrumb only has to
 		// say where in the navigation you are.
 		return append(crumbs, "Logs")
+	case viewUsage:
+		return append(crumbs, "Resource usage")
 	case viewOverview:
 		return append(crumbs, "Session")
 	default:
@@ -267,7 +269,14 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "↑↓", Desc: "Move", Priority: 70},
 			{Key: "Enter", Desc: "Open", Priority: 72},
 			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
+			{Key: m.keys.Key(ActionUsage), Desc: "Usage", Priority: 79},
 			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
+		}, hints...)
+	case viewUsage:
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Scroll", Priority: 70},
+			{Key: m.keys.Key(ActionRefresh), Desc: "Measure again", Priority: 84},
+			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewApplication:
 		hints = append([]components.KeyHint{
@@ -275,6 +284,7 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "Enter", Desc: "Open", Priority: 72},
 			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
 			{Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
+			{Key: m.keys.Key(ActionUsage), Desc: "Usage", Priority: 79},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewWhy:
@@ -395,6 +405,8 @@ func (m *Model) renderBody() string {
 		content = screens.RenderObject(m.theme, m.objectData(), body.Width, body.Height)
 	case viewLogs:
 		content = screens.RenderLogs(m.theme, m.logsData(), body.Width, body.Height)
+	case viewUsage:
+		content = screens.RenderUsage(m.theme, m.usageData(), body.Width, body.Height)
 	case viewFleet:
 		content = screens.RenderFleet(m.theme, m.fleetData(), body.Width, body.Height)
 	case viewFleetResource:
@@ -690,6 +702,7 @@ func (m *Model) renderHelp(width, height int) string {
 		}},
 		{"Cluster", [][2]string{
 			{m.keys.Key(ActionResourcePicker), "Browse resource kinds, including custom resources"},
+			{m.keys.Key(ActionUsage), "Where the pods are, and what CPU and memory they use"},
 			{m.keys.Key(ActionRefresh), "Refresh"},
 			{m.keys.Key(ActionAutoRefresh), "Refresh on a timer, until you turn it off"},
 		}},

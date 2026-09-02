@@ -31,6 +31,7 @@ const (
 	paletteScale           palette.ActionID = "scale"
 	paletteEdit            palette.ActionID = "edit"
 	paletteLogs            palette.ActionID = "logs"
+	paletteUsage           palette.ActionID = "usage"
 	paletteOpenResources   palette.ActionID = "open.resources"
 	paletteOpenResource    palette.ActionID = "open.resource"
 	paletteToggleWide      palette.ActionID = "toggle.wide"
@@ -101,6 +102,20 @@ func (m *Model) rebuildCommands() {
 			Keywords: []string{"fleet", "clusters", "multi", "all clusters", "overview", "tenants"},
 			Shortcut: m.keys.Key(ActionFleet),
 			Weight:   92,
+			Enabled:  true,
+		},
+		{
+			ID:       "cmd.usage",
+			Action:   paletteUsage,
+			Title:    "Show resource usage",
+			Subtitle: m.usageSubtitleForPalette(),
+			Category: "Cluster",
+			Keywords: []string{
+				"usage", "resources", "cpu", "memory", "top", "capacity",
+				"requests", "limits", "nodes", "where", "full", "quota",
+			},
+			Shortcut: m.keys.Key(ActionUsage),
+			Weight:   89,
 			Enabled:  true,
 		},
 		{
@@ -633,6 +648,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.editObject(m.objectTarget)
 	case paletteLogs:
 		return m.openLogs()
+	case paletteUsage:
+		return m.openUsage()
 	case paletteBackToOverview:
 		return m.backToOverview()
 	case paletteSwitchContext:
@@ -689,6 +706,7 @@ func (m *Model) switchContextScoped(name, namespace string) tea.Cmd {
 	m.apps.Reset()
 	m.evidence.Reset()
 	m.object.Reset()
+	m.resetUsage()
 	m.stopLogs()
 	m.stopFleet()
 	m.findings = nil
@@ -739,6 +757,7 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	m.apps.Reset()
 	m.evidence.Reset()
 	m.object.Reset()
+	m.resetUsage()
 	m.stopLogs()
 	m.stopFleet()
 	m.findings = nil
@@ -749,6 +768,11 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 		m.view = viewApplications
 	}
 	reload := m.loadApplications()
+	if m.view == viewUsage {
+		// The numbers belong to the scope they were read in; a new scope means
+		// a new reading, not the old one under a new heading.
+		reload = tea.Batch(reload, m.loadUsage())
+	}
 
 	if m.view != viewTable || !m.resource.Namespaced {
 		return reload
@@ -819,6 +843,9 @@ func (m *Model) refresh() tea.Cmd {
 	cmds := []tea.Cmd{m.probeCluster(), m.loadNamespaces(), m.loadApplications(), m.expireNotice()}
 	if m.view == viewTable {
 		cmds = append(cmds, m.loadTable())
+	}
+	if m.view == viewUsage {
+		cmds = append(cmds, m.loadUsage())
 	}
 	if m.view == viewApplication || m.view == viewWhy {
 		cmds = append(cmds, m.loadEvidence())

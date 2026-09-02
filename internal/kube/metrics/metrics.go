@@ -160,7 +160,8 @@ func decodeNodes(raw []byte) ([]NodeSample, error) {
 		return nil, fmt.Errorf("decode node metrics: %w", err)
 	}
 	out := make([]NodeSample, 0, len(list.Items))
-	for _, item := range list.Items {
+	for i := range list.Items {
+		item := &list.Items[i]
 		cpu, mem := amounts(item.Usage)
 		sample := NodeSample{
 			Name:        item.Metadata.Name,
@@ -182,7 +183,8 @@ func decodePods(raw []byte) ([]PodSample, error) {
 		return nil, fmt.Errorf("decode pod metrics: %w", err)
 	}
 	out := make([]PodSample, 0, len(list.Items))
-	for _, item := range list.Items {
+	for i := range list.Items {
+		item := &list.Items[i]
 		sample := PodSample{
 			Namespace: item.Metadata.Namespace,
 			Name:      item.Metadata.Name,
@@ -190,8 +192,8 @@ func decodePods(raw []byte) ([]PodSample, error) {
 		}
 		// A pod's use is what its containers use: the API reports them one by
 		// one and never totals them.
-		for _, c := range item.Containers {
-			cpu, mem := amounts(c.Usage)
+		for j := range item.Containers {
+			cpu, mem := amounts(item.Containers[j].Usage)
 			sample.CPUMilli += cpu
 			sample.MemoryBytes += mem
 		}

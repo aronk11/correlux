@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/kubeui/internal/domain/usage"
 	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
 	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
 	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
@@ -56,6 +57,12 @@ type evidenceLoadedMsg struct {
 	gen     uint64
 	context application.Context
 	err     error
+}
+
+type usageLoadedMsg struct {
+	gen  uint64
+	live usage.Live
+	err  error
 }
 
 type objectLoadedMsg struct {
