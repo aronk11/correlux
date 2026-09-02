@@ -46,6 +46,8 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 | `internal/kube/resources` | Lists any resource as a server-rendered table, paged and cancellable. |
 | `internal/kube/workloads` | One bounded, concurrent pass over a scope, converted into a domain snapshot. A kind that cannot be read becomes a gap, not a failure. |
 | `internal/domain/application` | Infers applications from ownership, labels and selectors, and derives their health. Pure; knows nothing about client-go ([ADR 16](adr/0016-application-inference.md)). |
+| `internal/domain/describe` | Turns the document an object came as into the facts worth reading. Works on raw JSON, so an unknown kind is described as well as a Pod is. |
+| `internal/domain/diff` | Line comparison, so an edit can be shown before it is applied. |
 | `internal/domain/diagnosis` | Thirteen deterministic rules that turn evidence into a problem, a cause, the facts behind it and what to check next. Degrades with the evidence available ([ADR 18](adr/0018-evidence-on-demand.md)). |
 | `internal/ui/async` | `Value[T]`: lifecycle plus generation counter for every remote value. |
 | `internal/ui/layout` | Screen geometry and the resize debouncer. Pure arithmetic. |
@@ -89,6 +91,14 @@ and backs off while the cluster is unreachable. The cursor follows the object it
 was on rather than the row number, because both the dashboard and a refreshed
 table re-sort underneath it. The reasoning, and why this is not informers, is in
 [ADR 17](adr/0017-timed-refresh-not-watches.md).
+
+## Changing things
+
+Every mutating action is a `pendingAction`: what it does in consequences, the
+object, and the cluster it will hit — marked when that cluster is production,
+where the confirmation demands the cluster's name be typed. Editing hands the
+terminal to `$EDITOR` and compares what comes back
+([ADR 20](adr/0020-changes-go-through-one-gate.md)).
 
 ## Rendering
 
