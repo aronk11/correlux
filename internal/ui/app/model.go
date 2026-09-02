@@ -269,5 +269,8 @@ func (m *Model) OpenResourceForTest(name string) tea.Cmd { return m.openResource
 // SwitchNamespaceForTest changes the active scope from an integration test.
 func (m *Model) SwitchNamespaceForTest(namespace string) tea.Cmd { return m.switchNamespace(namespace) }
 
+// ShowSessionForTest switches to the session and connection view.
+func (m *Model) ShowSessionForTest() tea.Cmd { return m.backToOverview() }
+
 // OpenApplicationForTest opens one application's detail view by name.
 func (m *Model) OpenApplicationForTest(name string) tea.Cmd { return m.openApplication(name) }
