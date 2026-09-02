@@ -35,7 +35,11 @@ checksum:
   name_template: checksums.txt
 
 changelog:
-  use: github
+  # Built from the commit messages, which is where the information is: the
+  # groups below match Conventional Commit prefixes. Using git rather than the
+  # GitHub API also means `task dist` produces the same artefacts offline, and
+  # without a token, as CI does.
+  use: git
   sort: asc
   groups:
     - title: Features
