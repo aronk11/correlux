@@ -23,6 +23,7 @@ const (
 	paletteOpenApp         palette.ActionID = "open.application"
 	paletteExplain         palette.ActionID = "explain"
 	paletteToggleYAML      palette.ActionID = "object.yaml"
+	paletteScale           palette.ActionID = "scale"
 	paletteOpenResources   palette.ActionID = "open.resources"
 	paletteOpenResource    palette.ActionID = "open.resource"
 	paletteToggleWide      palette.ActionID = "toggle.wide"
@@ -183,6 +184,20 @@ func (m *Model) rebuildCommands() {
 				Enabled:  true,
 			},
 		)
+	}
+
+	if ref, ok := m.scalableTarget(); ok {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.scale",
+			Action:   paletteScale,
+			Title:    "Scale " + ref.label(),
+			Subtitle: m.scaleSubtitle(ref),
+			Category: "Change",
+			Keywords: []string{"scale", "replicas", "up", "down", "zero", "restart"},
+			Shortcut: m.keys.Key(ActionScale),
+			Weight:   84,
+			Enabled:  true,
+		})
 	}
 
 	if m.view == viewObject {
@@ -362,6 +377,38 @@ func (m *Model) wideSubject() string {
 	return "Applications"
 }
 
+// scalableTarget reports the workload the current screen points at, when it is
+// one that can be scaled.
+func (m *Model) scalableTarget() (objectRef, bool) {
+	var ref objectRef
+	switch m.view {
+	case viewObject:
+		ref = m.objectTarget
+	case viewApplication:
+		_, targets := m.applicationView()
+		if m.detailCursor < 0 || m.detailCursor >= len(targets) {
+			return objectRef{}, false
+		}
+		ref = targets[m.detailCursor]
+	default:
+		return objectRef{}, false
+	}
+	if ref.empty() {
+		return objectRef{}, false
+	}
+	res, ok := m.resourceFor(ref.Kind)
+	return ref, ok && res.Scalable
+}
+
+// scaleSubtitle says what the workload has now, so the palette entry carries
+// the number the user is about to change.
+func (m *Model) scaleSubtitle(ref objectRef) string {
+	if current, known := m.replicasOf(ref); known {
+		return "currently " + replicaCount(current)
+	}
+	return ref.Namespace
+}
+
 // yamlTitle names what the command will do next.
 func yamlTitle(showing bool) string {
 	if showing {
@@ -467,6 +514,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 	case paletteToggleYAML:
 		m.toggleObjectYAML()
 		return nil
+	case paletteScale:
+		return m.scaleTarget()
 	case paletteBackToOverview:
 		return m.backToOverview()
 	case paletteSwitchContext:

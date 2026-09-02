@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,12 +15,15 @@ import (
 
 // stub serves a canned response and records what was asked for.
 type stub struct {
-	server  *httptest.Server
-	client  rest.Interface
-	lastURL string
-	accept  string
-	body    string
-	status  int
+	server      *httptest.Server
+	client      rest.Interface
+	lastURL     string
+	accept      string
+	method      string
+	contentType string
+	lastBody    string
+	body        string
+	status      int
 }
 
 func newStub(t *testing.T, body string) *stub {
@@ -28,6 +32,12 @@ func newStub(t *testing.T, body string) *stub {
 	s.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.lastURL = r.URL.String()
 		s.accept = r.Header.Get("Accept")
+		s.method = r.Method
+		s.contentType = r.Header.Get("Content-Type")
+		if r.Body != nil {
+			body, _ := io.ReadAll(r.Body)
+			s.lastBody = string(body)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(s.status)
 		_, _ = w.Write([]byte(s.body))

@@ -43,6 +43,8 @@ func appsList() *metav1.APIResourceList {
 		APIResources: []metav1.APIResource{
 			{Name: "deployments", SingularName: "deployment", Kind: "Deployment", Namespaced: true,
 				ShortNames: []string{"deploy"}, Verbs: []string{"get", "list", "watch"}},
+			{Name: "deployments/scale", Kind: "Scale", Namespaced: true,
+				Verbs: []string{"get", "patch", "update"}},
 		},
 	}
 }
@@ -190,5 +192,39 @@ func TestUnparseableGroupVersionIsRecordedNotFatal(t *testing.T) {
 	}
 	if _, ok := c.Lookup("pods"); !ok {
 		t.Error("the rest of the catalog must survive")
+	}
+}
+
+func TestScaleSubresourcesMarkTheirParentScalable(t *testing.T) {
+	// The catalog learns what can be scaled from the server rather than from a
+	// list of kinds kubeui was compiled with, so a custom resource that
+	// declares a scale subresource is scalable too.
+	crd := crdList()
+	crd.APIResources = append(crd.APIResources, metav1.APIResource{
+		Name: "widgets/scale", Kind: "Scale", Namespaced: true,
+		Verbs: []string{"get", "patch", "update"},
+	})
+	c := build(t, &fakeDiscovery{lists: []*metav1.APIResourceList{coreList(), appsList(), crd}})
+
+	for _, tc := range []struct {
+		name string
+		want bool
+	}{
+		{"deployments.apps", true},
+		{"widgets.acme.example.com", true},
+		{"pods", false},
+	} {
+		r, ok := c.Lookup(tc.name)
+		if !ok {
+			t.Fatalf("%s not in the catalog", tc.name)
+		}
+		if r.Scalable != tc.want {
+			t.Errorf("%s scalable = %v, want %v", tc.name, r.Scalable, tc.want)
+		}
+	}
+
+	// The subresource itself is never offered as something to browse.
+	if _, ok := c.Lookup("deployments/scale"); ok {
+		t.Error("a subresource must not appear in the catalog as a kind of its own")
 	}
 }
