@@ -25,6 +25,7 @@ const (
 	ActionApplications    = "applications"
 	ActionWhy             = "why"
 	ActionYAML            = "object.yaml"
+	ActionScale           = "scale"
 	ActionOverview        = "overview"
 	ActionToggleWide      = "table.wide"
 	ActionAllNamespaces   = "namespace.all"
@@ -55,6 +56,7 @@ var DefaultBindings = map[string]string{
 	ActionApplications:    "ctrl+a",
 	ActionWhy:             "ctrl+w",
 	ActionYAML:            "y",
+	ActionScale:           "S",
 	ActionToggleWide:      "w",
 	ActionRefresh:         "ctrl+r",
 	ActionAutoRefresh:     "ctrl+f",

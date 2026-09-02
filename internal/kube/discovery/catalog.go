@@ -35,6 +35,10 @@ type Resource struct {
 	// Builtin reports whether the resource belongs to a Kubernetes API group.
 	// Everything else is a custom resource.
 	Builtin bool
+	// Scalable reports whether the server serves a scale subresource for this
+	// kind. It is read from discovery rather than from a list of kinds kubeui
+	// knows, so a custom resource that declares one can be scaled too.
+	Scalable bool
 }
 
 // Kind returns the resource's kind, e.g. "Deployment".
@@ -186,6 +190,21 @@ func BuildCatalog(dc discovery.DiscoveryInterface) (*Catalog, error) {
 		}
 	}
 
+	// Subresources are addressed through their parent, but they say what can be
+	// done to it: a "deployments/scale" is why a Deployment can be scaled.
+	scalable := map[string]bool{}
+	for _, list := range lists {
+		if list == nil {
+			continue
+		}
+		for i := range list.APIResources {
+			name := list.APIResources[i].Name
+			if parent, ok := strings.CutSuffix(name, "/scale"); ok {
+				scalable[list.GroupVersion+"/"+parent] = true
+			}
+		}
+	}
+
 	for _, list := range lists {
 		if list == nil {
 			continue
@@ -203,6 +222,7 @@ func BuildCatalog(dc discovery.DiscoveryInterface) (*Catalog, error) {
 			if strings.Contains(r.GVR.Resource, "/") || !r.Listable() {
 				continue
 			}
+			r.Scalable = scalable[list.GroupVersion+"/"+r.GVR.Resource]
 			catalog.Resources = append(catalog.Resources, r)
 		}
 	}

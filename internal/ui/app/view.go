@@ -252,14 +252,32 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewObject:
-		hints = append([]components.KeyHint{
+		object := []components.KeyHint{
 			{Key: "↑↓", Desc: "Related", Priority: 90},
 			{Key: "Enter", Desc: "Follow", Priority: 89},
 			{Key: m.keys.Key(ActionYAML), Desc: yamlHint(m.objectYAML), Priority: 87},
 			{Key: "Esc", Desc: "Back", Priority: 85},
-		}, hints...)
+		}
+		if _, ok := m.scalableTarget(); ok {
+			object = append(object, components.KeyHint{
+				Key: m.keys.Key(ActionScale), Desc: "Scale", Priority: 86,
+			})
+		}
+		hints = append(object, hints...)
 	}
-	if m.overlay != overlayNone {
+	switch m.overlay {
+	case overlayNone:
+	case overlayConfirm:
+		hints = []components.KeyHint{
+			{Key: "Enter", Desc: "Apply", Priority: 90},
+			{Key: "Esc", Desc: "Cancel", Priority: 90},
+		}
+	case overlayPrompt:
+		hints = []components.KeyHint{
+			{Key: "Enter", Desc: "Continue", Priority: 90},
+			{Key: "Esc", Desc: "Cancel", Priority: 90},
+		}
+	default:
 		hints = []components.KeyHint{
 			{Key: "↑↓", Desc: "Navigate", Priority: 90},
 			{Key: "Enter", Desc: "Select", Priority: 90},
@@ -516,10 +534,17 @@ func (m *Model) renderOverlay(rect layout.Rect) string {
 	}
 
 	var content string
-	if m.overlay == overlayHelp {
+	switch m.overlay {
+	case overlayHelp:
 		content = m.renderHelp(inner, innerH)
-	} else if sel := m.activeSelector(); sel != nil {
-		content = sel.Render(m.theme, inner, innerH)
+	case overlayConfirm:
+		content = m.renderConfirm(inner, innerH)
+	case overlayPrompt:
+		content = m.renderPrompt(inner, innerH)
+	default:
+		if sel := m.activeSelector(); sel != nil {
+			content = sel.Render(m.theme, inner, innerH)
+		}
 	}
 	return m.theme.Overlay.Width(rect.Width).Render(content)
 }
@@ -545,6 +570,7 @@ func (m *Model) renderHelp(width, height int) string {
 			{"↑ ↓ / j k", "Move between the objects; the page follows"},
 			{"Enter", "Open the object under the cursor, or follow the relation"},
 			{m.keys.Key(ActionYAML), "Show the document the server holds, and back"},
+			{m.keys.Key(ActionScale), "Scale the selected workload, after confirming the blast radius"},
 			{"Esc", "Back the way you came in"},
 		}},
 		{"Cluster", [][2]string{

@@ -102,6 +102,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.object.Succeed(msg.gen, msg.object)
 		return m, nil
 
+	case scaledMsg:
+		return m, m.applyScaled(msg)
+
 	case evidenceLoadedMsg:
 		if m.evidence.Accepts(msg.gen) {
 			m.evidenceLoading = false
@@ -674,6 +677,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.toggleObjectYAML()
 		}
 		return nil
+	case ActionScale:
+		return m.scaleTarget()
 	}
 	return nil
 }

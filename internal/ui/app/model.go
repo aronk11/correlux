@@ -30,6 +30,11 @@ const (
 	overlayContexts
 	overlayNamespaces
 	overlayResources
+	// overlayPrompt asks for a value: the replica count of a workload, say.
+	overlayPrompt
+	// overlayConfirm is the last thing between a keystroke and a change to the
+	// cluster.
+	overlayConfirm
 	overlayHelp
 )
 
@@ -157,12 +162,23 @@ type Model struct {
 	resize        *layout.Debouncer
 
 	// Overlays.
-	overlay   overlayKind
-	registry  *palette.Registry
-	cmdPal    *components.Selector
-	ctxPicker *components.Selector
-	nsPicker  *components.Selector
-	resPicker *components.Selector
+	overlay  overlayKind
+	registry *palette.Registry
+	cmdPal   *components.Selector
+	// The two overlays that guard a change to the cluster.
+	pending      *pendingAction
+	confirmInput components.Input
+	promptInput  components.Input
+	promptTitle  string
+	promptRef    objectRef
+	promptNote   string
+	promptError  string
+	// promptAccept turns the typed value into the next step, usually a
+	// confirmation.
+	promptAccept func(*Model, string) tea.Cmd
+	ctxPicker    *components.Selector
+	nsPicker     *components.Selector
+	resPicker    *components.Selector
 
 	// Transient status message.
 	message       string
@@ -219,6 +235,9 @@ func New(opts Options) *Model {
 			m.namespace = kctx.Namespace
 		}
 	}
+
+	m.confirmInput = newInput("")
+	m.promptInput = newInput("")
 
 	m.cmdPal = components.NewSelector("Command", "Type a command…", m.filterCommands)
 	m.cmdPal.EmptyMessage = "No command matches."

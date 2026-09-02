@@ -67,10 +67,39 @@ func (m *Model) closeOverlay() {
 func (m *Model) handleOverlayKey(keystroke, text string) (tea.Cmd, bool) {
 	switch keystroke {
 	case "esc", "ctrl+g":
+		if m.overlay == overlayConfirm || m.overlay == overlayPrompt {
+			m.cancelPending()
+			m.cancelPrompt()
+			return nil, true
+		}
 		m.closeOverlay()
 		return nil, true
 	case "enter":
+		switch m.overlay {
+		case overlayConfirm:
+			return m.runPending(), true
+		case overlayPrompt:
+			return m.acceptPrompt(), true
+		}
 		return m.confirmSelection(), true
+	}
+
+	// The two overlays that take typed input own every other key while they are
+	// open: a replica count must never also be a shortcut.
+	switch m.overlay {
+	case overlayConfirm:
+		if m.pending != nil && m.pending.Challenge != "" {
+			_, handled := m.confirmInput.HandleKey(keystroke, text)
+			return nil, handled
+		}
+		return nil, true
+	case overlayPrompt:
+		changed, handled := m.promptInput.HandleKey(keystroke, text)
+		if changed {
+			m.promptError = ""
+			m.refreshPrompt()
+		}
+		return nil, handled
 	}
 
 	if m.overlay == overlayHelp {
@@ -136,6 +165,16 @@ func (m *Model) overlayRect() layout.Rect {
 		return layout.Overlay(m.screen, layout.OverlayOptions{
 			WidthRatio: 0.6, HeightRatio: 0.65,
 			MinWidth: 44, MaxWidth: 88, MinHeight: 10, MaxHeight: 24,
+		})
+	case overlayPrompt:
+		return layout.Overlay(m.screen, layout.OverlayOptions{
+			WidthRatio: 0.5, HeightRatio: 0.3,
+			MinWidth: 40, MaxWidth: 70, MinHeight: 7, MaxHeight: 12,
+		})
+	case overlayConfirm:
+		return layout.Overlay(m.screen, layout.OverlayOptions{
+			WidthRatio: 0.6, HeightRatio: 0.45,
+			MinWidth: 44, MaxWidth: 84, MinHeight: 9, MaxHeight: 18,
 		})
 	case overlayHelp:
 		return layout.Overlay(m.screen, layout.OverlayOptions{

@@ -21,3 +21,19 @@ func (f *Factory) GetObject(
 	target := resources.Target{GVR: res.GVR, Namespaced: res.Namespaced}
 	return resources.Get(ctx, cs.Discovery().RESTClient(), target, namespace, name)
 }
+
+// Scale sets the replica count of a workload.
+func (f *Factory) Scale(
+	ctx context.Context,
+	contextName string,
+	res discovery.Resource,
+	namespace, name string,
+	replicas int32,
+) error {
+	cs, err := f.Clientset(contextName)
+	if err != nil {
+		return err
+	}
+	target := resources.Target{GVR: res.GVR, Namespaced: res.Namespaced}
+	return resources.Scale(ctx, cs.Discovery().RESTClient(), target, namespace, name, replicas)
+}
