@@ -117,6 +117,10 @@ func (m *Model) backFromObject() tea.Cmd {
 		m.view = viewTable
 		m.rebuildCommands()
 		return nil
+	case m.objectFrom == viewActivity:
+		m.view = viewActivity
+		m.rebuildCommands()
+		return nil
 	case m.selectedApp != "":
 		m.view = viewApplication
 		m.rebuildCommands()
@@ -285,6 +289,14 @@ func (m *Model) relationsSection(obj *resources.Object, target func(objectRef) i
 		ref := objectRef{Kind: owner.Kind, Name: owner.Name, Namespace: obj.Namespace}
 		section.Rows = append(section.Rows, screens.DetailRow{
 			Cells:  []string{direction, owner.Kind, owner.Name, "made this object"},
+			Target: target(ref),
+		})
+	}
+
+	for _, link := range describe.Links(obj.Kind, obj.Raw) {
+		ref := objectRef{Kind: link.Kind, Name: link.Name, Namespace: link.Namespace}
+		section.Rows = append(section.Rows, screens.DetailRow{
+			Cells:  []string{"uses", link.Kind, link.Name, link.Detail},
 			Target: target(ref),
 		})
 	}
