@@ -2,9 +2,9 @@ package layout
 
 import "time"
 
-// DefaultResizeDebounce is how long kubeui waits for a resize burst to settle.
-// Dragging a terminal window emits dozens of events per second; re-rendering on
-// each one wastes CPU and makes the UI tear.
+// DefaultResizeDebounce is how long Correlux waits for a resize burst to
+// settle. Dragging a terminal window emits dozens of events per second;
+// re-rendering on each one wastes CPU and makes the UI tear.
 const DefaultResizeDebounce = 40 * time.Millisecond
 
 // Debouncer coalesces a burst of events into a single deferred action.

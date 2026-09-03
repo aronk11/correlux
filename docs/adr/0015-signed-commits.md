@@ -5,7 +5,7 @@
 
 ## Context
 
-kubeui is an operations tool: people will download a binary and point it at
+Correlux is an operations tool: people will download a binary and point it at
 production clusters with their own credentials. The supply chain that produces
 that binary starts at a commit. Git's author field is a string anybody can set,
 so an unsigned history proves nothing about who wrote what.

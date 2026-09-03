@@ -225,7 +225,7 @@ func TestUnparseableGroupVersionIsRecordedNotFatal(t *testing.T) {
 
 func TestScaleSubresourcesMarkTheirParentScalable(t *testing.T) {
 	// The catalog learns what can be scaled from the server rather than from a
-	// list of kinds kubeui was compiled with, so a custom resource that
+	// list of kinds Correlux was compiled with, so a custom resource that
 	// declares a scale subresource is scalable too.
 	crd := crdList()
 	crd.APIResources = append(crd.APIResources, metav1.APIResource{

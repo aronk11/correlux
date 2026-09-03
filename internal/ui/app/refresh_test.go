@@ -8,9 +8,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/config"
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/config"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/kube/resources"
 )
 
 // plainView renders the frame with the styling stripped.
@@ -25,7 +25,7 @@ func tick(m *Model) tea.Cmd {
 func TestAutoRefreshIsOffUntilItIsAskedFor(t *testing.T) {
 	m := newTestModel(t)
 	if m.autoRefresh {
-		t.Fatal("kubeui must not poll anybody's API server without being told to")
+		t.Fatal("Correlux must not poll anybody's API server without being told to")
 	}
 	if strings.Contains(view(m), "auto ") {
 		t.Error("nothing may claim to be refreshing while it is off")

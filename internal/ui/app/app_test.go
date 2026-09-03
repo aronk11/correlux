@@ -11,11 +11,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/aronk11/kubeui/internal/config"
-	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
-	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
-	"github.com/aronk11/kubeui/internal/ui/components"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/config"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
+	"github.com/aronk11/correlux/internal/kube/kubeconfig"
+	"github.com/aronk11/correlux/internal/ui/components"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // newTestModel builds a model over the fixture kubeconfig. No network call is
@@ -203,7 +203,7 @@ func TestQuitKeyDoesNotFireWhileTypingInAnOverlay(t *testing.T) {
 	press(t, m, "q")
 
 	if m.quitting {
-		t.Fatal("typing q into a filter must not quit kubeui")
+		t.Fatal("typing q into a filter must not quit Correlux")
 	}
 	if got := m.ctxPicker.Query(); got != "q" {
 		t.Errorf("query = %q, want the typed q", got)
@@ -395,7 +395,7 @@ func TestContextSwitchDoesNotTouchTheKubeconfigFile(t *testing.T) {
 	m.switchContext("prod-eu")
 
 	if after := readFile(t, path); after != before {
-		t.Error("switching context inside kubeui must never rewrite the user's kubeconfig")
+		t.Error("switching context inside Correlux must never rewrite the user's kubeconfig")
 	}
 }
 

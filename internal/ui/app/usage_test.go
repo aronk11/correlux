@@ -9,9 +9,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/domain/usage"
-	"github.com/aronk11/kubeui/internal/ui/async"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/usage"
+	"github.com/aronk11/correlux/internal/ui/async"
 )
 
 // usagePod is one pod with one container, placed on a node and asking for

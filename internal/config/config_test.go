@@ -99,18 +99,18 @@ func TestUnknownThemeFallsBackToAuto(t *testing.T) {
 }
 
 func TestDirHonoursOverride(t *testing.T) {
-	t.Setenv("KUBEUI_CONFIG_DIR", filepath.Join("custom", "kubeui"))
+	t.Setenv("CORRELUX_CONFIG_DIR", filepath.Join("custom", "correlux"))
 	dir, err := Dir()
 	if err != nil {
 		t.Fatalf("Dir: %v", err)
 	}
-	if dir != filepath.Join("custom", "kubeui") {
+	if dir != filepath.Join("custom", "correlux") {
 		t.Errorf("Dir() = %q", dir)
 	}
 }
 
 func TestDirUsesOSAppropriateLocation(t *testing.T) {
-	t.Setenv("KUBEUI_CONFIG_DIR", "")
+	t.Setenv("CORRELUX_CONFIG_DIR", "")
 	if runtime.GOOS == "windows" {
 		t.Setenv("APPDATA", filepath.Join("C:", "Users", "test", "AppData", "Roaming"))
 	} else {
@@ -121,10 +121,10 @@ func TestDirUsesOSAppropriateLocation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dir: %v", err)
 	}
-	if filepath.Base(dir) != "kubeui" {
-		t.Errorf("Dir() = %q, want a kubeui directory", dir)
+	if filepath.Base(dir) != "correlux" {
+		t.Errorf("Dir() = %q, want a correlux directory", dir)
 	}
-	if runtime.GOOS != "windows" && dir != filepath.Join(os.TempDir(), "xdg", "kubeui") {
+	if runtime.GOOS != "windows" && dir != filepath.Join(os.TempDir(), "xdg", "correlux") {
 		t.Errorf("XDG_CONFIG_HOME must be honoured, got %q", dir)
 	}
 }
@@ -163,7 +163,7 @@ func TestRefreshInterval(t *testing.T) {
 
 func TestTheFleetIsEmptyUntilItIsNamed(t *testing.T) {
 	if len(Default().Fleet) != 0 {
-		t.Error("kubeui must not fan out to every context on its own")
+		t.Error("Correlux must not fan out to every context on its own")
 	}
 
 	path := filepath.Join(t.TempDir(), "config.yaml")
@@ -180,10 +180,10 @@ func TestTheFleetIsEmptyUntilItIsNamed(t *testing.T) {
 }
 
 func TestTheConfigLivesWhereTheOperatingSystemPutsIt(t *testing.T) {
-	// KUBEUI_CONFIG_DIR wins over everything, which is what the tests and a
+	// CORRELUX_CONFIG_DIR wins over everything, which is what the tests and a
 	// container image both need.
 	override := t.TempDir()
-	t.Setenv("KUBEUI_CONFIG_DIR", override)
+	t.Setenv("CORRELUX_CONFIG_DIR", override)
 
 	dir, err := Dir()
 	if err != nil {
@@ -207,21 +207,21 @@ func TestXDGIsHonouredWhereItApplies(t *testing.T) {
 		t.Skip("Windows uses APPDATA")
 	}
 	xdg := t.TempDir()
-	t.Setenv("KUBEUI_CONFIG_DIR", "")
+	t.Setenv("CORRELUX_CONFIG_DIR", "")
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 
 	dir, err := Dir()
 	if err != nil {
 		t.Fatalf("Dir: %v", err)
 	}
-	if dir != filepath.Join(xdg, "kubeui") {
+	if dir != filepath.Join(xdg, "correlux") {
 		t.Errorf("dir = %q, want the XDG location", dir)
 	}
 }
 
 func TestLoadDefaultReadsTheFileWhereItLives(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("KUBEUI_CONFIG_DIR", dir)
+	t.Setenv("CORRELUX_CONFIG_DIR", dir)
 	if err := os.WriteFile(filepath.Join(dir, "config.yaml"),
 		[]byte("theme: light\nfleet: [prod-eu]\n"), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
@@ -240,7 +240,7 @@ func TestLoadDefaultReadsTheFileWhereItLives(t *testing.T) {
 }
 
 func TestNoFileAtAllIsNotAnError(t *testing.T) {
-	t.Setenv("KUBEUI_CONFIG_DIR", t.TempDir())
+	t.Setenv("CORRELUX_CONFIG_DIR", t.TempDir())
 
 	cfg, err := LoadDefault()
 	if err != nil {

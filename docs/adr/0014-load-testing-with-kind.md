@@ -5,7 +5,7 @@
 
 ## Context
 
-"Responsive on large clusters" is kubeui's core technical claim
+"Responsive on large clusters" is Correlux's core technical claim
 ([ADR 6](0006-lazy-scoped-loading.md)). A claim that is never measured is a
 wish. But measuring it is awkward: the failure modes we care about — an
 unbounded LIST, a quadratic render, discovery that takes ten seconds, paging
@@ -60,11 +60,12 @@ Around that:
 - One test deliberately breaks an aggregated API — the single most common cause
   of "my Kubernetes UI shows nothing" — and asserts that discovery degrades to
   "sixty kinds, one group unavailable".
-- Everything the seeder creates carries `app.kubernetes.io/managed-by=kubeui-seed`,
-  so `--clean` removes precisely the load and nothing else.
+- Everything the seeder creates carries
+  `app.kubernetes.io/managed-by=correlux-seed`, so `--clean` removes precisely
+  the load and nothing else.
 
 Integration tests are behind the `integration` build tag and need
-`KUBEUI_TEST_KUBECONFIG`, so `go test ./...` stays fast and hermetic. A modest
+`CORRELUX_TEST_KUBECONFIG`, so `go test ./...` stays fast and hermetic. A modest
 seed runs on every pull request; the ten-thousand-pod benchmarks run nightly and
 on demand.
 

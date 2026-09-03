@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 // The fixtures below are written the way a cluster expresses these facts:

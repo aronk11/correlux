@@ -8,8 +8,8 @@
 //
 // Everything here works on the raw JSON. Nothing is decoded into a typed
 // struct, because a typed struct only knows the fields it was compiled with,
-// and half of a cluster's objects are custom resources whose fields kubeui has
-// never heard of. Reading a document generically means an unknown kind is
+// and half of a cluster's objects are custom resources whose fields Correlux
+// has never heard of. Reading a document generically means an unknown kind is
 // described as well as a Pod is — and, per SPEC 34, that a strangely shaped
 // object is a thin description rather than a panic.
 package describe

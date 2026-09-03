@@ -8,13 +8,13 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/domain/usage"
-	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
-	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
-	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
-	"github.com/aronk11/kubeui/internal/kube/resources"
-	"github.com/aronk11/kubeui/internal/kube/workloads"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/usage"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
+	kubediscovery "github.com/aronk11/correlux/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/kube/kubeconfig"
+	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/kube/workloads"
 )
 
 // Messages carrying the result of asynchronous work. Every one of them is
@@ -289,7 +289,7 @@ func (m *Model) loadObject() tea.Cmd {
 }
 
 // reloadKubeconfig re-reads the kubeconfig from disk, picking up contexts added
-// since kubeui started.
+// since Correlux started.
 func (m *Model) reloadKubeconfig() tea.Cmd {
 	classifier := m.classifier
 	explicit := ""

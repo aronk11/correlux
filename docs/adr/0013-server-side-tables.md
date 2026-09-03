@@ -5,7 +5,7 @@
 
 ## Context
 
-kubeui must show every resource in a cluster, not a hard-coded list of the
+Correlux must show every resource in a cluster, not a hard-coded list of the
 dozen kinds we thought of. On a real cluster, a large share of what an operator
 works with comes from CRDs — Argo Applications, Flux Kustomizations, Cert
 Manager Certificates, an in-house Deployment abstraction — and a tool that
@@ -18,7 +18,7 @@ guaranteed mismatch with what `kubectl get` shows for the same object.
 
 ## Decision
 
-kubeui asks the API server to render the table, using the `Table` content type
+Correlux asks the API server to render the table, using the `Table` content type
 that `kubectl get` itself uses:
 
 ```
@@ -32,11 +32,11 @@ decides what to hide.
 
 Consequences of that single decision:
 
-- CRD support requires no per-resource code, and a CRD installed while kubeui is
-  running works after a refresh.
-- kubeui's columns match `kubectl get` for every kind, so what a user sees here
-  is what they will see in their terminal and in their runbook.
-- The formatting work happens on the server; kubeui transfers cells, not whole
+- CRD support requires no per-resource code, and a CRD installed while Correlux
+  is running works after a refresh.
+- Correlux's columns match `kubectl get` for every kind, so what a user sees
+  here is what they will see in their terminal and in their runbook.
+- The formatting work happens on the server; Correlux transfers cells, not whole
   objects. A page of 500 pods costs a fraction of what fetching 500 PodSpecs
   would.
 - Paging is the server's `limit`/`continue`, so the memory cost is a page, not a
@@ -48,7 +48,7 @@ never panic.
 
 ## Consequences
 
-- kubeui shows what the server chose to print. Where a column is genuinely
+- Correlux shows what the server chose to print. Where a column is genuinely
   missing for an operational task, the answer is a purpose-built view for that
   case (the application dashboard, the diagnosis panel), not a per-resource
   table layout.

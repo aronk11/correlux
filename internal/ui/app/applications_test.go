@@ -8,7 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 func testApplication(name string, health application.Health, ready, desired int32) application.Application {
@@ -58,7 +58,7 @@ func loadApplicationsInto(m *Model, apps ...application.Application) {
 func TestTheFirstScreenIsTheApplicationDashboard(t *testing.T) {
 	m := newTestModel(t)
 	if m.view != viewApplications {
-		t.Fatalf("kubeui must open on the applications, got view %v", m.view)
+		t.Fatalf("Correlux must open on the applications, got view %v", m.view)
 	}
 
 	loadApplicationsInto(m,
@@ -114,7 +114,7 @@ func TestWhatCouldNotBeReadIsStated(t *testing.T) {
 	})
 
 	if out := view(m); !strings.Contains(out, "not permitted for this user") {
-		t.Errorf("a kind kubeui may not read must be stated, not hidden:\n%s", out)
+		t.Errorf("a kind Correlux may not read must be stated, not hidden:\n%s", out)
 	}
 }
 

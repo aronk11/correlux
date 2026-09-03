@@ -1,4 +1,4 @@
-// Package screens renders kubeui's full-window views.
+// Package screens renders Correlux's full-window views.
 //
 // A screen turns already-resolved data into text. It performs no I/O and holds
 // no Kubernetes types, which keeps rendering fast, deterministic and testable.
@@ -9,7 +9,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // Field is one label/value row inside a panel.
@@ -30,7 +30,7 @@ type Panel struct {
 	Note string
 }
 
-// OverviewData is the connection-oriented view kubeui shows before the
+// OverviewData is the connection-oriented view Correlux shows before the
 // application dashboard exists.
 type OverviewData struct {
 	Panels []Panel

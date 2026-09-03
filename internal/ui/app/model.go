@@ -6,22 +6,22 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/buildinfo"
-	"github.com/aronk11/kubeui/internal/config"
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/domain/diagnosis"
-	"github.com/aronk11/kubeui/internal/domain/fleet"
-	"github.com/aronk11/kubeui/internal/domain/usage"
-	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
-	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
-	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
-	"github.com/aronk11/kubeui/internal/kube/logs"
-	"github.com/aronk11/kubeui/internal/kube/resources"
-	"github.com/aronk11/kubeui/internal/ui/async"
-	"github.com/aronk11/kubeui/internal/ui/components"
-	"github.com/aronk11/kubeui/internal/ui/layout"
-	"github.com/aronk11/kubeui/internal/ui/palette"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/buildinfo"
+	"github.com/aronk11/correlux/internal/config"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/diagnosis"
+	"github.com/aronk11/correlux/internal/domain/fleet"
+	"github.com/aronk11/correlux/internal/domain/usage"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
+	kubediscovery "github.com/aronk11/correlux/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/kube/kubeconfig"
+	"github.com/aronk11/correlux/internal/kube/logs"
+	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/ui/async"
+	"github.com/aronk11/correlux/internal/ui/components"
+	"github.com/aronk11/correlux/internal/ui/layout"
+	"github.com/aronk11/correlux/internal/ui/palette"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // overlayKind identifies the modal currently on screen.
@@ -45,7 +45,7 @@ const (
 type viewKind int
 
 const (
-	// viewApplications is the dashboard kubeui opens on: what is deployed here
+	// viewApplications is the dashboard Correlux opens on: what is deployed here
 	// and what state it is in. It is the zero value because it is home.
 	viewApplications viewKind = iota
 	// viewApplication is one application and the objects it is made of.
@@ -406,8 +406,8 @@ func (m *Model) OpenObjectForTest(kind, name, namespace string) tea.Cmd {
 	return m.openObject(objectRef{Kind: kind, Name: name, Namespace: namespace})
 }
 
-// PressForTest delivers one keystroke, so an integration test can drive kubeui
-// the way a user does rather than through a back door.
+// PressForTest delivers one keystroke, so an integration test can drive
+// Correlux the way a user does rather than through a back door.
 func (m *Model) PressForTest(keystroke string) tea.Cmd {
 	_, cmd := m.Update(keyPress(keystroke))
 	return cmd

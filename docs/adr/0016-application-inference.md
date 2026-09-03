@@ -1,15 +1,15 @@
-# 16. Applications are inferred from the cluster, not declared to kubeui
+# 16. Applications are inferred from the cluster, not declared to Correlux
 
 - Status: accepted
 - Date: 2026-09-02
 
 ## Context
 
-kubeui's first screen is a list of applications ([ADR 3](0003-application-first-navigation.md)).
-Kubernetes has no application object to list. It has Deployments, ReplicaSets,
-Pods, Services and Ingresses, and the relationships between them are expressed
-three different ways at once: owner references, label selectors and naming
-conventions.
+Correlux's first screen is a list of applications
+([ADR 3](0003-application-first-navigation.md)). Kubernetes has no application
+object to list. It has Deployments, ReplicaSets, Pods, Services and Ingresses,
+and the relationships between them are expressed three different ways at once:
+owner references, label selectors and naming conventions.
 
 Every tool in this space picks one of three answers:
 
@@ -17,14 +17,14 @@ Every tool in this space picks one of three answers:
    exact, it is always out of date, and a tool that needs configuration before
    it is useful during an incident is not useful during an incident.
 2. **Require an operator or a CRD.** Correct, and it means installing something
-   into a production cluster before kubeui can show anything. That contradicts
+   into a production cluster before Correlux can show anything. That contradicts
    the product: kubeconfig in, information out.
 3. **Infer it.** What an operator already does in their head, done once and
    consistently.
 
 ## Decision
 
-kubeui infers applications, in `internal/domain/application`, from what is
+Correlux infers applications, in `internal/domain/application`, from what is
 already in the cluster:
 
 1. **Ownership first.** Pods are walked up their owner references to the
@@ -57,8 +57,8 @@ the grouping they should produce, with no cluster and no fixtures to record.
 
 ## Consequences
 
-- kubeui is useful on any cluster immediately, including one whose owners never
-  heard of it.
+- Correlux is useful on any cluster immediately, including one whose owners
+  never heard of it.
 - The grouping is a heuristic and will occasionally surprise. That is acceptable
   because it is never load-bearing: the application view is a lens over the
   objects, and every object is reachable through the resource browser

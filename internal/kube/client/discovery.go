@@ -3,14 +3,14 @@ package client
 import (
 	"context"
 
-	"github.com/aronk11/kubeui/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/kube/discovery"
 )
 
 // Catalog discovers the resource kinds a context's cluster serves, including
 // custom resources.
 //
 // Discovery is a handful of round trips, so it runs once per context and is
-// refreshed explicitly (a CRD installed while kubeui is open appears after a
+// refreshed explicitly (a CRD installed while Correlux is open appears after a
 // refresh, not never).
 func (f *Factory) Catalog(ctx context.Context, contextName string) (*discovery.Catalog, error) {
 	cs, err := f.Clientset(contextName)

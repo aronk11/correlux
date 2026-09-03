@@ -6,13 +6,13 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/kube/logs"
-	"github.com/aronk11/kubeui/internal/ui/screens"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/kube/logs"
+	"github.com/aronk11/correlux/internal/ui/screens"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
-// maxLogLines is how much output kubeui keeps. A container that writes a
+// maxLogLines is how much output Correlux keeps. A container that writes a
 // thousand lines a second would otherwise turn a log view into a memory leak;
 // the oldest lines are dropped, and the view says so.
 const maxLogLines = 5000
@@ -349,7 +349,7 @@ func (m *Model) logsData() screens.LogsData {
 			rendered.Time = line.At.Local().Format("15:04:05.000")
 		}
 		if strings.HasPrefix(line.Text, "[") && line.Source.Pod != "" && strings.Contains(line.Text, ": ") {
-			// A line kubeui wrote about a source it could not read.
+			// A line Correlux wrote about a source it could not read.
 			rendered.Status = theme.StatusWarning
 		}
 		d.Lines = append(d.Lines, rendered)

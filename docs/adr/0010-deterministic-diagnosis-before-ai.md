@@ -6,8 +6,8 @@
 ## Context
 
 The `WHY` feature — telling an operator the root cause of a failure — is the
-core of kubeui's value. The tempting implementation is to send the cluster state
-to a language model and print the answer.
+core of Correlux's value. The tempting implementation is to send the cluster
+state to a language model and print the answer.
 
 That fails the requirements the feature actually has: it must work offline and
 in air-gapped clusters, it must be identical for the same input, it must be
@@ -34,5 +34,5 @@ must never be confidently wrong about why production is down.
 - Rule coverage grows slowly and deliberately; the engine will say "I don't
   know" more often than a language model would, which is the correct behaviour
   for a tool people trust during an incident.
-- The rules are portable: the same engine can back a `kubeui why` command or a
+- The rules are portable: the same engine can back a `correlux why` command or a
   CI check, because it is a pure function of cluster state.

@@ -6,7 +6,7 @@
 
 ## Context
 
-kubeui targets macOS, Linux and Windows, and its contributors work on all
+Correlux targets macOS, Linux and Windows, and its contributors work on all
 three. A Makefile does not: GNU Make is not present on a stock Windows machine,
 recipes depend on a POSIX shell, and the tab-versus-space and `$$`-escaping
 rules are a tax paid by everyone who touches the file. We were also about to

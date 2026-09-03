@@ -5,10 +5,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
-	"github.com/aronk11/kubeui/internal/kube/resources"
-	"github.com/aronk11/kubeui/internal/ui/layout"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
+	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/ui/layout"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // noticeTTL is how long a transient status message stays on screen.
@@ -887,7 +887,7 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 		delta = -wheelStep
 	case tea.MouseWheelDown:
 	default:
-		// Horizontal wheels exist; kubeui has nothing to scroll sideways.
+		// Horizontal wheels exist; Correlux has nothing to scroll sideways.
 		return nil
 	}
 

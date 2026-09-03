@@ -45,14 +45,14 @@ func TestTheRestOfTheDocumentIsUntouched(t *testing.T) {
 	raw := []byte(`{"kind": "Secret", "type": "kubernetes.io/tls",
 	  "metadata": {"name": "web", "generation": 1735689600000000000},
 	  "data": {"password": "` + base64.StdEncoding.EncodeToString([]byte("hunter2")) + `"},
-	  "somethingKubeuiHasNeverHeardOf": {"nested": ["a", "b"]}}`)
+	  "somethingCorreluxHasNeverHeardOf": {"nested": ["a", "b"]}}`)
 
 	document, _ := Document(raw)
 
 	for _, want := range []string{
 		"type: kubernetes.io/tls",
 		"generation: 1735689600000000000",
-		"somethingKubeuiHasNeverHeardOf",
+		"somethingCorreluxHasNeverHeardOf",
 	} {
 		if !strings.Contains(document, want) {
 			t.Errorf("the document must still carry %q:\n%s", want, document)

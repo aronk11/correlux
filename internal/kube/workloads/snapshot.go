@@ -27,11 +27,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 // Paging bounds. The page size is what one request costs; the page count is how
-// much of a very large scope kubeui reads before it says "this is a subset".
+// much of a very large scope Correlux reads before it says "this is a subset".
 const (
 	DefaultPageSize = int64(500)
 	DefaultMaxPages = 10

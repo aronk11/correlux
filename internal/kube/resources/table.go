@@ -4,7 +4,7 @@
 // The columns come from the API server's own printer (the `Table` content
 // type), which is what `kubectl get` uses. That single decision is what makes
 // CRD support real rather than nominal: a CustomResourceDefinition that
-// declares `additionalPrinterColumns` renders with those columns in kubeui,
+// declares `additionalPrinterColumns` renders with those columns in Correlux,
 // for free, with no per-resource code. It also moves the formatting work to the
 // server and keeps the payload small.
 package resources

@@ -14,9 +14,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
-	"github.com/aronk11/kubeui/internal/kube/metrics"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
+	"github.com/aronk11/correlux/internal/kube/metrics"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // checkResult is the outcome of one diagnostic.
@@ -27,9 +27,9 @@ type checkResult struct {
 	hint   string
 }
 
-// newDoctorCommand builds `kubeui doctor`, which answers "why does kubeui not
-// work here?" without opening the TUI — the one thing that must still work when
-// everything else is broken.
+// newDoctorCommand builds `correlux doctor`, which answers "why does Correlux
+// not work here?" without opening the TUI — the one thing that must still work
+// when everything else is broken.
 func newDoctorCommand(flags *globalFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "doctor",
@@ -160,7 +160,7 @@ func permissionChecks(ctx context.Context, s *startup, flags globalFlags) []chec
 				name:   "permissions",
 				status: theme.StatusWarning,
 				detail: "cannot query own permissions (SelfSubjectAccessReview denied)",
-				hint:   "kubeui will still work; features you lack access to report it individually.",
+				hint:   "Correlux will still work; features you lack access to report it individually.",
 			}}
 		case err != nil:
 			denied = append(denied, p.label+" (unknown)")
@@ -182,7 +182,7 @@ func permissionChecks(ctx context.Context, s *startup, flags globalFlags) []chec
 }
 
 // metricsCheck reports whether the Metrics API is installed. Its absence is a
-// warning, never an error: kubeui works without metrics.
+// warning, never an error: Correlux works without metrics.
 func metricsCheck(ctx context.Context, s *startup) checkResult {
 	cs, err := s.factory.Clientset(s.context)
 	if err != nil {
@@ -197,7 +197,7 @@ func metricsCheck(ctx context.Context, s *startup) checkResult {
 			name:   "metrics",
 			status: theme.StatusWarning,
 			detail: "metrics unavailable",
-			hint:   "Metrics Server is not installed or not reachable; kubeui works without it.",
+			hint:   "Metrics Server is not installed or not reachable; Correlux works without it.",
 		}
 	}
 	return checkResult{name: "metrics", status: theme.StatusHealthy, detail: "metrics.k8s.io/v1beta1 available"}
@@ -229,7 +229,7 @@ func terminalCheck() checkResult {
 
 func printDoctor(w io.Writer, results []checkResult) {
 	caps := theme.DetectCapabilities(theme.OSEnv)
-	// Colour only when a human is watching: `kubeui doctor > report.txt` and
+	// Colour only when a human is watching: `correlux doctor > report.txt` and
 	// CI logs must stay free of escape sequences.
 	tty := isTerminal(w)
 	caps.Color = caps.Color && tty

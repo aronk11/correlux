@@ -3,8 +3,8 @@ package app
 import (
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/ui/components"
-	"github.com/aronk11/kubeui/internal/ui/layout"
+	"github.com/aronk11/correlux/internal/ui/components"
+	"github.com/aronk11/correlux/internal/ui/layout"
 )
 
 // activeSelector returns the selector belonging to the open overlay, if any.

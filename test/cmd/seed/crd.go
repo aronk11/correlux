@@ -14,9 +14,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-// crdSpec describes one synthetic CRD. Each one declares additionalPrinterColumns,
-// because that is the part kubeui relies on: the API server renders the table
-// and kubeui shows those columns without a line of resource-specific code.
+// crdSpec describes one synthetic CRD. Each one declares
+// additionalPrinterColumns, because that is the part Correlux relies on: the
+// API server renders the table and Correlux shows those columns without a line
+// of resource-specific code.
 type crdSpec struct {
 	plural   string
 	singular string
@@ -76,7 +77,7 @@ func createCRD(ctx context.Context, c *clients, spec crdSpec) error {
 				Kind:       spec.kind,
 				ListKind:   spec.listKind,
 				ShortNames: []string{spec.short},
-				Categories: []string{"kubeui-load"},
+				Categories: []string{"correlux-load"},
 			},
 			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
 				Name:    "v1alpha1",

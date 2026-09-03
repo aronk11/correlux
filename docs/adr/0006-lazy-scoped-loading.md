@@ -10,11 +10,11 @@ everything and serve the UI from a local cache. It works beautifully on a
 laptop's kind cluster and falls over on the clusters that matter: ten thousand
 pods means hundreds of megabytes of memory, a multi-second stall before the
 first frame, and a thundering-herd LIST against an API server that is often
-already unhealthy — which is precisely when someone opens kubeui.
+already unhealthy — which is precisely when someone opens Correlux.
 
 ## Decision
 
-- kubeui starts by reading the kubeconfig only. The first frame renders before
+- Correlux starts by reading the kubeconfig only. The first frame renders before
   any API call completes.
 - Data is fetched for the active scope, on demand, and released when the scope
   changes.
@@ -32,5 +32,5 @@ already unhealthy — which is precisely when someone opens kubeui.
   path (switching back and forth between two namespaces) stays fast.
 - Some cross-cluster views (a global search across every namespace) are harder
   and must be built as explicit, cancellable operations with progress.
-- kubeui works on a cluster where the user may only see one namespace, because
+- Correlux works on a cluster where the user may only see one namespace, because
   nothing assumes cluster-wide read access.

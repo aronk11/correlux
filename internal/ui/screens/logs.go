@@ -5,7 +5,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // LogLine is one line ready to render.
@@ -16,7 +16,7 @@ type LogLine struct {
 	// Time is the server's timestamp, already formatted, or empty.
 	Time string
 	Text string
-	// Status marks a line kubeui itself wrote — a source that failed — so it
+	// Status marks a line Correlux itself wrote — a source that failed — so it
 	// is never mistaken for output from the container.
 	Status theme.Status
 }
@@ -43,10 +43,10 @@ type LogsData struct {
 
 // RenderLogs draws the log view.
 //
-// Log output is the one thing in kubeui that is not kubeui's text: it is
+// Log output is the one thing in Correlux that is not Correlux's text: it is
 // rendered as it came, clipped rather than reflowed unless asked, and never
-// styled by content. A line that looks like an error because kubeui coloured it
-// is a line that lies about what the container said.
+// styled by content. A line that looks like an error because Correlux coloured
+// it is a line that lies about what the container said.
 func RenderLogs(t *theme.Theme, d LogsData, width, height int) string {
 	if width <= 0 || height <= 0 {
 		return ""

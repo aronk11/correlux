@@ -9,8 +9,9 @@ TUIs rot in a predictable way: a widget calls the API "just this once", a render
 function starts caching, and after a year the only way to test whether a
 CrashLoopBackOff is diagnosed correctly is to press keys in a terminal and look.
 
-kubeui's most valuable logic — application inference, diagnosis, topology — must
-be testable exhaustively and cheaply, because its correctness is the product.
+Correlux's most valuable logic — application inference, diagnosis, topology —
+must be testable exhaustively and cheaply, because its correctness is the
+product.
 
 ## Decision
 
@@ -42,5 +43,5 @@ Concretely:
   properly, so it earns its place.
 - Rendering is a pure function of the model, so a frame can be produced in a
   test and asserted on — including the awkward sizes.
-- A future non-terminal front end (a `kubeui report` command, a web view) can
+- A future non-terminal front end (a `correlux report` command, a web view) can
   reuse everything below `ui/app` unchanged.

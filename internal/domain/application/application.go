@@ -203,9 +203,9 @@ type Ingress struct {
 
 // Event is one Kubernetes event, reduced to what an explanation needs.
 //
-// Events are the cluster's own account of what happened, and kubeui shows them
-// as such: quoted, attributed and never rewritten into something the cluster
-// did not say (SPEC 13).
+// Events are the cluster's own account of what happened, and Correlux shows
+// them as such: quoted, attributed and never rewritten into something the
+// cluster did not say (SPEC 13).
 type Event struct {
 	Meta
 	// Type is "Normal" or "Warning".
@@ -364,9 +364,10 @@ type Snapshot struct {
 // Kustomization or HelmRelease, an Argo CD application.
 //
 // It is read from the labels and annotations those tools write on what they
-// create, so kubeui supports them by recognising their handwriting rather than
-// by talking to them. Nothing has to be installed for kubeui to work, and when
-// one of them is installed its objects are reachable like any other (SPEC 2).
+// create, so Correlux supports them by recognising their handwriting rather
+// than by talking to them. Nothing has to be installed for Correlux to work,
+// and when one of them is installed its objects are reachable like any other
+// (SPEC 2).
 type Manager struct {
 	// Tool is "Helm", "Flux" or "Argo CD".
 	Tool string

@@ -14,13 +14,13 @@ import (
 
 var ansi = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
-// TestDumpRealFrames writes plain-text renderings of kubeui against the live
-// cluster to KUBEUI_DUMP_DIR. It is a review aid — the fastest way to see what
-// the UI actually looks like on real data — and a no-op otherwise.
+// TestDumpRealFrames writes plain-text renderings of Correlux against the live
+// cluster to CORRELUX_DUMP_DIR. It is a review aid — the fastest way to see
+// what the UI actually looks like on real data — and a no-op otherwise.
 func TestDumpRealFrames(t *testing.T) {
-	dir := os.Getenv("KUBEUI_DUMP_DIR")
+	dir := os.Getenv("CORRELUX_DUMP_DIR")
 	if dir == "" {
-		t.Skip("set KUBEUI_DUMP_DIR to dump rendered frames")
+		t.Skip("set CORRELUX_DUMP_DIR to dump rendered frames")
 	}
 
 	cases := []struct {
@@ -30,8 +30,8 @@ func TestDumpRealFrames(t *testing.T) {
 		key       string
 	}{
 		{name: "overview"},
-		{name: "pods", namespace: "kubeui-load-000", resource: "pods"},
-		{name: "widgets", namespace: "kubeui-load-000", resource: "widgets"},
+		{name: "pods", namespace: "correlux-load-000", resource: "pods"},
+		{name: "widgets", namespace: "correlux-load-000", resource: "widgets"},
 		// The context default namespace is empty: this frame is the honest
 		// empty state, which is worth reviewing too.
 		{name: "pods-empty-scope", resource: "pods"},

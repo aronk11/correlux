@@ -19,7 +19,7 @@ import (
 // alongside a perfectly good list of everything else, and the tool refuses to
 // show anything.
 //
-// kubeui must degrade to "60 kinds, one group unavailable".
+// Correlux must degrade to "60 kinds, one group unavailable".
 func TestBrokenAggregatedAPIDoesNotBreakDiscovery(t *testing.T) {
 	restConfig, err := shared.factory.RESTConfig(shared.context)
 	if err != nil {
@@ -30,11 +30,11 @@ func TestBrokenAggregatedAPIDoesNotBreakDiscovery(t *testing.T) {
 		t.Fatalf("aggregator client: %v", err)
 	}
 
-	const name = "v1alpha1.broken.kubeui.dev"
+	const name = "v1alpha1.broken.correlux.dev"
 	apiService := &apiregistrationv1.APIService{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: apiregistrationv1.APIServiceSpec{
-			Group:                 "broken.kubeui.dev",
+			Group:                 "broken.correlux.dev",
 			Version:               "v1alpha1",
 			GroupPriorityMinimum:  100,
 			VersionPriority:       100,

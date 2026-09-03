@@ -7,10 +7,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
-	"github.com/aronk11/kubeui/internal/kube/resources"
-	"github.com/aronk11/kubeui/internal/ui/screens"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	kubediscovery "github.com/aronk11/correlux/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/ui/screens"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // fleetPartMsg carries one cluster's page of a resource.
@@ -30,8 +30,8 @@ type fleetPartsMsg struct {
 // The kind is resolved once, in the cluster the session is in, and that same
 // group/version/resource is asked of every member. A cluster that serves a
 // different version of it answers with a 404, which is reported as itself
-// rather than guessed around: kubeui does not quietly show you a different API
-// than the one you asked for.
+// rather than guessed around: Correlux does not quietly show you a different
+// API than the one you asked for.
 func (m *Model) openFleetResource(res kubediscovery.Resource) tea.Cmd {
 	contexts := m.fleetContexts()
 	if len(contexts) == 0 {

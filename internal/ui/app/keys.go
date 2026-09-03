@@ -1,4 +1,4 @@
-// Package app is kubeui's Bubble Tea application: the only place where user
+// Package app is Correlux's Bubble Tea application: the only place where user
 // input, asynchronous Kubernetes work and rendering meet.
 //
 // The rules that keep it maintainable as the product grows:

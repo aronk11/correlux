@@ -15,14 +15,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 // State is how far a member of the fleet has got.
 //
-// It is an explicit lifecycle for the same reason every remote value in kubeui
-// has one: a fleet view that cannot tell "still connecting" from "nothing
-// broken here" is a fleet view that lies at exactly the wrong moment.
+// It is an explicit lifecycle for the same reason every remote value in
+// Correlux has one: a fleet view that cannot tell "still connecting" from
+// "nothing broken here" is a fleet view that lies at exactly the wrong moment.
 type State int
 
 const (

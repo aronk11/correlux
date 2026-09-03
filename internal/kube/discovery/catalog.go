@@ -2,12 +2,12 @@
 //
 // The catalog treats CustomResourceDefinitions as first-class: a CRD is simply
 // a resource whose API group is not one of Kubernetes' own, and it is listed,
-// searched and rendered exactly like a Deployment. Nothing in kubeui hard-codes
-// the set of resource types it understands.
+// searched and rendered exactly like a Deployment. Nothing in Correlux
+// hard-codes the set of resource types it understands.
 //
 // Discovery on a real cluster is routinely *partially* broken: an aggregated
 // API server (metrics, a service mesh, a broken CRD conversion webhook) is down
-// and its group fails while everything else is fine. kubeui reports that as a
+// and its group fails while everything else is fine. Correlux reports that as a
 // partial result rather than an error, because refusing to show 60 healthy
 // resource types over one broken one is exactly the behaviour operators
 // complain about.
@@ -36,7 +36,7 @@ type Resource struct {
 	// Everything else is a custom resource.
 	Builtin bool
 	// Scalable reports whether the server serves a scale subresource for this
-	// kind. It is read from discovery rather than from a list of kinds kubeui
+	// kind. It is read from discovery rather than from a list of kinds Correlux
 	// knows, so a custom resource that declares one can be scaled too.
 	Scalable bool
 }
@@ -178,7 +178,7 @@ func IsBuiltinGroup(group string) bool {
 // be reached is recorded in Failures and the rest of the catalog is returned.
 func BuildCatalog(dc discovery.DiscoveryInterface) (*Catalog, error) {
 	// ServerGroupsAndResources rather than ServerPreferredResources, which
-	// filters subresources out before kubeui ever sees them — and a
+	// filters subresources out before Correlux ever sees them — and a
 	// "deployments/scale" is the only honest answer to "can this be scaled?".
 	// The preferred version is then chosen here, from the groups the same call
 	// returns.

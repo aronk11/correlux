@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aronk11/kubeui/internal/config"
-	"github.com/aronk11/kubeui/internal/domain/application"
-	kubediscovery "github.com/aronk11/kubeui/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/config"
+	"github.com/aronk11/correlux/internal/domain/application"
+	kubediscovery "github.com/aronk11/correlux/internal/kube/discovery"
 )
 
 // scalableCatalog is a catalog where Deployments declare a scale subresource

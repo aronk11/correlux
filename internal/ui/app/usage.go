@@ -8,12 +8,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/domain/usage"
-	"github.com/aronk11/kubeui/internal/kube/workloads"
-	"github.com/aronk11/kubeui/internal/ui/async"
-	"github.com/aronk11/kubeui/internal/ui/screens"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/usage"
+	"github.com/aronk11/correlux/internal/kube/workloads"
+	"github.com/aronk11/correlux/internal/ui/async"
+	"github.com/aronk11/correlux/internal/ui/screens"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // usageBarWidth is how many characters a proportion is drawn in. Six is enough

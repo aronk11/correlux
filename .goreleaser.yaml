@@ -1,6 +1,6 @@
-# GoReleaser builds the cross-platform binaries kubeui ships.
+# GoReleaser builds the cross-platform binaries Correlux ships.
 #
-# kubeui is a single static binary on purpose: installing an operations tool
+# Correlux is a single static binary on purpose: installing an operations tool
 # must never require a runtime, a container or a package manager.
 version: 2
 
@@ -9,18 +9,18 @@ before:
     - go mod tidy
 
 builds:
-  - id: kubeui
-    main: ./cmd/kubeui
-    binary: kubeui
+  - id: correlux
+    main: ./cmd/correlux
+    binary: correlux
     env:
       - CGO_ENABLED=0
     flags:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/aronk11/kubeui/internal/buildinfo.Version={{ .Version }}
-      - -X github.com/aronk11/kubeui/internal/buildinfo.Commit={{ .FullCommit }}
-      - -X github.com/aronk11/kubeui/internal/buildinfo.Date={{ .Date }}
+      - -X github.com/aronk11/correlux/internal/buildinfo.Version={{ .Version }}
+      - -X github.com/aronk11/correlux/internal/buildinfo.Commit={{ .FullCommit }}
+      - -X github.com/aronk11/correlux/internal/buildinfo.Date={{ .Date }}
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
 
