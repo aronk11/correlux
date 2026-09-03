@@ -35,6 +35,13 @@ const (
 	paletteToggleDecode     palette.ActionID = "object.decode"
 	paletteScale            palette.ActionID = "scale"
 	paletteEdit             palette.ActionID = "edit"
+	paletteExec             palette.ActionID = "exec"
+	paletteCopy             palette.ActionID = "copy"
+	paletteCopyYAML         palette.ActionID = "copy.yaml"
+	paletteCopyJSON         palette.ActionID = "copy.json"
+	paletteCopyKubectl      palette.ActionID = "copy.kubectl"
+	paletteCopyLogs         palette.ActionID = "copy.logs"
+	paletteCopyTable        palette.ActionID = "copy.table"
 	paletteLogs             palette.ActionID = "logs"
 	paletteUsage            palette.ActionID = "usage"
 	paletteActivity         palette.ActionID = "activity"
@@ -264,6 +271,34 @@ func (m *Model) rebuildCommands() {
 		})
 	}
 
+	if label, value, ok := m.copyTarget(); ok {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.copy",
+			Action:   paletteCopy,
+			Title:    "Copy " + label,
+			Subtitle: clipTo(value, 60, 1),
+			Category: "Copy",
+			Keywords: []string{"copy", "clipboard", "yank", "name"},
+			Shortcut: m.keys.Key(ActionCopy),
+			Weight:   65,
+			Enabled:  true,
+		})
+	}
+
+	if target, title, ok := m.execTarget(); ok {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.exec",
+			Action:   paletteExec,
+			Title:    title,
+			Subtitle: target.Label(),
+			Category: "Inspect",
+			Keywords: []string{"exec", "shell", "terminal", "attach", "bash", "sh", "ssh"},
+			Shortcut: m.keys.Key(ActionExec),
+			Weight:   82,
+			Enabled:  true,
+		})
+	}
+
 	if ref, ok := m.scalableTarget(); ok {
 		cmds = append(cmds, palette.Command{
 			ID:       "cmd.scale",
@@ -371,15 +406,81 @@ func (m *Model) rebuildCommands() {
 			Shortcut: m.keys.Key(ActionYAML),
 			Weight:   85,
 			Enabled:  true,
-		}, palette.Command{
-			ID:       "cmd.decode",
-			Action:   paletteToggleDecode,
-			Title:    decodeTitle(m.objectDecode),
-			Subtitle: m.objectTarget.label(),
-			Category: "View",
-			Keywords: []string{"base64", "decode", "secret", "reveal", "plain", "value"},
-			Shortcut: m.keys.Key(ActionDecode),
-			Weight:   84,
+		})
+		// Offered only when the document actually has something to decode — a
+		// Secret's values, above all — so the palette never lists an action that
+		// would just tell you there was nothing to do.
+		if m.objectDecodable() {
+			cmds = append(cmds, palette.Command{
+				ID:       "cmd.decode",
+				Action:   paletteToggleDecode,
+				Title:    decodeTitle(m.objectDecode),
+				Subtitle: m.objectTarget.label(),
+				Category: "View",
+				Keywords: []string{"base64", "decode", "secret", "reveal", "plain", "value"},
+				Shortcut: m.keys.Key(ActionDecode),
+				Weight:   84,
+				Enabled:  true,
+			})
+		}
+		if m.object.State() == async.Ready {
+			cmds = append(cmds,
+				palette.Command{
+					ID:       "cmd.copy.yaml",
+					Action:   paletteCopyYAML,
+					Title:    "Copy the YAML document",
+					Subtitle: m.objectTarget.label(),
+					Category: "Copy",
+					Keywords: []string{"copy", "clipboard", "yaml", "manifest"},
+					Weight:   64,
+					Enabled:  true,
+				},
+				palette.Command{
+					ID:       "cmd.copy.json",
+					Action:   paletteCopyJSON,
+					Title:    "Copy the JSON the server holds",
+					Subtitle: m.objectTarget.label(),
+					Category: "Copy",
+					Keywords: []string{"copy", "clipboard", "json", "raw"},
+					Weight:   63,
+					Enabled:  true,
+				},
+				palette.Command{
+					ID:       "cmd.copy.kubectl",
+					Action:   paletteCopyKubectl,
+					Title:    "Copy the equivalent kubectl command",
+					Subtitle: kubectlGet(m, m.objectTarget),
+					Category: "Copy",
+					Keywords: []string{"copy", "clipboard", "kubectl", "command"},
+					Weight:   62,
+					Enabled:  true,
+				},
+			)
+		}
+	}
+
+	if m.view == viewLogs && len(m.logLines) > 0 {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.copy.logs",
+			Action:   paletteCopyLogs,
+			Title:    "Copy what is on screen",
+			Subtitle: itoa(len(m.logLines)) + " lines",
+			Category: "Copy",
+			Keywords: []string{"copy", "clipboard", "logs"},
+			Weight:   64,
+			Enabled:  true,
+		})
+	}
+
+	if m.view == viewTable && len(m.visibleRows()) > 0 {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.copy.table",
+			Action:   paletteCopyTable,
+			Title:    "Copy the table as text",
+			Subtitle: itoa(len(m.visibleRows())) + " rows, tab-separated",
+			Category: "Copy",
+			Keywords: []string{"copy", "clipboard", "table", "csv", "tsv"},
+			Weight:   64,
 			Enabled:  true,
 		})
 	}
@@ -758,6 +859,20 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.scaleTarget()
 	case paletteEdit:
 		return m.editObject(m.objectTarget)
+	case paletteExec:
+		return m.openExec()
+	case paletteCopy:
+		return m.copyPrimary()
+	case paletteCopyYAML:
+		return m.copyObjectYAML()
+	case paletteCopyJSON:
+		return m.copyObjectJSON()
+	case paletteCopyKubectl:
+		return m.copyKubectlCommand()
+	case paletteCopyLogs:
+		return m.copyVisibleLogs()
+	case paletteCopyTable:
+		return m.copyVisibleTable()
 	case paletteLogs:
 		return m.openLogs()
 	case paletteUsage:

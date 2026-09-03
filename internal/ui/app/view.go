@@ -271,12 +271,18 @@ func (m *Model) statusData() components.StatusData {
 
 	switch m.view {
 	case viewTable:
-		hints = append([]components.KeyHint{
+		table := []components.KeyHint{
 			{Key: "↑↓", Desc: "Rows", Priority: 70},
 			{Key: "Enter", Desc: "Open", Priority: 72},
 			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
-		}, hints...)
+		}
+		if _, _, ok := m.execTarget(); ok {
+			table = append(table, components.KeyHint{
+				Group: components.HintView, Key: m.keys.Key(ActionExec), Desc: "Shell", Priority: 78,
+			})
+		}
+		hints = append(table, hints...)
 	case viewApplications:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Move", Priority: 70},
@@ -312,7 +318,7 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewApplication:
-		hints = append([]components.KeyHint{
+		app := []components.KeyHint{
 			{Key: "↑↓", Desc: "Objects", Priority: 70},
 			{Key: "Enter", Desc: "Open", Priority: 72},
 			{Group: components.HintView, Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
@@ -320,7 +326,13 @@ func (m *Model) statusData() components.StatusData {
 			{Group: components.HintView, Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
 			{Group: components.HintView, Key: m.keys.Key(ActionUsage), Desc: "Usage", Priority: 79},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
-		}, hints...)
+		}
+		if _, _, ok := m.execTarget(); ok {
+			app = append(app, components.KeyHint{
+				Group: components.HintView, Key: m.keys.Key(ActionExec), Desc: "Shell", Priority: 78,
+			})
+		}
+		hints = append(app, hints...)
 	case viewWhy:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Scroll", Priority: 70},
@@ -345,21 +357,31 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "Esc", Desc: "Fleet", Priority: 85},
 		}, hints...)
 	case viewLogs:
-		hints = append([]components.KeyHint{
+		logHints := []components.KeyHint{
 			{Key: "↑↓", Desc: "Scroll", Priority: 70},
 			{Group: components.HintView, Key: m.keys.Key(ActionFollow), Desc: followHint(m.logFollow && !m.logClosed), Priority: 89},
 			{Group: components.HintView, Key: m.keys.Key(ActionTimestamps), Desc: "Times", Priority: 82},
 			{Group: components.HintView, Key: m.keys.Key(ActionPrevious), Desc: previousHint(m.logPrevious), Priority: 81},
 			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wrapHint(m.logWrap), Priority: 80},
 			{Key: "Esc", Desc: "Back", Priority: 85},
-		}, hints...)
+		}
+		if len(m.logLines) > 0 {
+			logHints = append(logHints, components.KeyHint{
+				Group: components.HintView, Key: m.keys.Key(ActionCopy), Desc: "Copy", Priority: 55,
+			})
+		}
+		hints = append(logHints, hints...)
 	case viewObject:
 		object := []components.KeyHint{
 			{Key: "↑↓", Desc: "Related", Priority: 70},
 			{Key: "Enter", Desc: "Follow", Priority: 72},
 			{Group: components.HintView, Key: m.keys.Key(ActionYAML), Desc: yamlHint(m.objectYAML), Priority: 87},
-			{Group: components.HintView, Key: m.keys.Key(ActionDecode), Desc: decodeHint(m.objectDecode), Priority: 83},
 			{Key: "Esc", Desc: "Back", Priority: 85},
+		}
+		if m.objectDecodable() {
+			object = append(object, components.KeyHint{
+				Group: components.HintView, Key: m.keys.Key(ActionDecode), Desc: decodeHint(m.objectDecode), Priority: 83,
+			})
 		}
 		object = append(object, components.KeyHint{
 			Group: components.HintView, Key: m.keys.Key(ActionEdit), Desc: "Edit", Priority: 86,
@@ -369,6 +391,16 @@ func (m *Model) statusData() components.StatusData {
 		if _, ok := m.scalableTarget(); ok {
 			object = append(object, components.KeyHint{
 				Group: components.HintView, Key: m.keys.Key(ActionScale), Desc: "Scale", Priority: 84,
+			})
+		}
+		if _, _, ok := m.execTarget(); ok {
+			object = append(object, components.KeyHint{
+				Group: components.HintView, Key: m.keys.Key(ActionExec), Desc: "Shell", Priority: 81,
+			})
+		}
+		if _, _, ok := m.copyTarget(); ok {
+			object = append(object, components.KeyHint{
+				Group: components.HintView, Key: m.keys.Key(ActionCopy), Desc: "Copy", Priority: 55,
 			})
 		}
 		hints = append(object, hints...)
@@ -907,6 +939,8 @@ func (m *Model) renderHelp(width, height int) string {
 			{m.keys.Key(ActionDecode), "Decode the base64 values in it — a Secret's, above all"},
 			{m.keys.Key(ActionScale), "Scale the selected workload, after confirming the blast radius"},
 			{m.keys.Key(ActionEdit), "Edit the open object in $EDITOR, then review what changed"},
+			{m.keys.Key(ActionExec), "Open an interactive shell in the pod, or a running pod of the workload"},
+			{m.keys.Key(ActionCopy), "Copy its namespace/name to the clipboard"},
 			{"Esc", "Back the way you came in"},
 		}},
 		{"Cluster", [][2]string{
