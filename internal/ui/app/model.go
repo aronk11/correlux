@@ -67,6 +67,8 @@ const (
 	viewTable
 	// viewUsage is where the pods are and what they use.
 	viewUsage
+	// viewActivity is the recent Kubernetes Event timeline for the active scope.
+	viewActivity
 )
 
 // Options configures the application at start-up.
@@ -126,6 +128,7 @@ type Model struct {
 	whyPort        layout.Viewport
 	logPort        layout.Viewport
 	usagePort      layout.Viewport
+	activityPort   layout.Viewport
 	fleetPort      layout.Viewport
 	fleetTablePort layout.Viewport
 	// selectedApp is the application the detail view shows, addressed by key
