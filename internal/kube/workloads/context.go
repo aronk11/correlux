@@ -236,3 +236,51 @@ func CollectNodes(ctx context.Context, cs kubernetes.Interface, opts Options) ([
 	}
 	return out, nil
 }
+
+// CollectClaims reads just the PersistentVolumeClaims, the same shape as
+// CollectNodes: the fleet overview reads storage alongside nodes, and an
+// unbound claim belongs to no application either.
+func CollectClaims(ctx context.Context, cs kubernetes.Interface, opts Options) ([]application.Claim, error) {
+	var out []application.Claim
+	_, err := page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+		list, err := cs.CoreV1().PersistentVolumeClaims(opts.Namespace).List(ctx, o)
+		if err != nil {
+			return "", err
+		}
+		for i := range list.Items {
+			out = append(out, fromClaim(&list.Items[i]))
+		}
+		return list.Continue, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// CollectEndpoints reads just the EndpointSlices, rolled up per service the
+// same way CollectContext does. A Service with a published slice and no ready
+// address is the most common way a healthy-looking application serves
+// nothing, and it is invisible to anything that only reads workloads and pods.
+func CollectEndpoints(ctx context.Context, cs kubernetes.Interface, opts Options) ([]application.EndpointSet, error) {
+	slices := map[string]*application.EndpointSet{}
+	_, err := page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+		l, err := cs.DiscoveryV1().EndpointSlices(opts.Namespace).List(ctx, o)
+		if err != nil {
+			return "", err
+		}
+		for i := range l.Items {
+			addSlice(slices, &l.Items[i])
+		}
+		return l.Continue, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]application.EndpointSet, 0, len(slices))
+	for _, set := range slices {
+		out = append(out, *set)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Service < out[j].Service })
+	return out, nil
+}

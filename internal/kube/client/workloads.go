@@ -31,14 +31,50 @@ func (f *Factory) Applications(
 	return application.Group(snapshot), snapshot, nil
 }
 
-// Nodes reads a cluster's nodes, which is what the fleet overview needs to say
-// whether a cluster itself is healthy rather than only its applications.
-func (f *Factory) Nodes(ctx context.Context, contextName string) ([]application.Node, error) {
+// FleetExtras is what the fleet overview reads for a member besides its
+// applications: the things that belong to no application at all.
+type FleetExtras struct {
+	Nodes    []application.Node
+	NodesErr error
+	Claims   []application.Claim
+	// ClaimsErr and EndpointsErr are kept apart from NodesErr because a scoped
+	// service account routinely may read one kind and not another; a member
+	// that cannot list claims is not thereby a member that cannot list nodes.
+	ClaimsErr    error
+	Endpoints    []application.EndpointSet
+	EndpointsErr error
+}
+
+// FleetExtras reads a cluster's nodes, storage and service health in one
+// bounded, concurrent pass.
+//
+// It is deliberately one more call alongside Applications rather than three:
+// a fleet of thirty contexts must not turn "what else is wrong" into ninety
+// extra round trips, and each of the three listings fails on its own so one
+// missing permission does not blank out the other two (ADR 19).
+func (f *Factory) FleetExtras(ctx context.Context, contextName string) FleetExtras {
 	cs, err := f.Clientset(contextName)
 	if err != nil {
-		return nil, err
+		return FleetExtras{NodesErr: err, ClaimsErr: err, EndpointsErr: err}
 	}
-	return workloads.CollectNodes(ctx, cs, workloads.Options{})
+
+	var out FleetExtras
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		out.Nodes, out.NodesErr = workloads.CollectNodes(ctx, cs, workloads.Options{})
+	}()
+	go func() {
+		defer wg.Done()
+		out.Claims, out.ClaimsErr = workloads.CollectClaims(ctx, cs, workloads.Options{})
+	}()
+	go func() {
+		defer wg.Done()
+		out.Endpoints, out.EndpointsErr = workloads.CollectEndpoints(ctx, cs, workloads.Options{})
+	}()
+	wg.Wait()
+	return out
 }
 
 // Usage reads what the resource-usage view needs and the dashboard does not
