@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Correlux — Kubernetes fleet intelligence for your terminal</title>
+<meta name="description" content="Correlux is a terminal-native Kubernetes tool that goes fleet → health → application → problem → evidence → action. No operator, no CRD, no agent, no backend. Runs against your existing kubeconfig.">
+<link rel="canonical" href="https://aronk11.github.io/correlux/">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Correlux">
+<meta property="og:title" content="Correlux — Kubernetes fleet intelligence for your terminal">
+<meta property="og:description" content="K9s is great when you know where to look. Correlux tells you where to look. Fleet-first Kubernetes troubleshooting, no cluster components required.">
+<meta property="og:url" content="https://aronk11.github.io/correlux/">
+<meta property="og:image" content="https://aronk11.github.io/correlux/assets/img/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Correlux — fleet, health, application, problem, evidence, action.">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Correlux — Kubernetes fleet intelligence for your terminal">
+<meta name="twitter:description" content="K9s is great when you know where to look. Correlux tells you where to look.">
+<meta name="twitter:image" content="https://aronk11.github.io/correlux/assets/img/og-image.png">
+
+<meta name="theme-color" content="#0c0d0f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f6f5f2" media="(prefers-color-scheme: light)">
+
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="assets/img/favicon.ico">
+<link rel="apple-touch-icon" href="assets/img/favicon-180.png">
+
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <span class="mark">✓</span>correlux<span class="tag">fleet intelligence</span>
+    </a>
+    <nav class="site-nav" aria-label="Primary">
+      <ul>
+        <li><a href="#fleet-overview">Fleet</a></li>
+        <li><a href="#applications">Applications</a></li>
+        <li><a href="#why">Why</a></li>
+        <li><a href="#compare">Vs. K9s</a></li>
+        <li><a href="#install">Install</a></li>
+      </ul>
+    </nav>
+    <div class="header-cta">
+      <a class="btn btn-ghost btn-small" href="https://github.com/aronk11/correlux" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- 1. HERO -->
+  <section class="hero" id="top" aria-label="Introduction">
+    <svg class="contour" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+      <g fill="none" stroke="currentColor" stroke-width="1" opacity="0.35">
+        <path d="M-50,620 C150,560 250,640 400,580 C550,520 650,600 800,540 C950,480 1050,560 1250,500" />
+        <path d="M-50,560 C150,500 250,580 400,520 C550,460 650,540 800,480 C950,420 1050,500 1250,440" />
+        <path d="M-50,500 C150,440 250,520 400,460 C550,400 650,480 800,420 C950,360 1050,440 1250,380" />
+        <path d="M-50,440 C150,380 250,460 400,400 C550,340 650,420 800,360 C950,300 1050,380 1250,320" />
+        <path d="M-50,380 C150,320 250,400 400,340 C550,280 650,360 800,300 C950,240 1050,320 1250,260" />
+      </g>
+    </svg>
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow">Correlux / Kubernetes fleet intelligence</span>
+        <h1>Find the failure before hunting the resource.</h1>
+        <p class="lede">Fleet-first Kubernetes health and troubleshooting directly from your terminal. No operator, no CRD, no agent — it runs against the kubeconfig you already have.</p>
+
+        <div class="hero-actions">
+          <div class="install-copy">
+            <code id="install-cmd">brew install aronk11/tap/correlux</code>
+            <button class="copy-btn" type="button" data-copy-target="install-cmd" aria-label="Copy install command">
+              <span class="copy-label">copy</span>
+            </button>
+          </div>
+          <a class="secondary-link" href="https://github.com/aronk11/correlux" rel="noopener">View on GitHub →</a>
+        </div>
+
+        <p class="hero-meta">
+          <a href="https://github.com/aronk11/correlux/releases/latest" rel="noopener">latest release</a>
+          <span>Apache-2.0</span>
+          <span>macOS · Linux · Windows</span>
+          <span>read-only by default</span>
+        </p>
+      </div>
+
+      <div class="hero-visual">
+        <div class="terminal" role="img" aria-label="Abstract fleet topology: prod-eu healthy overall with the payments application critical due to OOMKilled pods, prod-us healthy, staging degraded.">
+          <div class="terminal-bar">
+            <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+            correlux — fleet
+          </div>
+          <div class="terminal-body">
+<pre class="topology" aria-hidden="true">prod-eu ───────────── <span class="healthy">● healthy</span>
+    │
+    ├── payments ──── <span class="critical">▲ critical</span>
+    │       │
+    │       └── <span class="dim">OOMKilled</span>
+    │
+    └── search ──────  <span class="healthy">● healthy</span>
+
+prod-us ───────────── <span class="healthy">● healthy</span>
+staging ───────────── <span class="degraded">◐ degraded</span></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. LIVE FLEET VISUALISATION -->
+  <section id="signals" aria-labelledby="signals-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Fleet state</span>
+        <h2 id="signals-heading">Every cluster, one bounded pass, worst first.</h2>
+        <p>A simulated session: clusters answer independently, in parallel, and a cluster that says nothing is never drawn as healthy.</p>
+      </div>
+
+      <div class="fleet-viz">
+        <div class="terminal fleet-viz-panel">
+          <div class="terminal-bar">
+            <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+            <span data-fleet-state>fleet state</span>
+            <span class="live-clock" data-clock aria-hidden="true"></span>
+          </div>
+          <div class="terminal-body">
+            <div class="fleet-rows" data-fleet-rows>
+              <div class="fleet-row healthy" style="animation-delay:.05s">
+                <span class="dot" aria-hidden="true">✓</span>
+                <span class="name">prod-eu <span class="dim">payments, api, search</span></span>
+                <span class="state">healthy</span>
+              </div>
+              <div class="fleet-row healthy" style="animation-delay:.2s">
+                <span class="dot" aria-hidden="true">✓</span>
+                <span class="name">prod-us <span class="dim">payments, api</span></span>
+                <span class="state">healthy</span>
+              </div>
+              <div class="fleet-row degraded" style="animation-delay:.35s">
+                <span class="dot" aria-hidden="true">⚠</span>
+                <span class="name">staging <span class="dim">worker</span></span>
+                <span class="state">degraded</span>
+              </div>
+              <div class="fleet-row critical" style="animation-delay:.5s">
+                <span class="dot" aria-hidden="true">✖</span>
+                <span class="name">prod-eu / payments <span class="dim">0 of 3 pods ready</span></span>
+                <span class="state">down</span>
+              </div>
+              <div class="fleet-row unknown" style="animation-delay:.65s">
+                <span class="dot" aria-hidden="true">?</span>
+                <span class="name">sandbox <span class="dim">connection refused</span></span>
+                <span class="state">unreachable</span>
+              </div>
+            </div>
+            <div class="signal-path" aria-hidden="true"></div>
+            <div class="fleet-status-line">
+              <span>CORRELATING <strong>5</strong> CLUSTERS</span>
+              <span><span class="signal-count">3</span> SIGNALS REQUIRE ATTENTION</span>
+              <span>EVIDENCE CHAIN <strong>attached</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. SOMETHING IS WRONG -->
+  <section id="incident" aria-labelledby="incident-heading">
+    <div class="wrap split">
+      <div class="split-copy">
+        <span class="eyebrow">Something is wrong</span>
+        <h2 id="incident-heading">A pager fires. You open a terminal.</h2>
+        <p>The old sequence is <code>kubectl get</code>, <code>describe</code>, <code>logs</code>, <code>get events</code>, <code>get endpoints</code>, <code>rollout status</code> — run in turn, joined by hand, while the incident keeps running.</p>
+        <p>Correlux opens on what is deployed, worst first — not on a list of resource kinds waiting to be guessed at. The dashboard is real: nothing on it is a mock-up, and where Correlux does not know something yet, it says so instead of drawing a placeholder.</p>
+      </div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+          correlux — applications
+        </div>
+        <div class="terminal-body">
+<pre>STATUS      APPLICATION  PODS   AGE    DETAIL
+<span class="critical">✖ down</span>      payments     0/3    1h30m  0 of 3 pods ready
+<span class="degraded">⚠ degraded</span>  worker       7/8    4d2h   1 CrashLoopBackOff
+<span class="healthy">✓ healthy</span>   api          12/12  9d
+<span class="healthy">✓ healthy</span>   frontend     6/6    9d</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. FLEET OVERVIEW -->
+  <section id="fleet-overview" aria-labelledby="fleet-overview-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Fleet overview</span>
+        <h2 id="fleet-overview-heading">What ten clusters look like at a glance.</h2>
+        <p>Press <kbd>F</kbd> and every configured cluster is read in parallel: which are reachable, which are degraded, and what is broken in each of them — on one screen.</p>
+      </div>
+
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+          correlux — fleet
+        </div>
+        <div class="terminal-body" style="overflow-x:auto">
+<pre>Fleet
+3 clusters   1 unreachable   5 applications across 2 of 3   3 not healthy   1 of 7 nodes not ready, 1 cordoned
+
+CLUSTERS
+  CLUSTER        STATE        APPLICATIONS  DETAIL
+  staging        connected    2             1 degraded, 1 cordoned
+  prod-eu  PROD  connected    3             1 down, 1 of 4 nodes not ready
+  sandbox        <span class="unknown">unreachable</span>  —             connection refused
+
+NODES
+  CLUSTER        NODE     STATE      DETAIL
+  prod-eu  PROD  node-2   not ready  Kubelet stopped posting node status.
+  staging        node-7   cordoned   no new pods will be placed here
+
+WHAT IS BROKEN
+  APPLICATION  CLUSTER        NAMESPACE  HEALTH    PODS  DETAIL
+  payments     prod-eu  PROD  shop       <span class="critical">down</span>      0/3   3 CrashLoopBackOff
+  payments     staging        shop       <span class="degraded">degraded</span>  2/3   1 ImagePullBackOff</pre>
+        </div>
+      </div>
+
+      <ul class="fact-list">
+        <li><span class="tag">replicas</span> Deployments and StatefulSets missing ready replicas, across every cluster at once.</li>
+        <li><span class="tag">pods</span> CrashLoopBackOff and ImagePullBackOff, counted per application.</li>
+        <li><span class="tag">scheduling</span> Pods the scheduler could not place, with the reason it gave.</li>
+        <li><span class="tag">nodes</span> Not-ready, under pressure, or merely cordoned — named even when nothing has failed yet.</li>
+        <li><span class="tag">storage</span> PVCs stuck pending or unbound.</li>
+        <li><span class="tag">network</span> Services with no ready endpoints, ingresses without a backend.</li>
+      </ul>
+
+      <div class="priority-order">
+        <span class="status-badge critical">✖ down</span>
+        <span class="arrow">→</span>
+        <span class="status-badge degraded">⚠ degraded</span>
+        <span class="arrow">→</span>
+        <span class="status-badge unknown">? unknown</span>
+        <span class="arrow">→</span>
+        <span class="status-badge healthy">✓ healthy</span>
+      </div>
+      <p class="lede" style="font-size:15px;margin-top:14px;">Applications sort worst first, never alphabetically — an application Correlux cannot vouch for outranks one it knows is fine. A cluster that does not answer is <strong>unreachable</strong>, on its own row, with the reason stated. It is never folded into a healthy count, and it never reads as zero problems.</p>
+    </div>
+  </section>
+
+  <!-- 5. APPLICATION-FIRST NAVIGATION -->
+  <section id="applications" aria-labelledby="applications-heading">
+    <div class="wrap split reverse">
+      <div class="split-copy">
+        <span class="eyebrow">Application-first navigation</span>
+        <h2 id="applications-heading">Kubernetes has no application object. Correlux infers one anyway.</h2>
+        <p>Every workload is walked up its owner references to the controller that is not itself owned, so a ReplicaSet resolves to its Deployment and a Job to its CronJob. Workloads that share an <code>app.kubernetes.io/instance</code> label, or fall back to <code>app.kubernetes.io/name</code>, <code>app</code> or <code>k8s-app</code>, join the same release. Services join by label or by a selector that actually matches the pods found; ingresses join by label, or through the service they route to.</p>
+        <p>The inference is heuristic, and Correlux says so: an object that matches nothing is left out of every application rather than invented into one, and stays fully visible in the resource browser.</p>
+      </div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+          correlux — payments
+        </div>
+        <div class="terminal-body">
+<pre>payments
+├── Deployment/payments
+├── ReplicaSet/payments-7cf8d
+├── Pod/payments-7cf8d-x8k2 <span class="dim">×3</span>
+├── Service/payments
+├── Ingress/payments
+└── Secret/payments</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. WHY / EVIDENCE -->
+  <section id="why" aria-labelledby="why-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Why / evidence</span>
+        <h2 id="why-heading">A deterministic explanation, built from the cluster's own evidence.</h2>
+        <p>Press <kbd>Ctrl+W</kbd>. Thirteen rules read pod conditions, container states, restart counts, events, endpoints, node conditions and volume claims — no model runs anywhere near it.</p>
+      </div>
+
+      <div class="terminal why-block">
+        <div class="terminal-bar">
+          <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+          correlux — why: payments <span class="dim" style="margin-left:auto">example</span>
+        </div>
+        <div class="terminal-body">
+          <dl>
+            <dt>Status</dt>
+            <dd>Deployment has 0/4 available replicas.</dd>
+            <dt>Cause</dt>
+            <dd class="cause">All pods are repeatedly terminating because their containers were OOMKilled.</dd>
+            <dt>Evidence</dt>
+            <dd>4/4 pods restarted<br>Last termination: OOMKilled, exit code 137<br>Memory limit: 512Mi</dd>
+            <dt>Related</dt>
+            <dd>Deployment/payments, ReplicaSet/payments-7cf8d, Pod/payments-7cf8d-x8k2</dd>
+            <dt>Confidence</dt>
+            <dd>high</dd>
+            <dt>Next</dt>
+            <dd class="keys"><kbd>l</kbd> logs &nbsp; <kbd>p</kbd> previous run &nbsp; <kbd>y</kbd> yaml &nbsp; <kbd>enter</kbd> inspect pod</dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="discipline">
+        <div class="discipline-card">
+          <span class="label">Fact</span>
+          <p>What the API server actually stated: replica counts, exit codes, event messages, endpoint lists.</p>
+        </div>
+        <div class="discipline-card">
+          <span class="label">Inference</span>
+          <p>The one reading the facts support — here, that repeated OOM kills explain zero available replicas.</p>
+        </div>
+        <div class="discipline-card">
+          <span class="label">Unknown</span>
+          <p>What Kubernetes cannot say — why memory usage grew — is left unset. Correlux lowers its confidence rather than inventing a cause.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. NOTHING TO DEPLOY -->
+  <section id="deploy" aria-labelledby="deploy-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Nothing to deploy</span>
+        <h2 id="deploy-heading">Nothing runs in the cluster. Nothing has to.</h2>
+        <p>Correlux reads your existing kubeconfig. There is no server-side component to install, upgrade or lose track of.</p>
+      </div>
+      <div class="negative-grid">
+        <div class="cell"><span class="glyph">✖</span><span class="label">no operator</span></div>
+        <div class="cell"><span class="glyph">✖</span><span class="label">no CRD</span></div>
+        <div class="cell"><span class="glyph">✖</span><span class="label">no agent</span></div>
+        <div class="cell"><span class="glyph">✖</span><span class="label">no backend</span></div>
+        <div class="cell"><span class="glyph">✖</span><span class="label">no cloud</span></div>
+      </div>
+      <p class="lede" style="font-size:15px;margin-top:20px;">It is read-only by default. Scaling a workload or editing an object goes through one confirmation gate that states the consequence, the object and the cluster before anything happens — production contexts require typing the cluster's name.</p>
+    </div>
+  </section>
+
+  <!-- 8. K9S COMPARISON -->
+  <section id="compare" aria-labelledby="compare-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Correlux and K9s</span>
+        <h2 id="compare-heading">Not a replacement. One step earlier.</h2>
+      </div>
+      <div class="compare">
+        <div class="compare-col">
+          <h3>K9s</h3>
+          <ol>
+            <li>Cluster</li>
+            <li><span class="arrow">→</span> Resource Type</li>
+            <li><span class="arrow">→</span> Resource</li>
+            <li><span class="arrow">→</span> Inspect</li>
+            <li aria-hidden="true" style="visibility:hidden">—</li>
+          </ol>
+        </div>
+        <div class="compare-col correlux">
+          <h3>Correlux</h3>
+          <ol>
+            <li>Fleet</li>
+            <li><span class="arrow">→</span> Problem</li>
+            <li><span class="arrow">→</span> Evidence</li>
+            <li><span class="arrow">→</span> Resource</li>
+            <li><span class="arrow">→</span> Diagnose</li>
+          </ol>
+        </div>
+      </div>
+      <p class="compare-note">K9s is excellent when you know where to look. Correlux starts one step earlier.</p>
+    </div>
+  </section>
+
+  <!-- 9. MULTI-CLUSTER / FLEET -->
+  <section id="scale" aria-labelledby="scale-heading">
+    <div class="wrap split">
+      <div class="split-copy">
+        <span class="eyebrow">Multi-cluster</span>
+        <h2 id="scale-heading">Several clusters, one bounded, cancellable pass.</h2>
+        <p>Every cluster in the fleet is read concurrently, within a client timeout, and every remote value carries an explicit lifecycle: loading is never confused with empty. Switching context cancels whatever was still in flight rather than letting a stale answer land late.</p>
+        <p>A cluster that cannot be reached is a member whose state says so — never a silent gap that reads as health. The fleet overview is read-only: opening it never mutates anything, and acting on a row leaves the fleet for the one cluster it belongs to, so a change always lands on exactly the cluster you meant.</p>
+      </div>
+      <ul class="fact-list">
+        <li><span class="tag">bounded</span> Every fleet read runs under a client timeout; nothing waits forever on one slow cluster.</li>
+        <li><span class="tag">cancellable</span> Switching cluster or namespace cancels in-flight requests instead of racing them.</li>
+        <li><span class="tag">fault-tolerant</span> One unreachable cluster narrows its own row. The rest of the fleet still answers.</li>
+        <li><span class="tag">no accidents</span> The overview is read-only; a mutation always happens inside one specific cluster, never across the fleet.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 10. INSTALLATION -->
+  <section id="install" aria-labelledby="install-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Installation</span>
+        <h2 id="install-heading">One binary. No runtime to manage.</h2>
+      </div>
+
+      <div class="install-steps">
+        <div class="install-step">
+          <span class="num">01</span>
+          <div>
+            <h3>Homebrew (macOS)</h3>
+            <p>The primary install path. The tap ships a cask, so Linux takes
+              one of the two below.</p>
+            <pre>brew install aronk11/tap/correlux</pre>
+          </div>
+        </div>
+        <div class="install-step">
+          <span class="num">02</span>
+          <div>
+            <h3>Release binaries</h3>
+            <p>Static binaries for macOS, Linux and Windows — nothing else to install.</p>
+            <pre>Download from <a href="https://github.com/aronk11/correlux/releases" rel="noopener">github.com/aronk11/correlux/releases</a></pre>
+          </div>
+        </div>
+        <div class="install-step">
+          <span class="num">03</span>
+          <div>
+            <h3>Go toolchain</h3>
+            <p>If you already have Go installed.</p>
+            <pre>go install github.com/aronk11/correlux/cmd/correlux@latest</pre>
+          </div>
+        </div>
+        <div class="install-step">
+          <span class="num">04</span>
+          <div>
+            <h3>Run it</h3>
+            <p>Starts in your current kubeconfig context. No flags required.</p>
+            <pre>correlux</pre>
+            <p>Start somewhere specific, or check why it doesn't work here:</p>
+            <pre>correlux --context prod-eu
+correlux doctor</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11. GITHUB CTA -->
+  <section class="cta-section" id="github" aria-labelledby="cta-heading">
+    <div class="wrap">
+      <div class="cta-box">
+        <div>
+          <h2 id="cta-heading">Read the source. It's the whole product.</h2>
+          <p>Apache-2.0, no telemetry, no account. The diagnosis rules, the application inference and every architecture decision are in the repository.</p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-primary" href="https://github.com/aronk11/correlux" rel="noopener">View on GitHub →</a>
+          <a class="btn btn-ghost" href="https://github.com/aronk11/correlux/releases" rel="noopener">Releases</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-row">
+    <span>Correlux — Apache-2.0</span>
+    <div class="footer-links">
+      <a href="https://github.com/aronk11/correlux" rel="noopener">GitHub</a>
+      <a href="https://github.com/aronk11/correlux/blob/main/SPEC.md" rel="noopener">Spec</a>
+      <a href="https://github.com/aronk11/correlux/blob/main/docs/architecture.md" rel="noopener">Architecture</a>
+      <a href="https://github.com/aronk11/correlux/releases" rel="noopener">Releases</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/main.js" defer></script>
+</body>
+</html>
