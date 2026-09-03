@@ -114,6 +114,26 @@ Everything unusual reaches the default view: a node that is not ready, one under
 pressure, one merely cordoned, and a kind that could not be read. Showing only
 the worst of them is how the rest is discovered too late.
 
+Storage and service health are read the same way: one more bounded, concurrent
+call alongside the nodes, never a request per application. A claim that never
+bound and a service whose slice carries no ready address belong to no
+application either, and both are named in their own section rather than folded
+into a workload's summary.
+
+Every row on the overview — a cluster, an application instance, a node, a
+claim, a service — is banded by the same five-level severity, worst first:
+critical, degraded, warning, unknown, healthy. A cluster that could not be read
+is critical by construction, whatever it last answered; nothing sorts as
+healthy without having answered and having nothing wrong. Clusters are listed
+in that order, production ahead of the rest at equal severity, so a production
+cluster on fire is never scrolled past to reach it. The same ordering, not a
+raw problem count, is what a reader is meant to act on first.
+
+Each broken row carries a short, honest digest rather than only a count: the
+cluster's own reason is quoted — `CrashLoopBackOff`, `OOMKilled`, a ready
+count — and a row with nothing named says so in as many words rather than
+falling silent.
+
 From the overview, `Ctrl+B` browses one resource kind across every member as a
 single table. The columns are the API servers' own, merged by name rather than
 by position: clusters need not agree — a CRD at two versions prints different
