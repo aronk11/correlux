@@ -69,3 +69,46 @@ func TestAMessageReplacesTheHints(t *testing.T) {
 		t.Errorf("a message replaces the hints rather than sharing the line: %q", out)
 	}
 }
+
+// TestTheBarReadsInGroupOrderWhateverOrderItWasBuiltIn is the ordering rule:
+// a view appends its keys to a shared list without interleaving them, and the
+// bar puts them in reading order itself.
+func TestTheBarReadsInGroupOrderWhateverOrderItWasBuiltIn(t *testing.T) {
+	th := theme.New(theme.Capabilities{Unicode: true, Attributes: true}, "")
+	out := RenderStatus(th, StatusData{Hints: []KeyHint{
+		{Group: HintSession, Key: "q", Desc: "Quit", Priority: 40},
+		{Group: HintScope, Key: "/", Desc: "Filter", Priority: 83},
+		{Key: "↑↓", Desc: "Rows", Priority: 70},
+		{Group: HintView, Key: "w", Desc: "Why", Priority: 88},
+		{Key: "Enter", Desc: "Open", Priority: 72},
+	}}, 120)
+
+	want := []string{"Rows", "Open", "Why", "Filter", "Quit"}
+	at := 0
+	for _, w := range want {
+		i := strings.Index(out[at:], w)
+		if i < 0 {
+			t.Fatalf("%q is missing from the bar:\n%s", w, out)
+		}
+		at += i
+	}
+}
+
+// TestAKeyIsAdvertisedOnce guards against the bar naming one keystroke twice.
+// A view relabels a shared key for its own screen — the refresh key is
+// "Measure again" on the usage view — while the general list still carries the
+// plain wording behind it.
+func TestAKeyIsAdvertisedOnce(t *testing.T) {
+	th := theme.New(theme.Capabilities{Unicode: true, Attributes: true}, "")
+	out := RenderStatus(th, StatusData{Hints: []KeyHint{
+		{Group: HintSession, Key: "r", Desc: "Measure again", Priority: 84},
+		{Group: HintSession, Key: "r", Desc: "Refresh", Priority: 60},
+	}}, 120)
+
+	if !strings.Contains(out, "Measure again") {
+		t.Errorf("the view's own wording must win:\n%s", out)
+	}
+	if strings.Contains(out, "Refresh") {
+		t.Errorf("the same key must not be advertised twice:\n%s", out)
+	}
+}

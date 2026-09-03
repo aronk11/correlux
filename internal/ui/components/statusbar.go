@@ -1,6 +1,7 @@
 package components
 
 import (
+	"sort"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -8,10 +9,40 @@ import (
 	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
+// HintGroup orders the status bar. The bar reads left to right as the eye
+// travels out from the screen in front of you: what these arrow keys do here,
+// then what else this screen offers, then how to go somewhere else, then the
+// session itself.
+//
+// It is separate from Priority because the two questions are different. A
+// group says where a hint belongs in the sentence; Priority says what to give
+// up when the sentence does not fit. "Quit" is last in the reading order and
+// also the first thing worth dropping, but "↑↓ Rows" is first in the reading
+// order and among the first to go — the arrow keys are the one thing nobody
+// has to be told.
+type HintGroup int
+
+const (
+	// HintNavigate is what the cursor keys, Enter and Esc do on this screen.
+	HintNavigate HintGroup = iota
+	// HintView is what else can be done to what is on screen.
+	HintView
+	// HintScope is how to look at something else: cluster, namespace, kind,
+	// filter.
+	HintScope
+	// HintSession is the program rather than the cluster: refresh, commands,
+	// help, quit.
+	HintSession
+)
+
 // KeyHint is one "key — action" pair in the status bar.
 type KeyHint struct {
 	Key  string
 	Desc string
+	// Group decides where the hint reads in the bar. The zero value is
+	// HintNavigate, which is where an unlabelled hint about this screen
+	// belongs anyway.
+	Group HintGroup
 	// Priority decides which hints survive a narrow terminal. Higher stays;
 	// zero is the least important. Without it the bar drops whatever happens
 	// to be furthest right, which is how the help key disappears from an
@@ -40,10 +71,16 @@ type StatusData struct {
 
 // RenderStatus draws the bottom bar.
 //
-// When the hints do not fit, the least important ones are dropped rather than
-// the rightmost: a narrow terminal should lose "Quit" before it loses "Help",
-// whatever order the caller listed them in. The surviving hints keep that
-// order, so the bar does not reshuffle as the window is resized.
+// The hints are grouped before anything else, so the bar always reads in the
+// same order however the caller assembled it: this screen's keys, then what
+// else it offers, then how to leave it, then the session. Callers append their
+// view-specific hints to a shared list and do not have to interleave them by
+// hand — which is how "Filter" ended up printed after "Quit".
+//
+// When they do not fit, the least important are dropped rather than the
+// rightmost: a narrow terminal should lose "Quit" before it loses "Help". The
+// survivors keep the grouped order, so the bar does not reshuffle as the
+// window is resized.
 func RenderStatus(t *theme.Theme, d StatusData, width int) string {
 	if d.Message != "" {
 		return pad(t.Badge(d.MessageStatus, truncate(d.Message, max(width-2, 1))), width)
@@ -54,7 +91,32 @@ func RenderStatus(t *theme.Theme, d StatusData, width int) string {
 		lead = renderFilter(t, d)
 	}
 	remaining := max(width-lipgloss.Width(lead), 0)
-	return pad(lead+renderHints(t, fit(d.Hints, remaining), remaining), width)
+	return pad(lead+renderHints(t, fit(order(d.Hints), remaining), remaining), width)
+}
+
+// order drops duplicate keys and sorts what is left into reading order.
+//
+// A key appears once. Views prepend their own wording for a shared key — the
+// refresh key is "Measure again" on the usage screen and "Reload" on the fleet
+// — and the general list still carries the plain "Refresh" behind it; printing
+// both put the same keystroke on the bar twice, describing two things. The
+// first wins, which is the view's, because a hint that names what the key does
+// on this screen beats one that names what it does in general.
+//
+// The sort is stable, so hints in the same group keep the order the view
+// listed them in: within a group that order is the view's own judgement.
+func order(hints []KeyHint) []KeyHint {
+	out := make([]KeyHint, 0, len(hints))
+	seen := make(map[string]bool, len(hints))
+	for _, h := range hints {
+		if seen[h.Key] {
+			continue
+		}
+		seen[h.Key] = true
+		out = append(out, h)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Group < out[j].Group })
+	return out
 }
 
 // separatorWidth is the gap rendered between two hints.
