@@ -60,6 +60,7 @@ func Group(s Snapshot) []Application {
 	for _, w := range s.Workloads {
 		root := ix.root(w.Meta)
 		if g := group(root.Namespace, appName(root)); g != nil {
+			w.GroupedBy = ix.reasonFor(w.Meta)
 			g.Workloads = append(g.Workloads, w)
 		}
 	}
@@ -67,18 +68,23 @@ func Group(s Snapshot) []Application {
 	for i := range s.Pods {
 		root := ix.root(s.Pods[i].Meta)
 		if g := group(root.Namespace, appName(root)); g != nil {
-			g.Pods = append(g.Pods, s.Pods[i])
+			p := s.Pods[i]
+			p.GroupedBy = ix.reasonFor(p.Meta)
+			g.Pods = append(g.Pods, p)
 		}
 	}
 
-	for _, svc := range s.Services {
-		if g := attachService(groups, svc); g != nil {
+	for i := range s.Services {
+		svc := s.Services[i]
+		if g, reason := attachService(groups, &svc); g != nil {
+			svc.GroupedBy = reason
 			g.Services = append(g.Services, svc)
 		}
 	}
 
 	for _, ing := range s.Ingresses {
-		if g := attachIngress(groups, ing); g != nil {
+		if g, reason := attachIngress(groups, ing); g != nil {
+			ing.GroupedBy = reason
 			g.Ingresses = append(g.Ingresses, ing)
 		}
 	}
@@ -151,8 +157,8 @@ func (a *Application) metas() []Meta {
 	for i := range a.Pods {
 		out = append(out, a.Pods[i].Meta)
 	}
-	for _, s := range a.Services {
-		out = append(out, s.Meta)
+	for i := range a.Services {
+		out = append(out, a.Services[i].Meta)
 	}
 	for _, i := range a.Ingresses {
 		out = append(out, i.Meta)
@@ -164,12 +170,17 @@ func (a *Application) metas() []Meta {
 // then the pods its selector actually matches. A service whose selector matches
 // nothing is a real and common failure, but it is not evidence of a *different*
 // application, so it stays out of the list rather than inventing one.
-func attachService(groups map[string]*Application, svc Service) *Application {
-	if g, ok := groups[svc.Namespace+"/"+labelName(svc.Meta)]; ok && labelName(svc.Meta) != "" {
-		return g
+//
+// It returns the Reason alongside the Application so the caller can record why,
+// without recomputing which of the two rules actually matched.
+func attachService(groups map[string]*Application, svc *Service) (*Application, Reason) {
+	if key, value, ok := labelNameKV(svc.Meta); ok {
+		if g, exists := groups[svc.Namespace+"/"+value]; exists {
+			return g, Reason{Signal: signalForLabel(key), Key: key, Value: value}
+		}
 	}
 	if len(svc.Selector) == 0 {
-		return nil
+		return nil, Reason{}
 	}
 	var best *Application
 	bestCount := 0
@@ -189,28 +200,33 @@ func attachService(groups map[string]*Application, svc Service) *Application {
 			best, bestCount = g, count
 		}
 	}
-	return best
+	if best == nil {
+		return nil, Reason{}
+	}
+	return best, Reason{Signal: SignalSelector, Value: renderSelector(svc.Selector)}
 }
 
 // attachIngress finds the application an ingress belongs to, by label or
 // through the services it routes to.
-func attachIngress(groups map[string]*Application, ing Ingress) *Application {
-	if g, ok := groups[ing.Namespace+"/"+labelName(ing.Meta)]; ok && labelName(ing.Meta) != "" {
-		return g
+func attachIngress(groups map[string]*Application, ing Ingress) (*Application, Reason) {
+	if key, value, ok := labelNameKV(ing.Meta); ok {
+		if g, exists := groups[ing.Namespace+"/"+value]; exists {
+			return g, Reason{Signal: signalForLabel(key), Key: key, Value: value}
+		}
 	}
 	for _, backend := range ing.Backends {
 		for _, g := range groups {
 			if g.Namespace != ing.Namespace {
 				continue
 			}
-			for _, svc := range g.Services {
-				if svc.Name == backend {
-					return g
+			for i := range g.Services {
+				if g.Services[i].Name == backend {
+					return g, Reason{Signal: SignalBackend, Value: backend}
 				}
 			}
 		}
 	}
-	return nil
+	return nil, Reason{}
 }
 
 // selects reports whether a label selector matches a label set, using the
@@ -266,6 +282,49 @@ func (ix *index) root(m Meta) Meta {
 		m = next
 	}
 	return m
+}
+
+// reasonFor explains why m belongs to whatever application it lands in. It
+// follows exactly the cascade root and appName follow together — ownership
+// first, then the label conventions in the same order labelNameKV reads them
+// — so the answer can never disagree with the grouping it explains.
+func (ix *index) reasonFor(m Meta) Reason {
+	seen := map[string]bool{m.UID: true}
+	cur := m
+	var chain []string
+	// unresolved carries the one owner reference a walk of zero hops still
+	// found: the object names its owner, even though that owner was not in
+	// the snapshot to walk any further.
+	var unresolved string
+	for depth := 0; depth < maxOwnerDepth; depth++ {
+		ref, ok := cur.Controller()
+		if !ok || ref.UID == "" || seen[ref.UID] {
+			break
+		}
+		next, ok := ix.metas[ref.UID]
+		if !ok {
+			if len(chain) == 0 {
+				unresolved = ref.Kind + "/" + ref.Name
+			}
+			break
+		}
+		chain = append(chain, ref.Kind+"/"+ref.Name)
+		seen[ref.UID] = true
+		cur = next
+	}
+	if len(chain) > 0 {
+		return Reason{Signal: SignalOwner, Chain: chain}
+	}
+	// A label on the object itself outranks an owner reference that could not
+	// be followed, exactly as appName reads root's own label before falling
+	// back to root's controller.
+	if key, value, ok := labelNameKV(m); ok {
+		return Reason{Signal: signalForLabel(key), Key: key, Value: value}
+	}
+	if unresolved != "" {
+		return Reason{Signal: SignalOwner, Chain: []string{unresolved}}
+	}
+	return Reason{Signal: SignalNone}
 }
 
 // appName names the application an object belongs to.
@@ -333,10 +392,50 @@ func firstNonEmpty(values ...string) string {
 
 // labelName reads the application name off the conventional labels.
 func labelName(m Meta) string {
-	for _, key := range groupLabels {
-		if v := strings.TrimSpace(m.Labels[key]); v != "" {
-			return v
+	_, value, _ := labelNameKV(m)
+	return value
+}
+
+// labelNameKV is labelName plus the key that matched, so a caller can say
+// which convention decided — a bare "app" label and an instance label read
+// the same value but must never carry the same weight (ADR 16).
+func labelNameKV(m Meta) (key, value string, ok bool) {
+	for _, k := range groupLabels {
+		if v := strings.TrimSpace(m.Labels[k]); v != "" {
+			return k, v, true
 		}
 	}
-	return ""
+	return "", "", false
+}
+
+// signalForLabel names which Signal a matched label key stands for.
+func signalForLabel(key string) Signal {
+	switch key {
+	case "app.kubernetes.io/instance":
+		return SignalInstanceLabel
+	case "app.kubernetes.io/name":
+		return SignalNameLabel
+	case "k8s-app":
+		return SignalK8sAppLabel
+	default: // "app"
+		return SignalAppLabel
+	}
+}
+
+// renderSelector renders a selector as one short, deterministic string: keys
+// sorted, so the same selector always reads the same way regardless of Go's
+// map ordering. Selectors are already small by construction — a handful of
+// match keys, never a whole label map — so this stays within the same memory
+// budget as everything else Reason carries.
+func renderSelector(selector map[string]string) string {
+	keys := make([]string, 0, len(selector))
+	for k := range selector {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+"="+selector[k])
+	}
+	return strings.Join(parts, ",")
 }

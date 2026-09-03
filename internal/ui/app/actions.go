@@ -26,6 +26,7 @@ const (
 	paletteFleetEverything palette.ActionID = "fleet.everything"
 	paletteOpenApp         palette.ActionID = "open.application"
 	paletteExplain         palette.ActionID = "explain"
+	paletteGrouping        palette.ActionID = "application.grouping"
 	paletteToggleYAML      palette.ActionID = "object.yaml"
 	paletteToggleDecode    palette.ActionID = "object.decode"
 	paletteScale           palette.ActionID = "scale"
@@ -201,6 +202,20 @@ func (m *Model) rebuildCommands() {
 			Weight:   10,
 			Enabled:  true,
 		},
+	}
+
+	if m.view == viewApplications || m.view == viewApplication {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.grouping",
+			Action:   paletteGrouping,
+			Title:    groupingTitle(m.groupingShown),
+			Subtitle: "which signal put each object here, and how sure it is",
+			Category: "Diagnose",
+			Keywords: []string{"why", "grouping", "reason", "owner", "label", "selector", "guess", "certain"},
+			Shortcut: m.keys.Key(ActionGrouping),
+			Weight:   96,
+			Enabled:  true,
+		})
 	}
 
 	if m.view == viewTable || m.view == viewApplications {
@@ -535,6 +550,14 @@ func decodeTitle(decoding bool) string {
 	return "Decode the base64 values in this document"
 }
 
+// groupingTitle names what the command will do next.
+func groupingTitle(shown bool) string {
+	if shown {
+		return "Hide why these objects are grouped together"
+	}
+	return "Show why these objects are grouped together"
+}
+
 func wideTitle(wide bool) string {
 	if wide {
 		return "Hide wide columns"
@@ -627,6 +650,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 			return m.explainApplication(cmd.Arg)
 		}
 		return m.explain()
+	case paletteGrouping:
+		return m.toggleGrouping()
 	case paletteOpenResources:
 		return m.openOverlay(overlayResources)
 	case paletteOpenResource:

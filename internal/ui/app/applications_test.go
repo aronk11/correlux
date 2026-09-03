@@ -358,6 +358,102 @@ func TestTheFluxObjectCanBeOpenedFromTheApplication(t *testing.T) {
 	}
 }
 
+// groupedApplication builds an application whose members carry the same
+// GroupedBy reasons a real snapshot would attach: an owned pod, a workload
+// named by its instance label, and a service found through its selector.
+func groupedApplication(name string) application.Application {
+	a := application.Application{
+		Name: name, Namespace: "default",
+		Health: application.Healthy, Summary: "1 of 1 pods ready",
+		ReadyPods: 1, DesiredPods: 1,
+	}
+	a.Workloads = []application.Workload{{
+		Meta:    application.Meta{Kind: "Deployment", Name: name, Namespace: "default"},
+		Desired: 1, Ready: 1, Replicated: true,
+		GroupedBy: application.Reason{
+			Signal: application.SignalInstanceLabel, Key: "app.kubernetes.io/instance", Value: name,
+		},
+	}}
+	a.Pods = []application.Pod{{
+		Meta:  application.Meta{Kind: "Pod", Name: name + "-7d8f-0", Namespace: "default"},
+		Phase: "Running", Ready: true,
+		GroupedBy: application.Reason{
+			Signal: application.SignalOwner,
+			Chain:  []string{"ReplicaSet/" + name + "-7d8f", "Deployment/" + name},
+		},
+	}}
+	a.Services = []application.Service{{
+		Meta: application.Meta{Kind: "Service", Name: name, Namespace: "default"},
+		Type: "ClusterIP",
+		GroupedBy: application.Reason{
+			Signal: application.SignalSelector, Value: "app.kubernetes.io/name=" + name,
+		},
+	}}
+	return a
+}
+
+func TestTheGroupingKeyShowsWhyEachObjectBelongsHere(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, groupedApplication("payments"))
+
+	press(t, m, "enter")
+	if strings.Contains(plainView(m), "GROUPED BY") {
+		t.Fatal("the grouping section must start hidden")
+	}
+
+	press(t, m, "r")
+	out := plainView(m)
+	for _, want := range []string{
+		"GROUPED BY",
+		"app.kubernetes.io/instance=payments",
+		"owned by ReplicaSet/payments-7d8f, owned by Deployment/payments",
+		"selector matches app.kubernetes.io/name=payments",
+		"certain",
+		"guess",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the grouping section must show %q:\n%s", want, out)
+		}
+	}
+
+	// Pressing it again hides the section rather than stacking a second one.
+	press(t, m, "r")
+	if strings.Contains(plainView(m), "GROUPED BY") {
+		t.Error("pressing the key again must hide the section")
+	}
+}
+
+func TestTheGroupingKeyOpensTheApplicationUnderTheCursor(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, groupedApplication("payments"))
+
+	press(t, m, "r")
+	if m.view != viewApplication {
+		t.Fatalf("pressing the grouping key on the dashboard must open the application, got view %v", m.view)
+	}
+	if out := plainView(m); !strings.Contains(out, "GROUPED BY") {
+		t.Errorf("it must also turn the section on:\n%s", out)
+	}
+}
+
+func TestAFallbackGroupingSaysNothingMatched(t *testing.T) {
+	m := newTestModel(t)
+	a := testApplication("mystery", application.Healthy, 1, 1)
+	a.Workloads[0].GroupedBy = application.Reason{Signal: application.SignalNone}
+	loadApplicationsInto(m, a)
+
+	press(t, m, "enter")
+	press(t, m, "r")
+
+	out := plainView(m)
+	if !strings.Contains(out, "no owner, label, selector or backend matched") {
+		t.Errorf("an object grouped only by fallback must say so plainly:\n%s", out)
+	}
+	if !strings.Contains(out, "guess") {
+		t.Errorf("a fallback grouping must never be presented as certain:\n%s", out)
+	}
+}
+
 func TestAnApplicationNobodyClaimsSaysSo(t *testing.T) {
 	m := newTestModel(t)
 	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
