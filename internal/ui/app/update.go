@@ -99,7 +99,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, waitForFleet(msg.gen, msg.results)
 
 	case fleetMemberMsg:
-		return m, m.applyFleetMember(msg)
+		return m, m.applyFleetMember(&msg)
 
 	case fleetPartsMsg:
 		if msg.gen != m.fleetGeneration {

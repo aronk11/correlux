@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"sort"
 	"strings"
 	"sync"
 
@@ -134,10 +133,12 @@ func (m *Model) startFleet(contexts []string) tea.Cmd {
 						// must not hold up the rest of the fleet.
 						readCtx, readCancel := context.WithTimeout(ctx, factory.Timeout())
 						apps, snapshot, err := factory.Applications(readCtx, name, workloads.Options{})
-						// The machines are read in the same breath: a broken
-						// node belongs to no application, and a fleet that
-						// counts only applications would never mention it.
-						nodes, nodesErr := factory.Nodes(readCtx, name)
+						// The machines, storage and services are read in the
+						// same breath, one more bounded call rather than a
+						// round trip per kind: none of the three belongs to
+						// any one application, and a fleet that only asked
+						// about applications would never mention them.
+						extras := factory.FleetExtras(readCtx, name)
 						readCancel()
 
 						switch {
@@ -148,7 +149,9 @@ func (m *Model) startFleet(contexts []string) tea.Cmd {
 							member.Applications = apps
 							member.Gaps = snapshot.Gaps
 							member.ReadAt = snapshot.FetchedAt
-							member.Nodes, member.NodesErr = nodes, nodesErr
+							member.Nodes, member.NodesErr = extras.Nodes, extras.NodesErr
+							member.Claims, member.ClaimsErr = extras.Claims, extras.ClaimsErr
+							member.Endpoints, member.EndpointsErr = extras.Endpoints, extras.EndpointsErr
 						}
 						select {
 						case results <- member:
@@ -188,7 +191,7 @@ func waitForFleet(gen uint64, results <-chan fleet.Member) tea.Cmd {
 }
 
 // applyFleetMember stores one cluster's answer and waits for the next.
-func (m *Model) applyFleetMember(msg fleetMemberMsg) tea.Cmd {
+func (m *Model) applyFleetMember(msg *fleetMemberMsg) tea.Cmd {
 	if msg.gen != m.fleetGeneration {
 		return nil
 	}
@@ -238,6 +241,15 @@ func (m *Model) enterFleetRow() tea.Cmd {
 		switch {
 		case target.node != "":
 			return m.openObject(objectRef{Kind: "Node", Name: target.node, Resource: "nodes"})
+		case target.claim != "":
+			return m.openObject(objectRef{
+				Kind: "PersistentVolumeClaim", Name: target.claim, Namespace: target.namespace,
+				Resource: "persistentvolumeclaims",
+			})
+		case target.service != "":
+			return m.openObject(objectRef{
+				Kind: "Service", Name: target.service, Namespace: target.namespace, Resource: "services",
+			})
 		case target.application != "":
 			return m.openApplication(target.application)
 		}
@@ -245,11 +257,22 @@ func (m *Model) enterFleetRow() tea.Cmd {
 	}
 
 	cmd := m.switchContextScoped(target.context, target.namespace)
-	if target.node != "" {
+	switch {
+	case target.node != "":
 		m.pendingObject = objectRef{Kind: "Node", Name: target.node, Resource: "nodes"}
 		return cmd
-	}
-	if target.application == "" {
+	case target.claim != "":
+		m.pendingObject = objectRef{
+			Kind: "PersistentVolumeClaim", Name: target.claim, Namespace: target.namespace,
+			Resource: "persistentvolumeclaims",
+		}
+		return cmd
+	case target.service != "":
+		m.pendingObject = objectRef{
+			Kind: "Service", Name: target.service, Namespace: target.namespace, Resource: "services",
+		}
+		return cmd
+	case target.application == "":
 		return cmd
 	}
 
@@ -264,20 +287,45 @@ type fleetTarget struct {
 	context     string
 	application string
 	namespace   string
-	// node names a machine rather than an application; Enter opens it in its
-	// cluster, like any other object.
-	node string
+	// node, claim and service each name a machine, a volume claim or a
+	// service rather than an application; Enter opens whichever is set in its
+	// cluster, like any other object. At most one is ever set.
+	node    string
+	claim   string
+	service string
 }
 
 // fleetTargets lists the rows in the order the screen renders them.
+//
+// It walks the same sorted members and the same per-member listings fleetData
+// draws from, in the same order, so the line the cursor lands on and the
+// target it acts on never drift apart.
 func (m *Model) fleetTargets() []fleetTarget {
+	sorted := m.sortedFleetMembers()
 	targets := make([]fleetTarget, 0, len(m.fleetMembers))
-	for _, member := range m.fleetMembers {
-		targets = append(targets, fleetTarget{context: member.Context})
+	for i := range sorted {
+		targets = append(targets, fleetTarget{context: sorted[i].Context})
 	}
-	for _, member := range m.fleetMembers {
+	for i := range sorted {
+		member := &sorted[i]
 		for _, node := range member.UnhealthyNodes() {
 			targets = append(targets, fleetTarget{context: member.Context, node: node.Name})
+		}
+	}
+	for i := range sorted {
+		member := &sorted[i]
+		for _, claim := range member.UnboundClaims() {
+			targets = append(targets, fleetTarget{
+				context: member.Context, claim: claim.Name, namespace: claim.Namespace,
+			})
+		}
+	}
+	for i := range sorted {
+		member := &sorted[i]
+		for _, set := range member.UnreadyEndpoints() {
+			targets = append(targets, fleetTarget{
+				context: member.Context, service: set.Service, namespace: set.Namespace,
+			})
 		}
 	}
 	for _, row := range m.fleetRows() {
@@ -292,6 +340,12 @@ func (m *Model) fleetTargets() []fleetTarget {
 	}
 	return targets
 }
+
+// sortedFleetMembers orders the members the way the overview reads: worst
+// first, production ahead of the rest at equal severity. Every section that
+// lists members draws from this one order, so a reader who has learned where
+// to look for the worst cluster finds every other section agreeing with it.
+func (m *Model) sortedFleetMembers() []fleet.Member { return fleet.SortMembers(m.fleetMembers) }
 
 // fleetRows merges what the clusters answered.
 func (m *Model) fleetRows() []fleet.Row { return fleet.Rows(m.fleetMembers) }
@@ -311,12 +365,18 @@ func (m *Model) fleetData() screens.FleetData {
 	d.Title = "Fleet"
 	d.Subtitle = fleetSubtitle(summary)
 
+	sorted := m.sortedFleetMembers()
+
+	// Clusters, worst first: reachable, degraded and unreachable clusters are
+	// grouped by urgency here rather than left in configuration order, so a
+	// production cluster on fire is never scrolled past to reach it.
 	clusters := screens.DetailSection{
 		Title:   "Clusters",
 		Columns: []string{"Cluster", "State", "Applications", "Detail"},
 	}
 	target := 0
-	for _, member := range m.fleetMembers {
+	for i := range sorted {
+		member := &sorted[i]
 		row := screens.DetailRow{Cells: []string{
 			memberName(member),
 			member.State.String(),
@@ -335,16 +395,66 @@ func (m *Model) fleetData() screens.FleetData {
 		Columns: []string{"Cluster", "Node", "State", "Detail"},
 		Empty:   nodesEmpty(m.fleetMembers),
 	}
-	for _, member := range m.fleetMembers {
+	for i := range sorted {
+		member := &sorted[i]
 		for _, node := range member.UnhealthyNodes() {
 			nodes.Rows = append(nodes.Rows, screens.DetailRow{
 				Cells: []string{
 					memberLabel(member.Context, member.Production),
 					node.Name,
 					nodeState(node),
-					nodeDetail(node),
+					fleet.NodeDigest(node),
 				},
 				Status: nodeStatus(node),
+				Target: target,
+			})
+			target++
+		}
+	}
+
+	storage := screens.DetailSection{
+		// A claim that never bound is invisible in an application-only view:
+		// nothing about the pod that mounts it says why it never started.
+		Title:   "Storage",
+		Columns: []string{"Cluster", "Namespace", "Claim", "Detail"},
+		Empty:   storageEmpty(m.fleetMembers),
+	}
+	for i := range sorted {
+		member := &sorted[i]
+		for _, claim := range member.UnboundClaims() {
+			storage.Rows = append(storage.Rows, screens.DetailRow{
+				Cells: []string{
+					memberLabel(member.Context, member.Production),
+					orNone(claim.Namespace),
+					claim.Name,
+					fleet.ClaimDigest(claim),
+				},
+				Status: claimStatus(claim),
+				Target: target,
+			})
+			target++
+		}
+	}
+
+	services := screens.DetailSection{
+		// A Service with no ready endpoint looks like nothing is wrong to any
+		// view that only reads workloads: the pods it selects can all be
+		// healthy while it routes to none of them.
+		Title:   "Services",
+		Columns: []string{"Cluster", "Namespace", "Service", "Detail"},
+		Empty:   servicesEmpty(m.fleetMembers),
+	}
+	for i := range sorted {
+		member := &sorted[i]
+		for _, set := range member.UnreadyEndpoints() {
+			services.Rows = append(services.Rows, screens.DetailRow{
+				Cells: []string{
+					memberLabel(member.Context, member.Production),
+					orNone(set.Namespace),
+					set.Service,
+					fleet.EndpointDigest(set),
+				},
+				Status: theme.StatusCritical,
 				Target: target,
 			})
 			target++
@@ -371,7 +481,7 @@ func (m *Model) fleetData() screens.FleetData {
 					orNone(instance.Namespace),
 					instance.Health.String(),
 					itoa(int(instance.ReadyPods)) + "/" + itoa(int(instance.DesiredPods)),
-					instanceDetail(instance),
+					instance.Digest(),
 				},
 				Status: healthStatus(instance.Health),
 				Target: target,
@@ -380,7 +490,7 @@ func (m *Model) fleetData() screens.FleetData {
 		}
 	}
 
-	d.Sections = []screens.DetailSection{clusters, nodes, applications}
+	d.Sections = []screens.DetailSection{clusters, nodes, storage, services, applications}
 	return d
 }
 
@@ -406,6 +516,12 @@ func fleetSubtitle(s fleet.Summary) string {
 		if node := nodeSummary(s); node != "" {
 			parts = append(parts, node)
 		}
+		if claim := storageSummary(s); claim != "" {
+			parts = append(parts, claim)
+		}
+		if svc := serviceSummary(s); svc != "" {
+			parts = append(parts, svc)
+		}
 	}
 	return strings.Join(parts, "   ")
 }
@@ -423,6 +539,22 @@ func nodeSummary(s fleet.Summary) string {
 		parts = append(parts, itoa(s.NodesCordoned)+" cordoned")
 	}
 	return strings.Join(parts, ", ")
+}
+
+// storageSummary states everything odd about the fleet's claims.
+func storageSummary(s fleet.Summary) string {
+	if s.ClaimsUnbound == 0 {
+		return ""
+	}
+	return itoa(s.ClaimsUnbound) + " of " + itoa(s.Claims) + " claims unbound"
+}
+
+// serviceSummary states everything odd about the fleet's services.
+func serviceSummary(s fleet.Summary) string {
+	if s.ServicesUnreachable == 0 {
+		return ""
+	}
+	return itoa(s.ServicesUnreachable) + " of " + itoa(s.Services) + " services unreachable"
 }
 
 func fleetEmpty(s fleet.Summary) string {
@@ -443,7 +575,7 @@ func clusterWord(n int) string {
 	return "clusters"
 }
 
-func memberName(m fleet.Member) string { return memberLabel(m.Context, m.Production) }
+func memberName(m *fleet.Member) string { return memberLabel(m.Context, m.Production) }
 
 // memberLabel marks a production cluster in text, wherever it appears: in a
 // list of eight clusters, which one is production is the fact that matters.
@@ -454,7 +586,7 @@ func memberLabel(context string, production bool) string {
 	return context
 }
 
-func memberApplications(m fleet.Member) string {
+func memberApplications(m *fleet.Member) string {
 	if m.State != fleet.Ready {
 		return "—"
 	}
@@ -462,7 +594,7 @@ func memberApplications(m fleet.Member) string {
 	return itoa(counts.Total)
 }
 
-func memberDetail(m fleet.Member) string {
+func memberDetail(m *fleet.Member) string {
 	switch m.State {
 	case fleet.Failed:
 		return shortError(m.Err)
@@ -495,6 +627,23 @@ func memberDetail(m fleet.Member) string {
 		parts = append(parts, itoa(trouble.Cordoned)+" cordoned")
 	}
 
+	// Storage and services belong to no application either; a cluster whose
+	// applications are all healthy can still be serving nothing.
+	storage := m.StorageTrouble()
+	if m.ClaimsErr != nil {
+		parts = append(parts, "claims not readable")
+	}
+	if storage.Unbound > 0 {
+		parts = append(parts, itoa(storage.Unbound)+" claim(s) unbound")
+	}
+	services := m.ServiceTrouble()
+	if m.EndpointsErr != nil {
+		parts = append(parts, "endpoints not readable")
+	}
+	if services.NoReadyEndpoints > 0 {
+		parts = append(parts, itoa(services.NoReadyEndpoints)+" service(s) unreachable")
+	}
+
 	if len(m.Gaps) > 0 {
 		parts = append(parts, itoa(len(m.Gaps))+" kind(s) unreadable")
 	}
@@ -518,28 +667,22 @@ func nodeState(n application.Node) string {
 	}
 }
 
-func nodeDetail(n application.Node) string {
-	var parts []string
-	if n.Message != "" {
-		parts = append(parts, n.Message)
-	} else if n.Reason != "" {
-		parts = append(parts, n.Reason)
-	}
-	if len(n.Pressure) > 0 {
-		parts = append(parts, strings.Join(n.Pressure, ", "))
-	}
-	if n.Unschedulable {
-		parts = append(parts, "no new pods will be placed here")
-	}
-	return strings.Join(parts, "; ")
-}
+func nodeStatus(n application.Node) theme.Status { return statusFor(fleet.NodeSeverity(n)) }
 
-func nodeStatus(n application.Node) theme.Status {
-	switch {
-	case !n.Ready:
+// claimStatus colours a storage row by how urgent its trouble is.
+func claimStatus(c application.Claim) theme.Status { return statusFor(fleet.ClaimSeverity(c)) }
+
+// statusFor maps the domain's severity band onto the terminal's four render
+// colours. Two bands sharing a colour still read apart because the word next
+// to the glyph is never the same one (ADR 9): "degraded" is not "warning".
+func statusFor(s fleet.Severity) theme.Status {
+	switch s {
+	case fleet.SeverityCritical:
 		return theme.StatusCritical
-	case len(n.Pressure) > 0:
+	case fleet.SeverityDegraded, fleet.SeverityWarning:
 		return theme.StatusWarning
+	case fleet.SeverityHealthy:
+		return theme.StatusHealthy
 	default:
 		return theme.StatusUnknown
 	}
@@ -548,12 +691,12 @@ func nodeStatus(n application.Node) theme.Status {
 // nodesEmpty says which nothing this is: no trouble, or nothing read yet.
 func nodesEmpty(members []fleet.Member) string {
 	answered, unreadable := 0, 0
-	for _, member := range members {
-		if member.State != fleet.Ready {
+	for i := range members {
+		if members[i].State != fleet.Ready {
 			continue
 		}
 		answered++
-		if member.NodesErr != nil {
+		if members[i].NodesErr != nil {
 			unreadable++
 		}
 	}
@@ -569,37 +712,55 @@ func nodesEmpty(members []fleet.Member) string {
 	}
 }
 
-func memberStatus(m fleet.Member) theme.Status {
-	switch m.State {
-	case fleet.Failed:
-		return theme.StatusCritical
-	case fleet.Ready:
-		counts := m.Counts()
-		trouble := m.NodeTrouble()
-		switch {
-		case counts.Down > 0 || trouble.NotReady > 0:
-			return theme.StatusCritical
-		case counts.Degraded > 0 || trouble.Pressure > 0:
-			return theme.StatusWarning
-		case trouble.Cordoned > 0 || m.NodesErr != nil || len(m.Gaps) > 0:
-			// Nothing is failing, and something is not as it should be.
-			return theme.StatusUnknown
-		default:
-			return theme.StatusHealthy
+// memberStatus colours a cluster row by the domain's own severity band, so
+// the colour a cluster gets here is exactly the fact that put it where it is
+// in the sort order — never a second opinion computed only for display.
+func memberStatus(m *fleet.Member) theme.Status { return statusFor(m.Severity()) }
+
+// storageEmpty says which nothing this is: no trouble, or nothing read yet.
+func storageEmpty(members []fleet.Member) string {
+	answered, unreadable := 0, 0
+	for i := range members {
+		if members[i].State != fleet.Ready {
+			continue
 		}
+		answered++
+		if members[i].ClaimsErr != nil {
+			unreadable++
+		}
+	}
+	switch {
+	case answered == 0:
+		return "no cluster has answered yet"
+	case unreadable == answered:
+		return "storage could not be listed in any cluster"
+	case unreadable > 0:
+		return "nothing unbound in the storage that could be read"
 	default:
-		return theme.StatusUnknown
+		return "every claim is bound"
 	}
 }
 
-func instanceDetail(i fleet.Instance) string {
-	if len(i.Problems) > 0 {
-		parts := make([]string, 0, len(i.Problems))
-		for _, p := range i.Problems {
-			parts = append(parts, itoa(p.Count)+" "+p.Reason)
+// servicesEmpty says which nothing this is: no trouble, or nothing read yet.
+func servicesEmpty(members []fleet.Member) string {
+	answered, unreadable := 0, 0
+	for i := range members {
+		if members[i].State != fleet.Ready {
+			continue
 		}
-		sort.Strings(parts)
-		return strings.Join(parts, ", ")
+		answered++
+		if members[i].EndpointsErr != nil {
+			unreadable++
+		}
 	}
-	return i.Summary
+	switch {
+	case answered == 0:
+		return "no cluster has answered yet"
+	case unreadable == answered:
+		return "endpoints could not be listed in any cluster"
+	case unreadable > 0:
+		return "every service that could be read routes somewhere"
+	default:
+		return "every service routes to a ready endpoint"
+	}
 }
