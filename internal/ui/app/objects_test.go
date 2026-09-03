@@ -202,6 +202,27 @@ func TestFollowingARelationAndWalkingBackOut(t *testing.T) {
 	}
 }
 
+func TestPodVolumeRelationsAreNavigable(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	m.openObject(objectRef{Kind: "Pod", Name: "payments-0", Namespace: "default"})
+	loadObjectInto(m, &resources.Object{Kind: "Pod", Name: "payments-0", Namespace: "default", Raw: []byte(`{
+		"kind":"Pod","metadata":{"name":"payments-0","namespace":"default"},
+		"spec":{"volumes":[{"name":"data","persistentVolumeClaim":{"claimName":"payments-data"}}]}
+	}`)})
+
+	_, targets := m.objectView()
+	found := false
+	for _, target := range targets {
+		if target.Kind == "PersistentVolumeClaim" && target.Name == "payments-data" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("pod targets = %+v, want its mounted claim", targets)
+	}
+}
+
 func TestChildrenComeFromTheLoadedSnapshot(t *testing.T) {
 	m := newTestModel(t)
 	loadCatalogInto(m, testCatalog())

@@ -160,9 +160,12 @@ func (m *Model) breadcrumb() []string {
 		// The trail says where the object was reached from, and the breadcrumb
 		// has to agree with it: an object opened from the resource browser did
 		// not come through an application.
-		if m.objectFrom == viewTable {
+		switch m.objectFrom {
+		case viewTable:
 			crumbs = append(crumbs, m.resource.Kind())
-		} else {
+		case viewActivity:
+			crumbs = append(crumbs, "Recent activity")
+		default:
 			crumbs = append(crumbs, "Applications")
 			if a, ok := m.currentApplication(); ok {
 				crumbs = append(crumbs, a.Name)
@@ -178,6 +181,8 @@ func (m *Model) breadcrumb() []string {
 		return append(crumbs, "Logs")
 	case viewUsage:
 		return append(crumbs, "Resource usage")
+	case viewActivity:
+		return append(crumbs, "Recent activity")
 	case viewOverview:
 		return append(crumbs, "Session")
 	default:
@@ -277,6 +282,13 @@ func (m *Model) statusData() components.StatusData {
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Scroll", Priority: 70},
 			{Key: m.keys.Key(ActionRefresh), Desc: "Measure again", Priority: 84},
+			{Key: "Esc", Desc: "Applications", Priority: 85},
+		}, hints...)
+	case viewActivity:
+		hints = append([]components.KeyHint{
+			{Key: "↑↓", Desc: "Events", Priority: 70},
+			{Key: "Enter", Desc: "Open object", Priority: 72},
+			{Key: m.keys.Key(ActionRefresh), Desc: "Reload", Priority: 84},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewApplication:
@@ -410,6 +422,8 @@ func (m *Model) renderBody() string {
 		content = screens.RenderLogs(m.theme, m.logsData(), body.Width, body.Height)
 	case viewUsage:
 		content = screens.RenderUsage(m.theme, m.usageData(), body.Width, body.Height)
+	case viewActivity:
+		content = screens.RenderApplication(m.theme, m.activityData(), body.Width, body.Height)
 	case viewFleet:
 		content = screens.RenderFleet(m.theme, m.fleetData(), body.Width, body.Height)
 	case viewFleetResource:
@@ -707,6 +721,7 @@ func (m *Model) renderHelp(width, height int) string {
 		{"Cluster", [][2]string{
 			{m.keys.Key(ActionResourcePicker), "Browse resource kinds, including custom resources"},
 			{m.keys.Key(ActionUsage), "Where the pods are, and what CPU and memory they use"},
+			{m.keys.Key(ActionActivity), "Recent Kubernetes Events in the active scope"},
 			{m.keys.Key(ActionRefresh), "Refresh"},
 			{m.keys.Key(ActionAutoRefresh), "Refresh on a timer, until you turn it off"},
 		}},

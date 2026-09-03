@@ -305,6 +305,11 @@ func (m *Model) autoReload() []tea.Cmd {
 			cmds = append(cmds, m.loadEvidence())
 		}
 		return cmds
+	case viewActivity:
+		if m.evidenceLoading {
+			return nil
+		}
+		return []tea.Cmd{m.loadEvidence()}
 	case viewUsage:
 		// Two requests a tick — the pods, and the nodes with the metrics — and
 		// only while somebody is looking at this screen. The dashboard's own
@@ -761,6 +766,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			if cmd, handled := m.handleUsageKey(keystroke); handled {
 				return cmd
 			}
+		case viewActivity:
+			if cmd, handled := m.handleActivityKey(keystroke); handled {
+				return cmd
+			}
 		case viewFleet:
 			if cmd, handled := m.handleFleetKey(keystroke); handled {
 				return cmd
@@ -809,6 +818,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.openLogs()
 	case ActionUsage:
 		return m.openUsage()
+	case ActionActivity:
+		return m.openActivity()
 	case ActionRefresh:
 		return m.refresh()
 	case ActionAutoRefresh:

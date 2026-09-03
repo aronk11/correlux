@@ -45,6 +45,7 @@ const pod = `{
     "serviceAccountName": "payments",
     "containers": [
       {"name": "payments", "image": "registry/payments:1.4",
+	   "envFrom": [{"secretRef": {"name": "payments-env"}}],
        "resources": {"requests": {"cpu": "100m", "memory": "128Mi"}, "limits": {"memory": "256Mi"}}}
     ],
     "initContainers": [{"name": "migrate", "image": "registry/migrate:3"}],
@@ -113,6 +114,36 @@ func TestAPodIsDescribedByItsContainers(t *testing.T) {
 	conditions := find(t, sections, "Conditions")
 	if got := cell(t, conditions, "Ready", 3); !strings.Contains(got, "unready status") {
 		t.Errorf("the condition's message must survive, got %q", got)
+	}
+}
+
+func TestAPodLinksToMountedObjects(t *testing.T) {
+	links := Links("Pod", []byte(pod))
+	want := map[string]string{
+		"ServiceAccount/payments":             "used by pod",
+		"PersistentVolumeClaim/payments-data": "mounted as data",
+		"ConfigMap/payments-config":           "mounted as config",
+		"Secret/payments-env":                 "environment for payments",
+	}
+	for _, link := range links {
+		key := link.Kind + "/" + link.Name
+		if detail, ok := want[key]; ok && link.Detail == detail {
+			delete(want, key)
+		}
+	}
+	if len(want) != 0 {
+		t.Errorf("missing links: %v; got %+v", want, links)
+	}
+}
+
+func TestAClaimLinksToItsVolumeAndStorageClass(t *testing.T) {
+	raw := []byte(`{"kind":"PersistentVolumeClaim","metadata":{"namespace":"shop"},"spec":{"volumeName":"pvc-123","storageClassName":"fast"}}`)
+	links := Links("PersistentVolumeClaim", raw)
+	if len(links) != 2 || links[0].Kind != "PersistentVolume" || links[1].Kind != "StorageClass" {
+		t.Fatalf("links = %+v", links)
+	}
+	if links[0].Namespace != "" || links[1].Namespace != "" {
+		t.Error("cluster-scoped storage objects must not inherit the claim namespace")
 	}
 }
 

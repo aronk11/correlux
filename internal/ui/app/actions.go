@@ -34,6 +34,7 @@ const (
 	paletteEdit             palette.ActionID = "edit"
 	paletteLogs             palette.ActionID = "logs"
 	paletteUsage            palette.ActionID = "usage"
+	paletteActivity         palette.ActionID = "activity"
 	paletteOpenResources    palette.ActionID = "open.resources"
 	paletteOpenResource     palette.ActionID = "open.resource"
 	paletteToggleWide       palette.ActionID = "toggle.wide"
@@ -118,6 +119,17 @@ func (m *Model) rebuildCommands() {
 			},
 			Shortcut: m.keys.Key(ActionUsage),
 			Weight:   89,
+			Enabled:  true,
+		},
+		{
+			ID:       "cmd.activity",
+			Action:   paletteActivity,
+			Title:    "Show recent cluster activity",
+			Subtitle: "Kubernetes Events in " + m.scopeLabel() + "; not an audit log",
+			Category: "Diagnose",
+			Keywords: []string{"events", "recent", "activity", "changes", "timeline", "history"},
+			Shortcut: m.keys.Key(ActionActivity),
+			Weight:   90,
 			Enabled:  true,
 		},
 		{
@@ -695,6 +707,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.openLogs()
 	case paletteUsage:
 		return m.openUsage()
+	case paletteActivity:
+		return m.openActivity()
 	case paletteBackToOverview:
 		return m.backToOverview()
 	case paletteSwitchContext:
@@ -818,6 +832,9 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 		// a new reading, not the old one under a new heading.
 		reload = tea.Batch(reload, m.loadUsage())
 	}
+	if m.view == viewActivity {
+		reload = tea.Batch(reload, m.loadEvidence())
+	}
 
 	if m.view != viewTable || !m.resource.Namespaced {
 		return reload
@@ -892,7 +909,7 @@ func (m *Model) refresh() tea.Cmd {
 	if m.view == viewUsage {
 		cmds = append(cmds, m.loadUsage())
 	}
-	if m.view == viewApplication || m.view == viewWhy {
+	if m.view == viewApplication || m.view == viewWhy || m.view == viewActivity {
 		cmds = append(cmds, m.loadEvidence())
 	}
 	return tea.Batch(cmds...)

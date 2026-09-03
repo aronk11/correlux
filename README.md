@@ -69,6 +69,7 @@ correlux version
 | `S` | Scale the selected workload |
 | `l` | Read the logs of the pod, workload or application in hand |
 | `u` | Where the pods are, and what they use against what they asked for |
+| `E` | Recent Kubernetes Events in the active scope, newest first |
 | `Ctrl+B` | Browse resource kinds, custom resources included |
 | `Enter` | Open the object under the cursor |
 | `Ctrl+K` | Switch cluster |
@@ -153,6 +154,18 @@ their images, states, restarts and limits; a workload by its replicas and pod
 template — and `y` shows that document unabridged. A kind Correlux has never
 heard of is described from its own status and conditions, which is where a
 custom controller reports itself anyway.
+
+References in that document are navigable too. A Pod leads directly to the
+PersistentVolumeClaims, ConfigMaps, Secrets and ServiceAccount it actually
+names; a claim leads on to its bound PersistentVolume and StorageClass. These
+links are explicit references from the server's document, never guesses based
+on a similar name. `Enter` follows one and `Esc` walks back.
+
+`E` opens recent activity for the current scope: Kubernetes Events ordered
+newest first, with namespace, reason, affected object, occurrence count and the
+cluster's own message. `Enter` opens the affected object. Events are operational
+breadcrumbs with cluster-defined retention, not an audit log; Correlux says so
+on screen and does not claim they identify every change or actor.
 
 `b` decodes the base64 in that document, which is what makes a Secret readable
 without copying a blob out to `base64 -d`:
