@@ -836,6 +836,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.openFleet()
 	case ActionWhy:
 		return m.explain()
+	case ActionGrouping:
+		return m.toggleGrouping()
 	case ActionYAML:
 		if m.view == viewObject {
 			m.toggleObjectYAML()

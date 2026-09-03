@@ -29,6 +29,7 @@ const (
 	ActionFleet           = "fleet"
 	ActionSearch          = "search"
 	ActionWhy             = "why"
+	ActionGrouping        = "application.grouping"
 	ActionYAML            = "object.yaml"
 	ActionDecode          = "object.decode"
 	ActionScale           = "scale"
@@ -69,6 +70,7 @@ var DefaultBindings = map[string]string{
 	ActionFleet:           "F",
 	ActionSearch:          "/",
 	ActionWhy:             "ctrl+w",
+	ActionGrouping:        "r",
 	ActionYAML:            "y",
 	ActionDecode:          "b",
 	ActionScale:           "S",

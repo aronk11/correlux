@@ -1,6 +1,7 @@
 package application
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -342,5 +343,138 @@ func TestAManagerLabelReadsAsASentence(t *testing.T) {
 	}
 	if got := (Manager{}).Label(); got != "" {
 		t.Errorf("label = %q, want nothing for an application nobody claims", got)
+	}
+}
+
+// singleWorkload wraps one Deployment-shaped workload in its own snapshot, for
+// tests that care about exactly one label signal in isolation.
+func singleWorkload(labels map[string]string) Snapshot {
+	dep := meta("Deployment", "api", labels)
+	return Snapshot{Workloads: []Workload{{Meta: dep, Desired: 1, Ready: 1, Replicated: true}}}
+}
+
+func TestEachGroupingSignalProducesTheReasonThatNamesIt(t *testing.T) {
+	t.Run("owner reference", func(t *testing.T) {
+		var s Snapshot
+		deployment(&s, "api", 1, 1, "")
+		pod := find(t, Group(s), "api").Pods[0]
+		if pod.GroupedBy.Signal != SignalOwner {
+			t.Fatalf("signal = %v, want SignalOwner", pod.GroupedBy.Signal)
+		}
+		if got := strings.Join(pod.GroupedBy.Chain, "|"); got != "ReplicaSet/api-7d8f|Deployment/api" {
+			t.Errorf("chain = %q, want the path from the pod to the Deployment", got)
+		}
+	})
+
+	t.Run("instance label", func(t *testing.T) {
+		s := singleWorkload(map[string]string{"app.kubernetes.io/instance": "api"})
+		reason := find(t, Group(s), "api").Workloads[0].GroupedBy
+		if reason.Signal != SignalInstanceLabel || reason.Key != "app.kubernetes.io/instance" || reason.Value != "api" {
+			t.Errorf("reason = %+v, want the instance label", reason)
+		}
+	})
+
+	t.Run("name label", func(t *testing.T) {
+		s := singleWorkload(map[string]string{"app.kubernetes.io/name": "api"})
+		reason := find(t, Group(s), "api").Workloads[0].GroupedBy
+		if reason.Signal != SignalNameLabel || reason.Key != "app.kubernetes.io/name" {
+			t.Errorf("reason = %+v, want the name label", reason)
+		}
+	})
+
+	t.Run("bare app label", func(t *testing.T) {
+		s := singleWorkload(map[string]string{"app": "api"})
+		reason := find(t, Group(s), "api").Workloads[0].GroupedBy
+		if reason.Signal != SignalAppLabel || reason.Key != "app" {
+			t.Errorf("reason = %+v, want the bare app label", reason)
+		}
+	})
+
+	t.Run("k8s-app label", func(t *testing.T) {
+		s := singleWorkload(map[string]string{"k8s-app": "api"})
+		reason := find(t, Group(s), "api").Workloads[0].GroupedBy
+		if reason.Signal != SignalK8sAppLabel || reason.Key != "k8s-app" {
+			t.Errorf("reason = %+v, want the k8s-app label", reason)
+		}
+	})
+
+	t.Run("service selector", func(t *testing.T) {
+		var s Snapshot
+		deployment(&s, "api", 1, 1, "")
+		s.Services = append(s.Services, Service{
+			Meta:     meta("Service", "api-internal", nil), // no app labels at all
+			Selector: map[string]string{"app.kubernetes.io/name": "api"},
+		})
+		reason := find(t, Group(s), "api").Services[0].GroupedBy
+		if reason.Signal != SignalSelector || reason.Value != "app.kubernetes.io/name=api" {
+			t.Errorf("reason = %+v, want the selector that matched", reason)
+		}
+	})
+
+	t.Run("ingress backend", func(t *testing.T) {
+		var s Snapshot
+		deployment(&s, "api", 1, 1, "")
+		s.Services = append(s.Services, Service{
+			Meta:     meta("Service", "api", appLabels("api")),
+			Selector: map[string]string{"app.kubernetes.io/name": "api"},
+		})
+		s.Ingresses = append(s.Ingresses, Ingress{
+			Meta:     meta("Ingress", "public", nil),
+			Backends: []string{"api"},
+		})
+		reason := find(t, Group(s), "api").Ingresses[0].GroupedBy
+		if reason.Signal != SignalBackend || reason.Value != "api" {
+			t.Errorf("reason = %+v, want the backend it routes to", reason)
+		}
+	})
+}
+
+func TestAnOwnerReferenceIsCertainABareLabelIsAGuess(t *testing.T) {
+	var s Snapshot
+	deployment(&s, "api", 1, 1, "")
+	if pod := find(t, Group(s), "api").Pods[0]; !pod.GroupedBy.Certain() {
+		t.Errorf("an owner-reference grouping must be reported as certain, got %+v", pod.GroupedBy)
+	}
+
+	labelled := singleWorkload(map[string]string{"app": "worker"})
+	if w := find(t, Group(labelled), "worker").Workloads[0]; w.GroupedBy.Certain() {
+		t.Errorf("a bare-label grouping must be reported as a guess, got %+v", w.GroupedBy)
+	}
+}
+
+func TestAnObjectGroupedOnlyByFallbackSaysSo(t *testing.T) {
+	// A workload with neither an owner nor any of the grouping labels has
+	// nothing at all to point at.
+	dep := meta("Deployment", "mystery", nil)
+	s := Snapshot{Workloads: []Workload{{Meta: dep, Desired: 1, Ready: 1, Replicated: true}}}
+
+	reason := find(t, Group(s), "mystery").Workloads[0].GroupedBy
+	if reason.Signal != SignalNone {
+		t.Fatalf("signal = %v, want SignalNone", reason.Signal)
+	}
+	if reason.Certain() {
+		t.Error("an object grouped by nothing at all must not be reported as certain")
+	}
+	if got := reason.Describe(); !strings.Contains(got, "no owner, label, selector or backend matched") {
+		t.Errorf("Describe() = %q, must say plainly that nothing matched", got)
+	}
+}
+
+func TestAnUnresolvedOwnerIsStillReportedAsAFact(t *testing.T) {
+	// The ReplicaSet is never added to the snapshot, so the walk cannot go
+	// past it — but the pod's own owner reference to it is real regardless.
+	var s Snapshot
+	rs := meta("ReplicaSet", "api-7d8f", nil)
+	s.Pods = append(s.Pods, Pod{
+		Meta:  ownedBy(meta("Pod", "api-7d8f-2xk9l", nil), rs),
+		Phase: "Running", Ready: true,
+	})
+
+	reason := find(t, Group(s), "api-7d8f").Pods[0].GroupedBy
+	if reason.Signal != SignalOwner || !reason.Certain() {
+		t.Errorf("reason = %+v, want a certain owner reference even though the RS was not readable", reason)
+	}
+	if got := strings.Join(reason.Chain, "|"); got != "ReplicaSet/api-7d8f" {
+		t.Errorf("chain = %q, want the one owner reference the pod actually has", got)
 	}
 }

@@ -73,6 +73,9 @@ type Workload struct {
 	// deliberately not reconciling this workload. That is a state, not a fault.
 	Paused    bool
 	Suspended bool
+	// GroupedBy is why this workload belongs to its application, captured at
+	// grouping time so it never has to be recomputed to answer for itself.
+	GroupedBy Reason
 }
 
 // Pod is one pod, reduced to what health and grouping need.
@@ -99,6 +102,9 @@ type Pod struct {
 	// Claims are the PersistentVolumeClaims the pod mounts, in the order the
 	// spec lists them.
 	Claims []string
+	// GroupedBy is why this pod belongs to its application, captured at
+	// grouping time so it never has to be recomputed to answer for itself.
+	GroupedBy Reason
 }
 
 // Container is one container's state inside a pod.
@@ -192,6 +198,9 @@ type Service struct {
 	ClusterIP string
 	Selector  map[string]string
 	Ports     []string
+	// GroupedBy is why this service belongs to its application, captured at
+	// grouping time so it never has to be recomputed to answer for itself.
+	GroupedBy Reason
 }
 
 // Ingress is one ingress and the services it routes to.
@@ -199,6 +208,9 @@ type Ingress struct {
 	Meta
 	Hosts    []string
 	Backends []string
+	// GroupedBy is why this ingress belongs to its application, captured at
+	// grouping time so it never has to be recomputed to answer for itself.
+	GroupedBy Reason
 }
 
 // Event is one Kubernetes event, reduced to what an explanation needs.

@@ -269,6 +269,7 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "↑↓", Desc: "Move", Priority: 70},
 			{Key: "Enter", Desc: "Open", Priority: 72},
 			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
+			{Key: m.keys.Key(ActionGrouping), Desc: "Grouping", Priority: 45},
 			{Key: m.keys.Key(ActionUsage), Desc: "Usage", Priority: 79},
 			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
 		}, hints...)
@@ -283,6 +284,7 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "↑↓", Desc: "Objects", Priority: 70},
 			{Key: "Enter", Desc: "Open", Priority: 72},
 			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
+			{Key: m.keys.Key(ActionGrouping), Desc: groupingHint(m.groupingShown), Priority: 45},
 			{Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
 			{Key: m.keys.Key(ActionUsage), Desc: "Usage", Priority: 79},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
@@ -683,6 +685,7 @@ func (m *Model) renderHelp(width, height int) string {
 			{"↑ ↓ / j k", "Move between applications"},
 			{"Enter", "Open the application: its workloads, pods and network"},
 			{m.keys.Key(ActionWhy), "Explain why it is unhealthy, from the cluster's own evidence"},
+			{m.keys.Key(ActionGrouping), "Show which signal grouped each object, and how sure it is"},
 			{"Esc", "Back to the dashboard"},
 		}},
 		{"Logs", [][2]string{
@@ -839,6 +842,14 @@ func wideHint(wide bool) string {
 		return "Compact"
 	}
 	return "Wide"
+}
+
+// groupingHint names what the key will show next, not what is on screen.
+func groupingHint(shown bool) string {
+	if shown {
+		return "Hide grouping"
+	}
+	return "Grouping"
 }
 
 func formatLatency(d time.Duration) string {

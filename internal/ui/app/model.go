@@ -132,6 +132,10 @@ type Model struct {
 	// rather than by index: a reload re-sorts the list, and a cursor position
 	// would then follow the ranking instead of the application.
 	selectedApp string
+	// groupingShown toggles the section that explains why each object landed
+	// in this application: which signal decided it, and how sure that signal
+	// is (ADR 16 — correlation must be explainable).
+	groupingShown bool
 
 	// The object inspector.
 	objectTarget objectRef
