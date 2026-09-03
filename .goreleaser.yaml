@@ -52,11 +52,13 @@ homebrew_casks:
       # A token scoped to the tap repository alone, set as a secret on this
       # repository. It is deliberately not the workflow's own GITHUB_TOKEN:
       # that one cannot write to another repository.
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      # `index` rather than `.Env.X`: a missing key is an empty string here
+      # and a hard template failure there, and a release must not die because
+      # a variable was never set.
+      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
     # A release must not fail because nobody has configured the tap token yet,
-    # and a prerelease must never overwrite the cask people install from. The
-    # workflow always sets the variable; an empty one means no secret.
-    skip_upload: '{{ if .Env.HOMEBREW_TAP_TOKEN }}auto{{ else }}true{{ end }}'
+    # and a prerelease must never overwrite the cask people install from.
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}auto{{ else }}true{{ end }}'
     directory: Casks
     homepage: "https://github.com/aronk11/correlux"
     description: "Fleet-first Kubernetes troubleshooting from your terminal"
