@@ -216,11 +216,12 @@ func (m *Model) applicationsData() screens.TableData {
 	d.Rows = make([]screens.TableRow, 0, len(apps))
 	for i := range apps {
 		a := &apps[i]
-		status := healthStatus(a.Health)
+		health := diagnosedHealth(a.Health, m.findingsFor(a.Key()))
+		status := healthStatus(health)
 		d.Rows = append(d.Rows, screens.TableRow{
 			Status: status,
 			Cells: []string{
-				m.theme.Glyph(status) + " " + a.Health.String(),
+				m.theme.Glyph(status) + " " + health.String(),
 				a.Name,
 				a.Namespace,
 				itoa(int(a.ReadyPods)) + "/" + itoa(int(a.DesiredPods)),
@@ -353,10 +354,11 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		return d, nil
 	}
 
-	status := healthStatus(a.Health)
+	health := diagnosedHealth(a.Health, m.findingsFor(a.Key()))
+	status := healthStatus(health)
 	d.Name = a.Name
 	d.Namespace = a.Namespace
-	d.Health = a.Health.String()
+	d.Health = health.String()
 	d.HealthGlyph = m.theme.Glyph(status)
 	d.HealthStatus = status
 	d.Summary = a.Summary

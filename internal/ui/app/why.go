@@ -45,6 +45,25 @@ func (m *Model) rediagnose() {
 // findingsFor returns the diagnoses of one application.
 func (m *Model) findingsFor(key string) []diagnosis.Diagnosis { return m.findings[key] }
 
+// diagnosedHealth folds failures that live outside replica status (for
+// example, a Service with no endpoints) into the status shown after evidence
+// has been loaded. Before then the dashboard keeps the workload's observed
+// health rather than pretending it has already checked delivery.
+func diagnosedHealth(base application.Health, findings []diagnosis.Diagnosis) application.Health {
+	out := base
+	for _, finding := range findings {
+		switch finding.Severity {
+		case diagnosis.Critical:
+			return application.Down
+		case diagnosis.Warning:
+			if out == application.Healthy || out == application.Unknown {
+				out = application.Degraded
+			}
+		}
+	}
+	return out
+}
+
 // explain opens the WHY view for the application in hand: the one that is open,
 // or the one the dashboard cursor is on.
 func (m *Model) explain() tea.Cmd {
@@ -107,10 +126,12 @@ func (m *Model) whyData() screens.WhyData {
 		return d
 	}
 
-	status := healthStatus(app.Health)
+	findings := m.findingsFor(app.Key())
+	health := diagnosedHealth(app.Health, findings)
+	status := healthStatus(health)
 	d.Name = app.Name
 	d.Namespace = app.Namespace
-	d.Health = app.Health.String()
+	d.Health = health.String()
 	d.HealthGlyph = m.theme.Glyph(status)
 	d.HealthStatus = status
 	d.Summary = app.Summary
@@ -118,7 +139,6 @@ func (m *Model) whyData() screens.WhyData {
 	d.Empty = "Nothing is wrong with " + app.Name + " that Correlux can see."
 
 	now := time.Now()
-	findings := m.findingsFor(app.Key())
 	for _, f := range findings {
 		d.Findings = append(d.Findings, m.whyFinding(f, now))
 	}
@@ -134,7 +154,7 @@ func (m *Model) whyData() screens.WhyData {
 // reachable before it is offered.
 func (m *Model) whyNextActions(app *application.Application) []screens.WhyAction {
 	var actions []screens.WhyAction
-	if key := m.keys.Key(ActionLogs); key != "" && len(app.Pods) > 0 {
+	if key := m.keys.Key(ActionLogs); key != "" && logsExist(app) {
 		text := "read the pods' logs"
 		if previousRunExists(app) {
 			// Pressing the key opens exactly this: openLogs sets Previous once
@@ -148,6 +168,17 @@ func (m *Model) whyNextActions(app *application.Application) []screens.WhyAction
 	// explanation is about.
 	actions = append(actions, screens.WhyAction{Key: "enter", Text: "inspect the objects involved"})
 	return actions
+}
+
+func logsExist(app *application.Application) bool {
+	for i := range app.Pods {
+		for _, c := range app.Pods[i].Containers {
+			if c.State == "running" || c.State == "terminated" || c.LastReason != "" || c.LastExitCode != 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // previousRunExists reports whether any of the application's pods carries a

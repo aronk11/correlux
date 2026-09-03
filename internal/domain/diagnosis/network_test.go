@@ -56,6 +56,27 @@ func TestUnreadyPodsBehindAServiceAreNamedAsSuch(t *testing.T) {
 	}
 }
 
+func TestReadinessRootCauseSortsBeforeItsServiceConsequence(t *testing.T) {
+	p := pod("payments-1", application.Container{Name: "app", State: "running"})
+	a := app(p)
+	a.Services = []application.Service{service("payments", map[string]string{"app": "payments"})}
+	in := &Input{
+		App: a,
+		Context: application.Context{
+			Endpoints: []application.EndpointSet{endpoints("payments", 0, 1)},
+			Events: []application.Event{{
+				Type: "Warning", Reason: "Unhealthy", Message: "Readiness probe failed: HTTP 404",
+				About: application.ObjectRef{Kind: "Pod", Name: p.Name, UID: p.UID},
+			}},
+		},
+	}
+
+	findings := diagnose(t, in)
+	if len(findings) < 2 || findings[0].Rule != "pod.notready" || findings[1].Rule != "service.noendpoints" {
+		t.Errorf("root cause must precede its service impact, got %v", ruleNames(findings))
+	}
+}
+
 func TestReadyPodsWithNoPublishedAddressSayWhatIsUnknown(t *testing.T) {
 	a := app(pod("payments-1"))
 	a.Pods[0].Ready = true

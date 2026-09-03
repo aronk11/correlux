@@ -28,8 +28,9 @@ that is separate from the dashboard's.
 - The dashboard's pass reads workloads, pods, services and ingresses. It stays
   cheap enough to run on a timer.
 - The evidence pass reads events (one page), endpoint slices, nodes and volume
-  claims. It runs when an application is opened or `Ctrl+W` is pressed, and it
-  refreshes on the timer only while one of those screens is on.
+  claims. It runs when an application is opened, `Ctrl+W` is pressed, or the
+  explicit cluster problem overview is opened, and it refreshes on the timer
+  only while one of those screens is on.
 - Both passes are concurrent, bounded and gap-tolerant: a kind that cannot be
   read is recorded and named on screen rather than failing the pass.
 
@@ -45,8 +46,9 @@ pure function cheap enough to run on every keystroke.
 
 ## Consequences
 
-- Opening Correlux costs one pass; asking why costs a second one. Nobody pays
-  for the second unless they ask a question.
+- Opening Correlux costs one pass; asking why or opening the cluster problem
+  overview costs a second one. Nobody pays for the second unless they ask a
+  question.
 - An explanation can be shown before its evidence arrives, and it says so on
   screen ("Events, endpoints and node state have not been read yet"). It then
   improves in place. A partial answer that admits what it is missing is more

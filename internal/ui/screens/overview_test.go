@@ -70,3 +70,24 @@ func TestRoadmapIsLabelledAsNotImplemented(t *testing.T) {
 		t.Error("planned features must be labelled as such")
 	}
 }
+
+func TestAProblemPanelColoursItsBorderTitleAndWholeProblemRow(t *testing.T) {
+	themeWithColour := theme.New(theme.Capabilities{Color: true, Unicode: true, Dark: true, Attributes: true}, config.ThemeDark)
+	plain := renderPanel(themeWithColour, Panel{
+		Title: "Cluster problems", Fields: []Field{{Label: "Node/worker", Value: "not ready"}},
+	}, 80)
+	critical := renderPanel(themeWithColour, Panel{
+		Title: "Cluster problems", Status: theme.StatusCritical,
+		Fields: []Field{{
+			Label: "Node/worker", Value: "not ready", Status: theme.StatusCritical, Glyph: true, Emphasize: true,
+		}},
+	}, 80)
+
+	if critical == plain {
+		t.Fatal("a critical problem panel must not look like a neutral metadata panel")
+	}
+	styledLabel := themeWithColour.Critical.Bold(true).Render("Node/worker")
+	if !strings.Contains(critical, styledLabel) {
+		t.Errorf("the problem label itself must carry the critical style:\n%s", critical)
+	}
+}
