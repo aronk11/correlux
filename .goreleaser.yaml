@@ -52,12 +52,23 @@ homebrew_casks:
       # A token scoped to the tap repository alone, set as a secret on this
       # repository. It is deliberately not the workflow's own GITHUB_TOKEN:
       # that one cannot write to another repository.
-      # `index` rather than `.Env.X`: a missing key is an empty string here
-      # and a hard template failure there, and a release must not die because
-      # a variable was never set.
-      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
-    # A release must not fail because nobody has configured the tap token yet,
-    # and a prerelease must never overwrite the cask people install from.
+      #
+      # This field takes `{{ .Env.NAME }}` and nothing else — GoReleaser reads
+      # it with a resolver that rejects any other template, plain text
+      # included, so that a token cannot be half-interpolated into a string
+      # and shipped somewhere. The `index .Env` form that reads a missing key
+      # as an empty string is refused here, which is what broke v0.7.1: the
+      # whole release failed after the archives were already published.
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    # Which is why the guard against an unset token lives here instead. This
+    # is an ordinary template, so `index` may read a key that is absent, and
+    # skipping the upload means the token above is never resolved: a release
+    # cut without the secret configured — a fork, or a contributor running
+    # GoReleaser by hand — publishes its archives and leaves the cask alone
+    # rather than dying at the last step.
+    #
+    # `auto` on top of that keeps a prerelease from overwriting the cask
+    # people install from.
     skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}auto{{ else }}true{{ end }}'
     directory: Casks
     homepage: "https://github.com/aronk11/correlux"
