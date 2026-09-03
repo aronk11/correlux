@@ -360,9 +360,13 @@ func (m *Model) fleetData() screens.FleetData {
 	d := screens.FleetData{Offset: m.fleetPort.Offset, Selected: m.fleetPort.Cursor}
 
 	if len(m.fleetMembers) == 0 {
-		d.Message = "No fleet configured. List the contexts to watch under `fleet:` in " +
-			orNone(m.configPath) + ", or add every context in this kubeconfig for this session " +
-			"from the command palette."
+		// The old version of this line explained the shape of a YAML key and
+		// where the file lived. It was accurate and it was a dead end: the one
+		// screen that knows every context in the kubeconfig was telling people
+		// to go and type their names somewhere else.
+		d.Message = "No clusters in the fleet yet. Press " + m.keys.Key(ActionEdit) +
+			" to choose them from your kubeconfig — Tab picks, Ctrl+T takes all of them, " +
+			"Enter saves. Nothing is contacted until you do."
 		return d
 	}
 

@@ -26,10 +26,15 @@ type Glyphs struct {
 	Busy     string
 	Bullet   string
 	Selected string
-	Arrow    string
-	Ellipsis string
-	Prompt   string
-	Prod     string
+	// Checked and Unchecked are the two states of a box in a multi-select
+	// list. Both are drawn, always: an empty space where an unticked box
+	// should be reads as a list that has not finished rendering.
+	Checked   string
+	Unchecked string
+	Arrow     string
+	Ellipsis  string
+	Prompt    string
+	Prod      string
 	// BarFull and BarEmpty draw a proportion. They are a shape, never a
 	// meaning: the number they illustrate is always printed beside them.
 	BarFull  string
@@ -37,37 +42,41 @@ type Glyphs struct {
 }
 
 var unicodeGlyphs = Glyphs{
-	Healthy:  "✓",
-	Warning:  "⚠",
-	Critical: "✖",
-	Unknown:  "?",
-	Pending:  "…",
-	Busy:     "⟳",
-	Bullet:   "•",
-	Selected: "▸",
-	Arrow:    "→",
-	Ellipsis: "…",
-	Prompt:   "❯",
-	Prod:     "⬤",
-	BarFull:  "█",
-	BarEmpty: "░",
+	Healthy:   "✓",
+	Warning:   "⚠",
+	Critical:  "✖",
+	Unknown:   "?",
+	Pending:   "…",
+	Busy:      "⟳",
+	Bullet:    "•",
+	Selected:  "▸",
+	Checked:   "[x]",
+	Unchecked: "[ ]",
+	Arrow:     "→",
+	Ellipsis:  "…",
+	Prompt:    "❯",
+	Prod:      "⬤",
+	BarFull:   "█",
+	BarEmpty:  "░",
 }
 
 var asciiGlyphs = Glyphs{
-	Healthy:  "OK",
-	Warning:  "!",
-	Critical: "X",
-	Unknown:  "?",
-	Pending:  "..",
-	Busy:     "~",
-	Bullet:   "*",
-	Selected: ">",
-	Arrow:    "->",
-	Ellipsis: "...",
-	Prompt:   ">",
-	Prod:     "#",
-	BarFull:  "#",
-	BarEmpty: ".",
+	Healthy:   "OK",
+	Warning:   "!",
+	Critical:  "X",
+	Unknown:   "?",
+	Pending:   "..",
+	Busy:      "~",
+	Bullet:    "*",
+	Selected:  ">",
+	Checked:   "[x]",
+	Unchecked: "[ ]",
+	Arrow:     "->",
+	Ellipsis:  "...",
+	Prompt:    ">",
+	Prod:      "#",
+	BarFull:   "#",
+	BarEmpty:  ".",
 }
 
 // Env abstracts environment lookup so detection can be tested without

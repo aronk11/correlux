@@ -39,6 +39,9 @@ const (
 	// cluster.
 	overlayConfirm
 	overlayHelp
+	// overlayFleetPicker chooses which clusters are in a fleet group, so the
+	// fleet can be assembled on screen instead of in a text editor.
+	overlayFleetPicker
 )
 
 // viewKind identifies the full-window view behind any overlay.
@@ -131,6 +134,13 @@ type Model struct {
 	activityPort   layout.Viewport
 	fleetPort      layout.Viewport
 	fleetTablePort layout.Viewport
+	// fleetDraft is the membership being edited in the picker, and
+	// fleetDraftGroup the group it belongs to. It is held here rather than in
+	// the selector because the list is rebuilt from the filter on every
+	// keystroke: a tick stored in a row would not survive somebody typing.
+	fleetDraft      map[string]bool
+	fleetDraftGroup string
+
 	// usageDrilledIn records that the active namespace was entered from the
 	// cluster-wide usage screen, which is what Esc walks back out of there. A
 	// session that simply started in a namespace has nothing to walk back to,
@@ -271,6 +281,7 @@ type Model struct {
 	editPath     string
 	editOriginal string
 	ctxPicker    *components.Selector
+	fleetPicker  *components.Selector
 	nsPicker     *components.Selector
 	resPicker    *components.Selector
 
@@ -353,6 +364,10 @@ func New(opts Options) *Model {
 	m.ctxPicker = components.NewSelector("Clusters", "Filter clusters…", m.filterContexts)
 	m.ctxPicker.EmptyMessage = "No context matches."
 	m.ctxPicker.Footer = "Enter switch   Esc cancel"
+
+	m.fleetPicker = components.NewSelector("Clusters in the fleet", "Filter clusters…", m.filterFleetPicker)
+	m.fleetPicker.EmptyMessage = "No context matches."
+	m.fleetPicker.Multi = true
 
 	m.nsPicker = components.NewSelector("Namespaces", "Filter namespaces…", m.filterNamespaces)
 	m.nsPicker.Footer = "Enter switch   Esc cancel"
