@@ -48,11 +48,23 @@ type Config struct {
 	// against every production cluster the user has credentials for.
 	Fleet []string `json:"fleet"`
 
+	// FleetGroups are named, independent views over kubeconfig contexts. They
+	// let operators keep production, staging, regions or teams separate without
+	// authenticating against clusters outside the selected group. The legacy
+	// Fleet field remains supported as the implicit "default" group.
+	FleetGroups []FleetGroup `json:"fleetGroups"`
+
 	// Keybindings maps an action name to a keystroke, overriding the defaults.
 	Keybindings map[string]string `json:"keybindings"`
 
 	// SourcePath records where this config was read from ("" if defaults).
 	SourcePath string `json:"-"`
+}
+
+// FleetGroup is one explicitly named set of kubeconfig contexts.
+type FleetGroup struct {
+	Name     string   `json:"name"`
+	Contexts []string `json:"contexts"`
 }
 
 // Startup pins the initial context and namespace.
