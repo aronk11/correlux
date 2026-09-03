@@ -299,9 +299,28 @@ func (s *Selector) renderRow(t *theme.Theme, it Item, selected bool, width int) 
 		marker = t.Glyphs.Selected + " "
 	}
 
-	var badge string
+	// Every span of the row is styled on its own rather than composed plain and
+	// wrapped once at the end.
+	//
+	// A nested style ends with a reset, and a reset cancels the row style the
+	// wrap had opened — so a selected row rendered the outer way keeps its
+	// highlight up to the first badge and loses it for everything after,
+	// including the title. Styling each span, and the padding between them,
+	// leaves the background unbroken across the line.
+	//
+	// The colours differ too: a subtitle mixed for the terminal's background
+	// lands within a shade of the selection's and cannot be read on it.
+	row, muted, status := t.Base, t.Muted, t.Style(it.BadgeStatus)
+	switch {
+	case it.Disabled:
+		row, muted = t.Muted, t.Muted
+	case selected:
+		row, muted, status = t.SelectedRow, t.SelectedMuted, t.OnSelection(it.BadgeStatus)
+	}
+
+	badge := ""
 	if it.Badge != "" {
-		badge = t.Style(it.BadgeStatus).Render(it.Badge) + " "
+		badge = status.Render(it.Badge) + row.Render(" ")
 	}
 
 	right := it.Right
@@ -313,39 +332,41 @@ func (s *Selector) renderRow(t *theme.Theme, it Item, selected bool, width int) 
 		rightWidth = min(lipgloss.Width(right)+2, max(width/3, 8))
 	}
 
-	titleWidth := width - lipgloss.Width(marker) - lipgloss.Width(badge) - rightWidth
+	markerWidth, badgeWidth := lipgloss.Width(marker), lipgloss.Width(badge)
+	titleWidth := width - markerWidth - badgeWidth - rightWidth
 	if titleWidth < 4 {
-		titleWidth = max(width-lipgloss.Width(marker), 1)
 		rightWidth = 0
+		titleWidth = max(width-markerWidth-badgeWidth, 1)
 	}
 
-	title := highlightRunes(t, it.Title, it.Highlight, selected)
-	body := marker + badge + title
+	title := truncate(it.Title, titleWidth)
+	used := markerWidth + badgeWidth + lipgloss.Width(title)
+	body := row.Render(marker) + badge + highlightRunes(t, &row, title, it.Highlight, selected)
 	if sub := it.Subtitle; sub != "" {
-		remaining := titleWidth - lipgloss.Width(it.Title) - 2
-		if remaining > 3 {
-			body += "  " + t.Muted.Render(truncate(sub, remaining))
+		if remaining := titleWidth - lipgloss.Width(title) - 2; remaining > 3 {
+			sub = truncate(sub, remaining)
+			body += row.Render("  ") + muted.Render(sub)
+			used += 2 + lipgloss.Width(sub)
 		}
 	}
-	body = pad(body, width-rightWidth)
+	// The gap is painted in the row style rather than left blank: unstyled
+	// spaces in the middle of a highlighted row are the hole this function
+	// exists to avoid.
+	body += row.Render(strings.Repeat(" ", max(width-rightWidth-used, 0)))
 	if rightWidth > 0 {
-		body += t.Muted.Render(padLeft(right, rightWidth))
+		body += muted.Render(padLeft(right, rightWidth))
 	}
-
-	style := t.Base
-	switch {
-	case it.Disabled:
-		style = t.Muted
-	case selected:
-		style = t.SelectedRow
-	}
-	return style.Render(pad(body, width))
+	// A last clamp for the degenerate widths — a window narrower than the
+	// marker and the badge together. The row is one line, whatever happens.
+	return truncate(body, width)
 }
 
-// highlightRunes emphasises the runes that matched the query.
-func highlightRunes(t *theme.Theme, s string, positions []int, selected bool) string {
+// highlightRunes emphasises the runes that matched the query. The runes that
+// did not match are rendered in the row's own style rather than left bare, so
+// the highlight behind them survives the matched runes' resets.
+func highlightRunes(t *theme.Theme, row *lipgloss.Style, s string, positions []int, selected bool) string {
 	if len(positions) == 0 {
-		return s
+		return row.Render(s)
 	}
 	set := make(map[int]struct{}, len(positions))
 	for _, p := range positions {
@@ -353,7 +374,7 @@ func highlightRunes(t *theme.Theme, s string, positions []int, selected bool) st
 	}
 	style := t.MatchHighlight
 	if selected {
-		style = t.Emphasis
+		style = t.SelectedEmphasis
 	}
 	var b strings.Builder
 	for i, r := range []rune(s) {
@@ -361,7 +382,7 @@ func highlightRunes(t *theme.Theme, s string, positions []int, selected bool) st
 			b.WriteString(style.Render(string(r)))
 			continue
 		}
-		b.WriteString(string(r))
+		b.WriteString(row.Render(string(r)))
 	}
 	return b.String()
 }
