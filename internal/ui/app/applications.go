@@ -76,6 +76,31 @@ func (m *Model) openSelectedApplication() tea.Cmd {
 	return m.openApplication(apps[m.appPort.Cursor].Key())
 }
 
+// toggleGrouping shows or hides why each object in the application belongs to
+// it: the signal the grouper used, and whether that signal is a fact or a
+// guess (ADR 16 — correlation must be explainable).
+//
+// Pressed from the dashboard it opens the application under the cursor and
+// turns the section on, the same two-context pattern explain uses for the WHY
+// view; pressed inside an open application it just toggles the section.
+func (m *Model) toggleGrouping() tea.Cmd {
+	if m.view == viewApplications {
+		cmd := m.openSelectedApplication()
+		if m.view != viewApplication {
+			return cmd
+		}
+		m.groupingShown = true
+		m.rebuildCommands()
+		return cmd
+	}
+	if m.view != viewApplication {
+		return nil
+	}
+	m.groupingShown = !m.groupingShown
+	m.rebuildCommands()
+	return nil
+}
+
 // backToApplications returns to the dashboard from anywhere.
 func (m *Model) backToApplications() tea.Cmd {
 	if m.view == viewApplications {
@@ -410,7 +435,8 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		Columns: []string{"Kind", "Name", "Detail"},
 		Empty:   "no service or ingress belongs to this application",
 	}
-	for _, s := range a.Services {
+	for i := range a.Services {
+		s := &a.Services[i]
 		detail := s.Type
 		if len(s.Ports) > 0 {
 			detail += "  " + strings.Join(s.Ports, ",")
@@ -427,11 +453,69 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		})
 	}
 
-	sections, targets := numberTargets([]detailSection{
-		workloads, pods, network, delivery, m.eventsSection(&a, now),
-	})
+	sectionList := []detailSection{workloads, pods, network, delivery}
+	if m.groupingShown {
+		sectionList = append(sectionList, m.groupingSection(&a))
+	}
+	sectionList = append(sectionList, m.eventsSection(&a, now))
+
+	sections, targets := numberTargets(sectionList)
 	d.Sections = sections
 	return d, targets
+}
+
+// groupingSection lists every object in the application next to the reason
+// the grouper attached it, so "why is this part of payments?" always has a
+// real, specific answer (ADR 16).
+//
+// An owner reference is the only relationship Kubernetes itself guarantees;
+// everything else — a label, a selector match, an ingress backend, or nothing
+// at all — is a convention Correlux is reading, and is marked a guess rather
+// than dressed up as a fact.
+func (m *Model) groupingSection(a *application.Application) detailSection {
+	section := detailSection{
+		Title:   "Grouped by",
+		Columns: []string{"Object", "Certainty", "Reason"},
+		Empty:   "nothing belongs to this application yet",
+	}
+	add := func(kind, name, namespace string, reason application.Reason) {
+		row := detailRow{
+			Cells: []string{kind + "/" + name, m.certaintyCell(reason), reason.Describe()},
+			Ref:   objectRef{Kind: kind, Name: name, Namespace: namespace},
+		}
+		if !reason.Certain() {
+			row.Status = theme.StatusWarning
+		}
+		section.Rows = append(section.Rows, row)
+	}
+	for _, w := range a.Workloads {
+		add(w.Kind, w.Name, w.Namespace, w.GroupedBy)
+	}
+	for i := range a.Pods {
+		p := &a.Pods[i]
+		add("Pod", p.Name, p.Namespace, p.GroupedBy)
+	}
+	for i := range a.Services {
+		s := &a.Services[i]
+		add("Service", s.Name, s.Namespace, s.GroupedBy)
+	}
+	for _, ing := range a.Ingresses {
+		add("Ingress", ing.Name, ing.Namespace, ing.GroupedBy)
+	}
+	return section
+}
+
+// certaintyCell renders a reason's certainty as a glyph and a word together,
+// never colour alone (SPEC 26): an owner reference earns "certain", anything
+// else — a label, a selector match, a backend reference, or nothing at all —
+// earns "guess".
+func (m *Model) certaintyCell(r application.Reason) string {
+	status := theme.StatusHealthy
+	word := "certain"
+	if !r.Certain() {
+		status, word = theme.StatusWarning, "guess"
+	}
+	return m.theme.Glyph(status) + " " + word
 }
 
 // eventsSection shows what the cluster said about this application, which is

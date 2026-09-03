@@ -160,6 +160,38 @@ func seededNamespaces(t *testing.T) []string {
 	return out
 }
 
+func TestGroupingReasonsMatchWhatTheSeededClusterActuallySays(t *testing.T) {
+	m := newModelFor(t)
+	drain(t, m, m.Init())
+	drain(t, m, m.SwitchNamespaceForTest(seededNamespace))
+	drain(t, m, m.OpenApplicationForTest("app-00"))
+
+	drain(t, m, m.PressForTest("r"))
+	out := frame(m)
+
+	for _, want := range []string{
+		"GROUPED BY",
+		// The seeder labels the Deployment and Service with the recommended
+		// name label, and adopts the pods through a real ReplicaSet — so the
+		// reasons Correlux reports must be exactly what those objects carry.
+		"app.kubernetes.io/name=app-00",
+		"owned by ReplicaSet/app-00-seed, owned by Deployment/app-00",
+		"certain",
+		"guess",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the grouping section must show %q:\n%s", want, out)
+		}
+	}
+
+	// Pressing the key again must hide the section rather than leaving it
+	// stuck on: the real key binding, not just the underlying data.
+	drain(t, m, m.PressForTest("r"))
+	if strings.Contains(frame(m), "GROUPED BY") {
+		t.Error("pressing the grouping key again must hide the section")
+	}
+}
+
 func TestOpeningAnObjectFromTheClusterShowsItsDocument(t *testing.T) {
 	m := newModelFor(t)
 	drain(t, m, m.Init())
