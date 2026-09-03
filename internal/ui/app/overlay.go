@@ -18,6 +18,8 @@ func (m *Model) activeSelector() *components.Selector {
 		return m.nsPicker
 	case overlayResources:
 		return m.resPicker
+	case overlayFleetPicker:
+		return m.fleetPicker
 	default:
 		return nil
 	}
@@ -54,6 +56,10 @@ func (m *Model) openOverlay(kind overlayKind) tea.Cmd {
 		if !m.catalog.HasValue() {
 			return m.loadCatalog()
 		}
+	case overlayFleetPicker:
+		m.fleetPicker.Title = m.fleetPickerTitle()
+		m.fleetPicker.Footer = m.fleetPickerFooter()
+		m.fleetPicker.Reset()
 	}
 	return nil
 }
@@ -82,6 +88,17 @@ func (m *Model) handleOverlayKey(keystroke, text string) (tea.Cmd, bool) {
 			return m.acceptPrompt(), true
 		}
 		return m.confirmSelection(), true
+	case "tab", "ctrl+t":
+		// Picking is Tab rather than Space: the list has a filter in it, and a
+		// space belongs to whoever is typing a cluster name.
+		if m.overlay == overlayFleetPicker {
+			if keystroke == "tab" {
+				m.toggleFleetPick()
+			} else {
+				m.toggleEveryFleetPick()
+			}
+			return nil, true
+		}
 	}
 
 	// The two overlays that take typed input own every other key while they are
@@ -139,6 +156,8 @@ func (m *Model) confirmSelection() tea.Cmd {
 	case overlayNamespaces:
 		m.closeOverlay()
 		return m.switchNamespace(item.ID)
+	case overlayFleetPicker:
+		return m.saveFleetPick()
 	case overlayResources:
 		m.closeOverlay()
 		// Picked from a fleet screen, the kind is browsed across the fleet
@@ -165,6 +184,14 @@ func (m *Model) overlayRect() layout.Rect {
 		return layout.Overlay(m.screen, layout.OverlayOptions{
 			WidthRatio: 0.6, HeightRatio: 0.55,
 			MinWidth: 40, MaxWidth: 84, MinHeight: 8, MaxHeight: 20,
+		})
+	case overlayFleetPicker:
+		// Taller than the cluster switcher: this list is read in full rather
+		// than filtered down to one row, and the tick marks only mean
+		// something next to each other.
+		return layout.Overlay(m.screen, layout.OverlayOptions{
+			WidthRatio: 0.6, HeightRatio: 0.7,
+			MinWidth: 44, MaxWidth: 88, MinHeight: 10, MaxHeight: 24,
 		})
 	case overlayResources:
 		return layout.Overlay(m.screen, layout.OverlayOptions{

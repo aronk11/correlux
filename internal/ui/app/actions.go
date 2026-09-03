@@ -25,6 +25,9 @@ const (
 	paletteOpenFleet        palette.ActionID = "open.fleet"
 	paletteFleetEverything  palette.ActionID = "fleet.everything"
 	paletteSwitchFleetGroup palette.ActionID = "fleet.group"
+	paletteChooseFleet      palette.ActionID = "fleet.choose"
+	paletteNewFleetGroup    palette.ActionID = "fleet.group.new"
+	paletteDeleteFleetGroup palette.ActionID = "fleet.group.delete"
 	paletteOpenApp          palette.ActionID = "open.application"
 	paletteExplain          palette.ActionID = "explain"
 	paletteGrouping         palette.ActionID = "application.grouping"
@@ -284,6 +287,43 @@ func (m *Model) rebuildCommands() {
 			Category: "Navigate",
 			Keywords: []string{"fleet", "every", "all contexts", "add"},
 			Weight:   50,
+			Enabled:  true,
+		})
+	}
+
+	// Choosing the clusters comes before switching between groups, because a
+	// fleet nobody has chosen yet is the state every new install is in and the
+	// one the old configuration-file-only answer left people stuck in.
+	cmds = append(cmds, palette.Command{
+		ID:       "cmd.fleet.choose",
+		Action:   paletteChooseFleet,
+		Arg:      m.fleetGroupLabel(),
+		Title:    "Choose the clusters in " + m.fleetGroupLabel(),
+		Subtitle: chooseFleetSubtitle(len(m.groupContexts(m.activeFleetGroup))),
+		Category: "Navigate",
+		Keywords: []string{"fleet", "clusters", "choose", "pick", "edit", "add", "group"},
+		Weight:   93,
+		Enabled:  len(m.kubeconfig.Contexts) > 0,
+	}, palette.Command{
+		ID:       "cmd.fleet.group.new",
+		Action:   paletteNewFleetGroup,
+		Title:    "New fleet group…",
+		Subtitle: "keep production, staging or a region apart",
+		Category: "Navigate",
+		Keywords: []string{"fleet", "group", "new", "create", "environment", "team", "region"},
+		Weight:   48,
+		Enabled:  len(m.kubeconfig.Contexts) > 0,
+	})
+	for _, group := range m.cfg.FleetGroups {
+		cmds = append(cmds, palette.Command{
+			ID:       "fleet.group.delete." + group.Name,
+			Action:   paletteDeleteFleetGroup,
+			Arg:      group.Name,
+			Title:    "Delete fleet group " + group.Name,
+			Subtitle: "the grouping only; the clusters stay in your kubeconfig",
+			Category: "Navigate",
+			Keywords: []string{"fleet", "group", "delete", "remove"},
+			Weight:   20,
 			Enabled:  true,
 		})
 	}
@@ -675,6 +715,14 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.includeEveryContext()
 	case paletteSwitchFleetGroup:
 		return m.switchFleetGroup(cmd.Arg)
+	case paletteChooseFleet:
+		m.closeOverlay()
+		return m.openFleetPicker(m.activeFleetGroup)
+	case paletteNewFleetGroup:
+		return m.promptNewFleetGroup()
+	case paletteDeleteFleetGroup:
+		m.closeOverlay()
+		return m.deleteFleetGroup(cmd.Arg)
 	case paletteOpenApp:
 		return m.openApplication(cmd.Arg)
 	case paletteExplain:

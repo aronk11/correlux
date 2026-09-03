@@ -295,8 +295,29 @@ editor.
 
 ### Several clusters at once
 
-`F` opens the fleet: every cluster you named, read in parallel, with what is
+`F` opens the fleet: every cluster you chose, read in parallel, with what is
 broken in each of them.
+
+You choose them on screen. `e` in the fleet lists every context in your
+kubeconfig with a box beside it — `Tab` picks one, `Ctrl+T` takes all of them
+or gives them all back, `Enter` saves:
+
+```
+╭──────────────────────────────────────────────────────────────────────╮
+│ Clusters in the fleet                                                │
+│ ❯ Filter clusters…                                                   │
+│   [x] PROD prod-eu  https://api.prod-eu.example.com                  │
+│ ▸ [x] PROD prod-us  https://api.prod-us.example.com                  │
+│   [ ] staging  https://api.staging.example.com                active │
+│                                                                      │
+│ Tab pick   Ctrl+T all   Enter save   Esc cancel   • 2 of 3 chosen    │
+╰──────────────────────────────────────────────────────────────────────╯
+```
+
+Saving writes the choice to your configuration file so it is still there
+tomorrow, and only the fleet keys in it are touched: everything else you wrote,
+in the order you wrote it and with the comments explaining it, comes back
+exactly as it was. Nothing is contacted until you open the fleet.
 
 ```
 Fleet
@@ -331,7 +352,10 @@ run, for one session.
 
 Groups are named sets of contexts, which is how production, staging, a region or
 a team stay apart without authenticating against anything outside the one you
-opened:
+opened. `New fleet group…` in the command palette asks for a name and then for
+its clusters; `Delete fleet group …` removes the grouping and leaves the
+clusters alone. What that writes is plain enough to edit by hand if you would
+rather:
 
 ```yaml
 fleetGroups:

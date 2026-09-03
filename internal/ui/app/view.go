@@ -330,6 +330,7 @@ func (m *Model) statusData() components.StatusData {
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Clusters", Priority: 70},
 			{Key: "Enter", Desc: "Go there", Priority: 72},
+			{Group: components.HintView, Key: m.keys.Key(ActionEdit), Desc: "Choose clusters", Priority: 87},
 			{Group: components.HintView, Key: m.keys.Key(ActionResourcePicker), Desc: "Across the fleet", Priority: 86},
 			{Group: components.HintSession, Key: m.keys.Key(ActionRefresh), Desc: "Reload", Priority: 84},
 			{Key: "Esc", Desc: "Back", Priority: 85},
@@ -380,6 +381,14 @@ func (m *Model) statusData() components.StatusData {
 	case overlayPrompt:
 		hints = []components.KeyHint{
 			{Key: "Enter", Desc: "Continue", Priority: 90},
+			{Key: "Esc", Desc: "Cancel", Priority: 90},
+		}
+	case overlayFleetPicker:
+		hints = []components.KeyHint{
+			{Key: "↑↓", Desc: "Clusters", Priority: 90},
+			{Key: "Tab", Desc: "Pick", Priority: 92},
+			{Key: "Ctrl+T", Desc: "All", Priority: 88},
+			{Key: "Enter", Desc: "Save", Priority: 92},
 			{Key: "Esc", Desc: "Cancel", Priority: 90},
 		}
 	default:
@@ -708,7 +717,8 @@ func (m *Model) renderHelp(width, height int) string {
 		{"Navigate", [][2]string{
 			{m.keys.Key(ActionPalette), "Command palette — every action, by name"},
 			{m.keys.Key(ActionApplications), "Back to the application dashboard"},
-			{m.keys.Key(ActionFleet), "The fleet: every configured cluster at once, read-only"},
+			{m.keys.Key(ActionFleet), "The fleet: every chosen cluster at once, read-only"},
+			{m.keys.Key(ActionEdit), "In the fleet: choose which clusters are in it, and save"},
 			{m.keys.Key(ActionResourcePicker), "In the fleet: browse one kind across every cluster"},
 			{m.keys.Key(ActionContextPicker), "Switch cluster"},
 			{m.keys.Key(ActionNamespacePicker), "Switch namespace"},

@@ -28,6 +28,9 @@ type Item struct {
 	Disabled bool
 	// Note explains a disabled row.
 	Note string
+	// Checked is the state of the box in a multi-select list. It is ignored
+	// unless the selector is in that mode.
+	Checked bool
 }
 
 // FilterFunc narrows and ranks items for a query. Selector ships with a
@@ -45,6 +48,12 @@ type Selector struct {
 	EmptyMessage string
 	// Footer is an optional hint line under the list.
 	Footer string
+	// Multi draws a box in front of every row. The state behind the boxes is
+	// the caller's: the list is rebuilt from the filter on every keystroke, so
+	// a tick stored here would be lost the moment somebody typed. The caller
+	// sets Item.Checked as it builds each row and flips its own record when
+	// the selector reports a toggle.
+	Multi bool
 
 	input    Input
 	filter   FilterFunc
@@ -297,6 +306,15 @@ func (s *Selector) renderRow(t *theme.Theme, it Item, selected bool, width int) 
 	marker := "  "
 	if selected {
 		marker = t.Glyphs.Selected + " "
+	}
+	if s.Multi {
+		// The box carries a glyph as well as its state, so a ticked row is
+		// still a ticked row in monochrome and to a colour-blind reader.
+		box := t.Glyphs.Unchecked
+		if it.Checked {
+			box = t.Glyphs.Checked
+		}
+		marker += box + " "
 	}
 
 	// Every span of the row is styled on its own rather than composed plain and
