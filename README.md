@@ -202,13 +202,33 @@ admits it, and leaving the view closes every connection it opened.
 
 ### Where the pods are, and what they use
 
-`u` answers the two questions a full cluster raises, in one screen: which
-machine everything landed on, and how much of what it reserved each application
-is actually using.
+`u` answers the two questions a full cluster raises: which machine everything
+landed on, and how much of what it reserved each application is actually using.
+Cluster-wide it opens on the namespaces, largest reservation first, because a
+flat list of every application in the cluster is a scrolling problem rather than
+an answer:
 
 ```
-Resource usage in default
-2 nodes   3 pods of 220 slots   live usage measured 30s ago over 30s
+Resource usage in all namespaces
+2 nodes   8 pods of 220 slots   live usage measured 30s ago over 30s
+
+NAMESPACES
+  NAMESPACE  APPLICATIONS  PODS  NODES  CPU USED/REQ/LIMIT    MEMORY USED/REQ/LIMIT
+  payments   2             5     2      620m / 1000m / 2000m  1Gi / 2Gi / 4Gi
+  jobs       1             3     1      180m / 500m / 1000m   512Mi / 1Gi / 2Gi
+```
+
+A namespace is shown in absolute numbers rather than as a percentage: without a
+ResourceQuota there is nothing it is a percentage *of*, and a node's capacity is
+shared by every namespace on it.
+
+`↑`/`↓` selects a namespace and `Enter` narrows the scope to it — the
+applications, the machines they landed on, and what each is using against what
+it asked for. `Esc` widens the scope back out, and leaves the screen for anyone
+who opened it in a namespace to begin with:
+
+```
+Resource usage in payments
 
 NODES
   NODE    STATE    PODS   CPU USED    CPU REQUESTED  MEM USED    MEM REQUESTED
@@ -476,7 +496,7 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | — | Logs at pod, workload and application level | **done** |
 | — | Fleet overview across several clusters, read-only | **done** |
 | — | Helm, Flux and Argo CD recognised from what they write | **done** |
-| — | Resource usage per node and application, metrics API optional | **done** |
+| — | Resource usage per namespace, application and node, metrics API optional | **done** |
 | — | Exec and clipboard | next |
 | 5 | Safe mutating actions: scale and edit | **done** |
 | — | Further safe actions: delete, restart, cordon | planned |

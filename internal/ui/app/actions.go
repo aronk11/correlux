@@ -766,6 +766,7 @@ func (m *Model) switchContextScoped(name, namespace string) tea.Cmd {
 	m.evidence.Reset()
 	m.object.Reset()
 	m.resetUsage()
+	m.usageDrilledIn = false
 	m.stopLogs()
 	m.stopFleet()
 	m.findings = nil

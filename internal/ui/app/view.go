@@ -279,10 +279,22 @@ func (m *Model) statusData() components.StatusData {
 			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
 		}, hints...)
 	case viewUsage:
+		// The hints name what the keys do here and now: cluster-wide the rows
+		// are namespaces, and Esc only widens the scope for somebody who
+		// narrowed it on this screen.
+		move, enter := "Applications", "Open application"
+		if m.allNamespaces {
+			move, enter = "Namespaces", "Open namespace"
+		}
+		back := "Applications"
+		if m.usageDrilledIn {
+			back = "All namespaces"
+		}
 		hints = append([]components.KeyHint{
-			{Key: "↑↓", Desc: "Scroll", Priority: 70},
+			{Key: "↑↓", Desc: move, Priority: 70},
+			{Key: "Enter", Desc: enter, Priority: 72},
 			{Key: m.keys.Key(ActionRefresh), Desc: "Measure again", Priority: 84},
-			{Key: "Esc", Desc: "Applications", Priority: 85},
+			{Key: "Esc", Desc: back, Priority: 85},
 		}, hints...)
 	case viewActivity:
 		hints = append([]components.KeyHint{

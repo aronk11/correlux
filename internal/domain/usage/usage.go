@@ -94,6 +94,24 @@ type AppUsage struct {
 	Used     application.Amounts
 }
 
+// NamespaceUsage is one namespace's share of a cluster-wide reading. It is
+// kept separate from Totals because allocatable capacity belongs to nodes, not
+// namespaces: presenting a namespace as a percentage of cluster capacity would
+// imply a quota or reservation Kubernetes does not provide.
+type NamespaceUsage struct {
+	Name string
+	Apps int
+	Pods int
+	// Measured is how many running pods have a live metrics sample.
+	Measured    int
+	Unscheduled int
+	Unsized     int
+	Nodes       []string
+	Requests    application.Amounts
+	Limits      application.Amounts
+	Used        application.Amounts
+}
+
 // Totals is the whole scope in one row.
 type Totals struct {
 	Nodes int
@@ -124,8 +142,11 @@ type Report struct {
 	Scope   string
 	Metrics Metrics
 	Nodes   []NodeUsage
-	Apps    []AppUsage
-	Totals  Totals
+	// Namespaces is populated for a cluster-wide snapshot. It provides the
+	// first drill-down level before the per-application rows.
+	Namespaces []NamespaceUsage
+	Apps       []AppUsage
+	Totals     Totals
 	// Unscheduled are the pods no node has accepted, worst question first.
 	Unscheduled []Unscheduled
 	// Notes qualify the report itself: a scope that hides other namespaces'
@@ -219,8 +240,74 @@ func Build(live Live, snapshot application.Snapshot, apps []application.Applicat
 	sortNodes(report.Nodes)
 
 	report.Apps = buildApps(apps, podSamples)
+	if snapshot.Scope == "" {
+		report.Namespaces = buildNamespaces(snapshot.Pods, report.Apps, podSamples)
+	}
 	report.Notes = notes(live, snapshot)
 	return report
+}
+
+// buildNamespaces rolls running pods up without relying on application
+// inference. Unassigned pods still consume namespace resources and must remain
+// visible. Application counts are added from the already-built application
+// rollup, so ambiguous/unassigned pods never invent an application.
+func buildNamespaces(
+	pods []application.Pod,
+	apps []AppUsage,
+	podSamples map[string]application.Amounts,
+) []NamespaceUsage {
+	byName := map[string]*NamespaceUsage{}
+	nodes := map[string]map[string]bool{}
+	for i := range pods {
+		pod := &pods[i]
+		if !Running(pod) {
+			continue
+		}
+		ns := byName[pod.Namespace]
+		if ns == nil {
+			ns = &NamespaceUsage{Name: pod.Namespace}
+			byName[pod.Namespace] = ns
+			nodes[pod.Namespace] = map[string]bool{}
+		}
+		requests := Requests(pod)
+		ns.Pods++
+		ns.Requests = ns.Requests.Add(requests)
+		ns.Limits = ns.Limits.Add(Limits(pod))
+		if !requests.HasCPU && !requests.HasMemory {
+			ns.Unsized++
+		}
+		if pod.Node == "" {
+			ns.Unscheduled++
+		} else {
+			nodes[pod.Namespace][pod.Node] = true
+		}
+		if sample, ok := podSamples[pod.Namespace+"/"+pod.Name]; ok {
+			ns.Used = ns.Used.Add(sample)
+			ns.Measured++
+		}
+	}
+
+	for i := range apps {
+		if ns := byName[apps[i].Namespace]; ns != nil {
+			ns.Apps++
+		}
+	}
+
+	out := make([]NamespaceUsage, 0, len(byName))
+	for name, ns := range byName {
+		ns.Nodes = keys(nodes[name])
+		out = append(out, *ns)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Requests.CPUMilli != out[j].Requests.CPUMilli {
+			return out[i].Requests.CPUMilli > out[j].Requests.CPUMilli
+		}
+		if out[i].Requests.MemoryBytes != out[j].Requests.MemoryBytes {
+			return out[i].Requests.MemoryBytes > out[j].Requests.MemoryBytes
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
 }
 
 // buildApps rolls the same pods up the other way: per application, which is
