@@ -30,6 +30,28 @@ func line(t *testing.T, document, key string) string {
 	return ""
 }
 
+func TestDecodableAgreesWithDocumentWithoutBuildingIt(t *testing.T) {
+	if !Decodable(secret(map[string]string{"password": "hunter2"})) {
+		t.Error("a Secret with an encoded value must be decodable")
+	}
+	if Decodable(secret(map[string]string{})) {
+		t.Error("a Secret with no values has nothing to decode")
+	}
+
+	deployment := []byte(`{"apiVersion": "apps/v1", "kind": "Deployment",
+	  "metadata": {"name": "payments", "namespace": "shop"}, "spec": {"replicas": 3}}`)
+	if Decodable(deployment) {
+		t.Error("a Deployment has no data or binaryData field; there is nothing to decode")
+	}
+
+	configMap := []byte(`{"apiVersion": "v1", "kind": "ConfigMap",
+	  "metadata": {"name": "flags", "namespace": "shop"},
+	  "data": {"debug": "true", "port": "8080"}}`)
+	if Decodable(configMap) {
+		t.Error("short accidental base64 like \"true\" and \"8080\" must not count as decodable")
+	}
+}
+
 func TestASecretsValuesAreDecoded(t *testing.T) {
 	document, decoded := Document(secret(map[string]string{"password": "hunter2", "user": "payments"}))
 

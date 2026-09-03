@@ -68,6 +68,8 @@ correlux version
 | `b` | Decode the base64 values in it — a Secret's, above all |
 | `e` | Edit the open object in your editor |
 | `S` | Scale the selected workload |
+| `x` | Open an interactive shell in the pod, or a running pod of the workload |
+| `c` | Copy its namespace/name to the clipboard — YAML, JSON and more are in `Ctrl+P` |
 | `l` | Read the logs of the pod, workload or application in hand |
 | `u` | Where the pods are, and what they use against what they asked for |
 | `E` | Recent Kubernetes Events in the active scope, newest first |
@@ -502,6 +504,8 @@ keybindings:
   object.decode: b
   edit: e
   scale: S
+  exec: x
+  copy: c
   logs: l
   logs.follow: f
   logs.previous: p

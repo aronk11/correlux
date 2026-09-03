@@ -34,6 +34,8 @@ const (
 	ActionDecode          = "object.decode"
 	ActionScale           = "scale"
 	ActionEdit            = "edit"
+	ActionExec            = "exec"
+	ActionCopy            = "copy"
 	ActionLogs            = "logs"
 	ActionUsage           = "usage"
 	ActionActivity        = "activity"
@@ -76,6 +78,8 @@ var DefaultBindings = map[string]string{
 	ActionDecode:          "b",
 	ActionScale:           "S",
 	ActionEdit:            "e",
+	ActionExec:            "x",
+	ActionCopy:            "c",
 	ActionLogs:            "l",
 	ActionUsage:           "u",
 	ActionActivity:        "E",

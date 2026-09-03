@@ -88,6 +88,29 @@ func Document(raw []byte) (string, int) {
 	return string(document), decoded
 }
 
+// Decodable reports whether Document would find anything to decode, without
+// building the document. It is what the UI checks before offering to decode
+// at all: a Deployment has no `data` or `binaryData` field, and a key bound to
+// "nothing happens here" is not a key worth showing.
+func Decodable(raw []byte) bool {
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return false
+	}
+	for _, field := range encodedFields {
+		values, ok := stringMap(doc[field])
+		if !ok {
+			continue
+		}
+		for _, stored := range values {
+			if _, ok := value(stored); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // stringMap reads a field that maps names to encoded values. Anything else
 // shaped — a list, a number, a nested object — is not that field as Kubernetes
 // defines it, and is left alone.

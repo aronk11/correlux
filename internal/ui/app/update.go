@@ -150,6 +150,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case scaledMsg:
 		return m, m.applyScaled(msg)
 
+	case execEndedMsg:
+		return m, m.applyExecEnded(msg)
+
 	case editFinishedMsg:
 		return m, m.applyEditedBuffer(msg)
 
@@ -899,6 +902,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			return m.editObject(m.objectTarget)
 		}
 		return nil
+	case ActionExec:
+		return m.openExec()
+	case ActionCopy:
+		return m.copyPrimary()
 	case ActionFollow:
 		if m.view == viewLogs {
 			return m.toggleFollow()

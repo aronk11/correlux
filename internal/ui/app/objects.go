@@ -141,7 +141,11 @@ func (m *Model) toggleObjectYAML() {
 // and what they decode to.
 //
 // It reaches for the document as well, because asking to read a Secret's values
-// while the details are on screen can only mean one thing.
+// while the details are on screen can only mean one thing. Pressing the key on
+// an object with nothing to decode still toggles — objectView says so inline —
+// because a key that sometimes does nothing at all, silently, is worse than one
+// that explains itself; objectDecodable is what keeps the key from being
+// advertised there in the first place (SPEC 17: never a confusing keystroke).
 func (m *Model) toggleObjectDecode() {
 	m.objectDecode = !m.objectDecode
 	if m.objectDecode {
@@ -149,6 +153,15 @@ func (m *Model) toggleObjectDecode() {
 	}
 	m.objectPort.Offset = 0
 	m.rebuildCommands()
+}
+
+// objectDecodable reports whether the loaded object has anything base64 in it
+// worth offering to decode — a Secret's values, above all. Offering the key on
+// every object, including ones with no `data` or `binaryData` field at all, is
+// a hint pointing at a key that does nothing.
+func (m *Model) objectDecodable() bool {
+	obj := m.object.Get()
+	return obj != nil && decode.Decodable(obj.Raw)
 }
 
 // objectData assembles the object view.
