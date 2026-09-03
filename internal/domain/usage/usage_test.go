@@ -332,3 +332,50 @@ func TestPodsOnNodesThatCouldNotBeReadStayInTheTotals(t *testing.T) {
 		t.Error("a node that could not be read must not appear as a row")
 	}
 }
+
+func TestClusterWideUsageRollsUpEveryRunningPodByNamespace(t *testing.T) {
+	payments := pod("payments-0", "node-1", container("app", both(500, 512<<20), both(1000, gib)))
+	payments.Namespace = "payments"
+	worker := pod("worker-0", "node-2", container("app", both(200, 256<<20), both(400, 512<<20)))
+	worker.Namespace = "jobs"
+	unscheduled := pod("worker-1", "", container("app", cpu(100), cpu(200)))
+	unscheduled.Namespace = "jobs"
+	unscheduled.Phase = "Pending"
+
+	apps := []application.Application{
+		{Name: "payments", Namespace: "payments", Pods: []application.Pod{payments}},
+		{Name: "worker", Namespace: "jobs", Pods: []application.Pod{worker, unscheduled}},
+	}
+	live := Live{Metrics: Metrics{Available: true, Pods: []PodSample{
+		{Namespace: "payments", Name: "payments-0", Used: both(250, 300<<20)},
+		{Namespace: "jobs", Name: "worker-0", Used: both(75, 100<<20)},
+	}}}
+
+	report := Build(live, application.Snapshot{Pods: []application.Pod{payments, worker, unscheduled}}, apps)
+	if len(report.Namespaces) != 2 {
+		t.Fatalf("namespaces = %+v, want payments and jobs", report.Namespaces)
+	}
+	byName := map[string]NamespaceUsage{}
+	for _, namespace := range report.Namespaces {
+		byName[namespace.Name] = namespace
+	}
+	if got := byName["payments"]; got.Apps != 1 || got.Pods != 1 || got.Measured != 1 ||
+		got.Requests.CPUMilli != 500 || got.Used.CPUMilli != 250 || len(got.Nodes) != 1 {
+		t.Errorf("payments = %+v, want one measured app pod on one node", got)
+	}
+	if got := byName["jobs"]; got.Apps != 1 || got.Pods != 2 || got.Measured != 1 ||
+		got.Unscheduled != 1 || got.Requests.CPUMilli != 300 {
+		t.Errorf("jobs = %+v, want both pods including the unscheduled one", got)
+	}
+	if report.Namespaces[0].Name != "payments" {
+		t.Errorf("namespace order = %+v, want the largest stable request first", report.Namespaces)
+	}
+}
+
+func TestNamespacedUsageDoesNotPretendToBeAClusterRollup(t *testing.T) {
+	p := pod("payments-0", "node-1", container("app", cpu(100), cpu(200)))
+	report := Build(Live{}, application.Snapshot{Scope: "payments", Pods: []application.Pod{p}}, nil)
+	if len(report.Namespaces) != 0 {
+		t.Errorf("namespaces = %+v, want none for an already-scoped report", report.Namespaces)
+	}
+}

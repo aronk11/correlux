@@ -11,9 +11,10 @@ import (
 // UsageData is the resource-usage view: where the pods are, and what they use.
 //
 // It is built from the same DetailSections the application, object and fleet
-// views are made of, so the keys that scroll one scroll this too and a reader
-// who has learned one screen has learned this one. Nothing in it is
-// selectable: every row is something to read.
+// views are made of, so the keys that move through one move through this too
+// and a reader who has learned one screen has learned this one. Namespace and
+// application rows are selectable; supporting node and total rows remain
+// evidence to read.
 type UsageData struct {
 	Title    string
 	Subtitle string
@@ -24,6 +25,7 @@ type UsageData struct {
 	Notes    []string
 	Sections []DetailSection
 	Offset   int
+	Selected int
 
 	// Message replaces the body while loading or after a failure.
 	Message       string
@@ -39,7 +41,7 @@ func RenderUsage(t *theme.Theme, d UsageData, width, height int) string {
 		return t.Style(d.MessageStatus).Render(truncateTo(d.Message, width))
 	}
 
-	lines := usageLines(t, d, width)
+	lines, _ := usageLines(t, d, width)
 	offset := clamp(d.Offset, max(len(lines)-1, 0))
 	end := min(offset+height, len(lines))
 	return strings.Join(lines[offset:end], "\n")
@@ -47,9 +49,22 @@ func RenderUsage(t *theme.Theme, d UsageData, width, height int) string {
 
 // LineCount reports how tall the view is, so the model can bound scrolling
 // without rendering twice.
-func (d UsageData) LineCount(width int) int { return len(usageLines(nil, d, width)) }
+func (d UsageData) LineCount(width int) int {
+	lines, _ := usageLines(nil, d, width)
+	return len(lines)
+}
 
-func usageLines(t *theme.Theme, d UsageData, width int) []string {
+// TargetLines reports which line each selectable row landed on, so the model
+// can keep the selection and the viewport agreeing with each other.
+func (d UsageData) TargetLines(width int) map[int]int {
+	_, targets := usageLines(nil, d, width)
+	return targets
+}
+
+// usageLines renders the view to individual lines, and reports which line each
+// selectable row landed on. A nil theme measures without styling, which is what
+// the two functions above need.
+func usageLines(t *theme.Theme, d UsageData, width int) ([]string, map[int]int) {
 	style := func(get func(*theme.Theme) lipgloss.Style, s string) string {
 		if t == nil {
 			return s
@@ -68,6 +83,6 @@ func usageLines(t *theme.Theme, d UsageData, width int) []string {
 			truncateTo(note, width)))
 	}
 
-	body, _ := sectionLines(t, d.Sections, -1, width, len(lines))
-	return append(lines, body...)
+	body, targets := sectionLines(t, d.Sections, d.Selected, width, len(lines))
+	return append(lines, body...), targets
 }
