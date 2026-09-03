@@ -197,3 +197,145 @@ func TestTheSameNameInSeveralNamespacesStaysDistinguishable(t *testing.T) {
 			[]string{rows[0].Instances[0].Namespace, rows[0].Instances[1].Namespace})
 	}
 }
+
+func TestAnUnreachableClusterIsNeverHealthy(t *testing.T) {
+	// The single most important invariant of the whole view: a cluster that
+	// could not be read must never rank as anything but the worst band,
+	// whatever it last answered before it went dark.
+	m := Member{Context: "prod-ap", Production: true, State: Failed, Err: errors.New("dial tcp: i/o timeout")}
+	if got := m.Severity(); got != SeverityCritical {
+		t.Errorf("severity = %v, want an unreachable cluster to read as critical, never healthy", got)
+	}
+	if m.Healthy() {
+		t.Error("an unreachable cluster must never be counted as healthy")
+	}
+}
+
+func TestOrderingPutsCriticalBeforeDegradedBeforeWarningBeforeUnknownBeforeHealthy(t *testing.T) {
+	pressureNode := application.Node{Meta: application.Meta{Name: "n1"}, Ready: true, Pressure: []string{"MemoryPressure"}}
+	notReadyNode := application.Node{Meta: application.Meta{Name: "n2"}}
+
+	members := []Member{
+		{Context: "healthy", State: Ready, Applications: []application.Application{app("api", application.Healthy, 1, 1)}},
+		{Context: "unknown", State: Loading},
+		{Context: "warning", State: Ready, Nodes: []application.Node{pressureNode},
+			Applications: []application.Application{app("api", application.Healthy, 1, 1)}},
+		{Context: "degraded", State: Ready, Applications: []application.Application{app("api", application.Degraded, 2, 3)}},
+		{Context: "critical", State: Ready, Nodes: []application.Node{notReadyNode}},
+	}
+
+	sorted := SortMembers(members)
+	var got []string
+	for _, m := range sorted {
+		got = append(got, m.Context)
+	}
+	want := []string{"critical", "degraded", "warning", "unknown", "healthy"}
+	for i, name := range want {
+		if got[i] != name {
+			t.Fatalf("order = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestProductionSortsAheadOfNonProductionAtEqualSeverity(t *testing.T) {
+	members := []Member{
+		{Context: "dev", Production: false, State: Failed, Err: errors.New("nope")},
+		{Context: "prod-eu", Production: true, State: Failed, Err: errors.New("nope")},
+	}
+	sorted := SortMembers(members)
+	if sorted[0].Context != "prod-eu" {
+		t.Errorf("order = %v, want the production cluster first at equal severity",
+			[]string{sorted[0].Context, sorted[1].Context})
+	}
+}
+
+func TestANodeProblemAppearsEvenWhenEveryApplicationIsHealthy(t *testing.T) {
+	m := Member{
+		Context: "prod-eu", State: Ready,
+		Applications: []application.Application{app("api", application.Healthy, 2, 2)},
+		Nodes:        []application.Node{{Meta: application.Meta{Name: "node-2"}, Ready: false, Reason: "KubeletNotReady"}},
+	}
+	if m.Healthy() {
+		t.Error("a cluster with a broken node is not healthy, whatever its applications say")
+	}
+	if got := m.Severity(); got != SeverityCritical {
+		t.Errorf("severity = %v, want a not-ready node to make the whole cluster critical", got)
+	}
+	if len(m.UnhealthyNodes()) != 1 {
+		t.Fatalf("the broken node must still be nameable, got %+v", m.UnhealthyNodes())
+	}
+}
+
+func TestAPartialFleetSaysHowManyClustersAnswered(t *testing.T) {
+	summary := Summarise([]Member{
+		member("prod-eu", true, app("payments", application.Healthy, 3, 3)),
+		{Context: "prod-ap", State: Failed, Err: errors.New("unreachable")},
+	})
+	if summary.Complete() {
+		t.Fatal("one cluster failed to answer; the fleet is not a complete picture")
+	}
+	if summary.Answered != 1 || summary.Clusters != 2 {
+		t.Errorf("summary = %+v, want one of two answered", summary)
+	}
+}
+
+func TestTheDigestQuotesTheClustersReasonAndSaysNoReasonGivenWhenThereIsNone(t *testing.T) {
+	withReason := Instance{Health: application.Down, ReadyPods: 0, DesiredPods: 4,
+		Problems: []application.Problem{{Reason: "OOMKilled", Count: 1}}}
+	if got := withReason.Digest(); got != "0/4 ready, OOMKilled" {
+		t.Errorf("digest = %q, want the cluster's own reason quoted", got)
+	}
+
+	restarting := Instance{Health: application.Degraded, ReadyPods: 2, DesiredPods: 3,
+		Problems: []application.Problem{{Reason: "CrashLoopBackOff", Count: 1}}, Restarts: 4}
+	if got := restarting.Digest(); got != "CrashLoopBackOff, 4 restarts" {
+		t.Errorf("digest = %q, want the reason and the restart count", got)
+	}
+
+	silent := Instance{Health: application.Unknown}
+	if got := silent.Digest(); got != "no reason given" {
+		t.Errorf("digest = %q, want an honest admission that nothing was reported", got)
+	}
+}
+
+func TestAnUnboundClaimIsWorthNamingWithItsPhase(t *testing.T) {
+	m := Member{Context: "prod-eu", State: Ready, Claims: []application.Claim{
+		{Meta: application.Meta{Name: "data-0"}, Phase: "Bound"},
+		{Meta: application.Meta{Name: "data-1"}, Phase: "Pending"},
+	}}
+	trouble := m.StorageTrouble()
+	if !trouble.Any() || trouble.Unbound != 1 {
+		t.Fatalf("storage trouble = %+v, want exactly one unbound claim", trouble)
+	}
+	unbound := m.UnboundClaims()
+	if len(unbound) != 1 || unbound[0].Name != "data-1" {
+		t.Fatalf("unbound = %+v, want only the pending claim", unbound)
+	}
+	if got := ClaimDigest(unbound[0]); got != "unbound" {
+		t.Errorf("digest = %q, want the claim's phase named plainly", got)
+	}
+	if m.Healthy() {
+		t.Error("a cluster with an unbound claim is not healthy")
+	}
+}
+
+func TestAServiceWithNoReadyEndpointIsWorthNaming(t *testing.T) {
+	m := Member{Context: "prod-eu", State: Ready, Endpoints: []application.EndpointSet{
+		{Service: "web", Namespace: "shop", Ready: 3},
+		{Service: "checkout", Namespace: "shop", Ready: 0, NotReady: 2},
+	}}
+	trouble := m.ServiceTrouble()
+	if !trouble.Any() || trouble.NoReadyEndpoints != 1 {
+		t.Fatalf("service trouble = %+v, want exactly one unreachable service", trouble)
+	}
+	unready := m.UnreadyEndpoints()
+	if len(unready) != 1 || unready[0].Service != "checkout" {
+		t.Fatalf("unready = %+v, want only the service with nothing ready", unready)
+	}
+	if got := EndpointDigest(unready[0]); got != "no ready endpoints, 2 not ready" {
+		t.Errorf("digest = %q, want the endpoint counts named", got)
+	}
+	if m.Healthy() {
+		t.Error("a cluster with a service that routes to nothing is not healthy")
+	}
+}
