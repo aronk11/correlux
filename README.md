@@ -76,7 +76,7 @@ correlux version
 | `Ctrl+O` | Switch namespace |
 | `/` | Filter the list on screen |
 | `Ctrl+R` | Refresh |
-| `Ctrl+F` | Refresh on a timer, until you turn it off (`auto 10s` appears in the header) |
+| `Ctrl+F` | Refresh on a timer, until you turn it off (`auto 2s` appears in the header) |
 | `w` | Toggle the wide columns in a resource table |
 | `?` | Help |
 | `Esc` | Back / close overlay |
@@ -394,11 +394,17 @@ says so, which on a cluster run by Flux is itself worth noticing.
 ### Keeping up with a rollout
 
 `Ctrl+F` reloads the current screen on a timer until you turn it off, and the
-header says `auto 10s` while it does. It is off by default, refetches only what
+header says `auto 2s` while it does. It is off by default, refetches only what
 is on screen, never stacks requests, idles while a menu is open and backs off
 when the cluster is unreachable — because polling somebody's production API
 server is the user's decision, not a default
 ([ADR 17](docs/adr/0017-timed-refresh-not-watches.md)).
+
+While a reload is actually in flight the header says `⟳ refreshing`, and stops
+saying it the moment the answer lands. A reload the timer starts says nothing
+at all unless it runs longer than a moment: an indicator that blinks on every
+tick, or that stays up after the work is done, reports the wrong thing about
+how long the cluster took.
 
 ### Custom resources are not second-class
 
@@ -441,7 +447,7 @@ fleet: []
 
 refresh:
   auto: false # start with the timed reload running
-  every: 10s  # floored at 2s
+  every: 2s   # floored at 2s
 
 dangerousActions:
   productionConfirmation: true

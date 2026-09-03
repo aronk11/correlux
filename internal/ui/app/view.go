@@ -76,6 +76,7 @@ func (m *Model) headerData() components.HeaderData {
 		Version:    m.version(),
 		Breadcrumb: m.breadcrumb(),
 		Auto:       m.autoRefreshLabel(),
+		Busy:       m.busyLabel(),
 	}
 
 	info := m.cluster.Get()
@@ -243,21 +244,26 @@ func (m *Model) statusData() components.StatusData {
 	// Priorities decide what survives a narrow terminal: the palette is the way
 	// to reach everything else, and help is the way to learn it, so those two
 	// go last.
+	// Groups decide the reading order, priorities decide what survives a narrow
+	// terminal. Keeping them apart is what lets a view append its own keys to
+	// this list without having to interleave them: the bar sorts itself.
 	hints := []components.KeyHint{
-		{Key: m.keys.Key(ActionPalette), Desc: "Commands", Priority: 100},
-		{Key: m.keys.Key(ActionResourcePicker), Desc: "Resources", Priority: 70},
-		{Key: m.keys.Key(ActionContextPicker), Desc: "Cluster", Priority: 80},
-		{Key: m.keys.Key(ActionNamespacePicker), Desc: "Scope", Priority: 78},
-		{Key: m.keys.Key(ActionAutoRefresh), Desc: autoRefreshHint(m.autoRefresh), Priority: 76},
-		{Key: m.keys.Key(ActionRefresh), Desc: "Refresh", Priority: 60},
-		{Key: m.keys.Key(ActionHelp), Desc: "Help", Priority: 95},
-		{Key: m.keys.Key(ActionQuit), Desc: "Quit", Priority: 40},
+		{Group: components.HintScope, Key: m.keys.Key(ActionContextPicker), Desc: "Cluster", Priority: 80},
+		{Group: components.HintScope, Key: m.keys.Key(ActionNamespacePicker), Desc: "Scope", Priority: 78},
+		{Group: components.HintScope, Key: m.keys.Key(ActionResourcePicker), Desc: "Resources", Priority: 70},
+		{Group: components.HintSession, Key: m.keys.Key(ActionRefresh), Desc: "Refresh", Priority: 60},
+		{Group: components.HintSession, Key: m.keys.Key(ActionAutoRefresh), Desc: autoRefreshHint(m.autoRefresh), Priority: 76},
+		{Group: components.HintSession, Key: m.keys.Key(ActionPalette), Desc: "Commands", Priority: 100},
+		{Group: components.HintSession, Key: m.keys.Key(ActionHelp), Desc: "Help", Priority: 95},
+		{Group: components.HintSession, Key: m.keys.Key(ActionQuit), Desc: "Quit", Priority: 40},
 	}
 	// The key is advertised only while it is not in use: with a filter on
-	// screen, a hint telling you how to filter is a line of noise.
+	// screen, a hint telling you how to filter is a line of noise. It reads
+	// with the other ways of narrowing what is shown, not after "Quit", which
+	// is where appending it to the end used to put it.
 	if m.searchable() && !m.searching && !m.filtering() {
 		hints = append(hints, components.KeyHint{
-			Key: m.keys.Key(ActionSearch), Desc: "Filter", Priority: 83,
+			Group: components.HintScope, Key: m.keys.Key(ActionSearch), Desc: "Filter", Priority: 83,
 		})
 	}
 
@@ -266,17 +272,17 @@ func (m *Model) statusData() components.StatusData {
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Rows", Priority: 70},
 			{Key: "Enter", Desc: "Open", Priority: 72},
-			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
+			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewApplications:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Move", Priority: 70},
 			{Key: "Enter", Desc: "Open", Priority: 72},
-			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
-			{Key: m.keys.Key(ActionGrouping), Desc: "Grouping", Priority: 45},
-			{Key: m.keys.Key(ActionUsage), Desc: "Usage", Priority: 79},
-			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
+			{Group: components.HintView, Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
+			{Group: components.HintView, Key: m.keys.Key(ActionGrouping), Desc: "Grouping", Priority: 45},
+			{Group: components.HintView, Key: m.keys.Key(ActionUsage), Desc: "Usage", Priority: 79},
+			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
 		}, hints...)
 	case viewUsage:
 		// The hints name what the keys do here and now: cluster-wide the rows
@@ -293,73 +299,73 @@ func (m *Model) statusData() components.StatusData {
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: move, Priority: 70},
 			{Key: "Enter", Desc: enter, Priority: 72},
-			{Key: m.keys.Key(ActionRefresh), Desc: "Measure again", Priority: 84},
+			{Group: components.HintSession, Key: m.keys.Key(ActionRefresh), Desc: "Measure again", Priority: 84},
 			{Key: "Esc", Desc: back, Priority: 85},
 		}, hints...)
 	case viewActivity:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Events", Priority: 70},
 			{Key: "Enter", Desc: "Open object", Priority: 72},
-			{Key: m.keys.Key(ActionRefresh), Desc: "Reload", Priority: 84},
+			{Group: components.HintSession, Key: m.keys.Key(ActionRefresh), Desc: "Reload", Priority: 84},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewApplication:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Objects", Priority: 70},
 			{Key: "Enter", Desc: "Open", Priority: 72},
-			{Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
-			{Key: m.keys.Key(ActionGrouping), Desc: groupingHint(m.groupingShown), Priority: 45},
-			{Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
-			{Key: m.keys.Key(ActionUsage), Desc: "Usage", Priority: 79},
+			{Group: components.HintView, Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
+			{Group: components.HintView, Key: m.keys.Key(ActionGrouping), Desc: groupingHint(m.groupingShown), Priority: 45},
+			{Group: components.HintView, Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
+			{Group: components.HintView, Key: m.keys.Key(ActionUsage), Desc: "Usage", Priority: 79},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewWhy:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Scroll", Priority: 70},
 			{Key: "Enter", Desc: "Objects", Priority: 72},
-			{Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
+			{Group: components.HintView, Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewFleet:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Clusters", Priority: 70},
 			{Key: "Enter", Desc: "Go there", Priority: 72},
-			{Key: m.keys.Key(ActionResourcePicker), Desc: "Across the fleet", Priority: 86},
-			{Key: m.keys.Key(ActionRefresh), Desc: "Reload", Priority: 84},
+			{Group: components.HintView, Key: m.keys.Key(ActionResourcePicker), Desc: "Across the fleet", Priority: 86},
+			{Group: components.HintSession, Key: m.keys.Key(ActionRefresh), Desc: "Reload", Priority: 84},
 			{Key: "Esc", Desc: "Back", Priority: 85},
 		}, hints...)
 	case viewFleetResource:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Rows", Priority: 70},
 			{Key: "Enter", Desc: "Open there", Priority: 72},
-			{Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 82},
+			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 82},
 			{Key: "Esc", Desc: "Fleet", Priority: 85},
 		}, hints...)
 	case viewLogs:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Scroll", Priority: 70},
-			{Key: m.keys.Key(ActionFollow), Desc: followHint(m.logFollow && !m.logClosed), Priority: 89},
-			{Key: m.keys.Key(ActionTimestamps), Desc: "Times", Priority: 82},
-			{Key: m.keys.Key(ActionPrevious), Desc: previousHint(m.logPrevious), Priority: 81},
-			{Key: m.keys.Key(ActionToggleWide), Desc: wrapHint(m.logWrap), Priority: 80},
+			{Group: components.HintView, Key: m.keys.Key(ActionFollow), Desc: followHint(m.logFollow && !m.logClosed), Priority: 89},
+			{Group: components.HintView, Key: m.keys.Key(ActionTimestamps), Desc: "Times", Priority: 82},
+			{Group: components.HintView, Key: m.keys.Key(ActionPrevious), Desc: previousHint(m.logPrevious), Priority: 81},
+			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wrapHint(m.logWrap), Priority: 80},
 			{Key: "Esc", Desc: "Back", Priority: 85},
 		}, hints...)
 	case viewObject:
 		object := []components.KeyHint{
 			{Key: "↑↓", Desc: "Related", Priority: 70},
 			{Key: "Enter", Desc: "Follow", Priority: 72},
-			{Key: m.keys.Key(ActionYAML), Desc: yamlHint(m.objectYAML), Priority: 87},
-			{Key: m.keys.Key(ActionDecode), Desc: decodeHint(m.objectDecode), Priority: 83},
+			{Group: components.HintView, Key: m.keys.Key(ActionYAML), Desc: yamlHint(m.objectYAML), Priority: 87},
+			{Group: components.HintView, Key: m.keys.Key(ActionDecode), Desc: decodeHint(m.objectDecode), Priority: 83},
 			{Key: "Esc", Desc: "Back", Priority: 85},
 		}
 		object = append(object, components.KeyHint{
-			Key: m.keys.Key(ActionEdit), Desc: "Edit", Priority: 86,
+			Group: components.HintView, Key: m.keys.Key(ActionEdit), Desc: "Edit", Priority: 86,
 		}, components.KeyHint{
-			Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87,
+			Group: components.HintView, Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87,
 		})
 		if _, ok := m.scalableTarget(); ok {
 			object = append(object, components.KeyHint{
-				Key: m.keys.Key(ActionScale), Desc: "Scale", Priority: 84,
+				Group: components.HintView, Key: m.keys.Key(ActionScale), Desc: "Scale", Priority: 84,
 			})
 		}
 		hints = append(object, hints...)

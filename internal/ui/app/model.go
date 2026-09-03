@@ -213,6 +213,17 @@ type Model struct {
 	refreshSeq      uint64
 	refreshFailures int
 
+	// busySeq identifies the current burst of reloading, and busyShown says
+	// whether the header is admitting to it.
+	//
+	// A manual refresh admits to it at once, because the user pressed a key
+	// and an unacknowledged keystroke reads as a dropped one. A timed reload
+	// waits out a grace period first: at a two-second interval, a header that
+	// blinks on every tick of a cluster that answers in eighty milliseconds
+	// reports nothing except that something is flashing.
+	busySeq   uint64
+	busyShown bool
+
 	// In-flight markers, so a timed reload never stacks a second request on
 	// top of one that has not answered yet.
 	appsLoading     bool

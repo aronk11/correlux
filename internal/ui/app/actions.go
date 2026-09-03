@@ -901,9 +901,13 @@ func autoRefreshSubtitle(on bool, every time.Duration) string {
 }
 
 // refresh re-probes the cluster and reloads everything the current screen shows.
+//
+// It says so in the header for exactly as long as the reload runs. The notice
+// it used to raise instead sat on the status bar for five seconds whatever
+// happened — hiding every key hint behind it, and telling anybody whose
+// cluster answered in a tenth of a second that refreshing takes five.
 func (m *Model) refresh() tea.Cmd {
-	m.notice("Refreshing…", theme.StatusUnknown)
-	cmds := []tea.Cmd{m.probeCluster(), m.loadNamespaces(), m.loadApplications(), m.expireNotice()}
+	cmds := []tea.Cmd{m.beginBusy(true), m.probeCluster(), m.loadNamespaces(), m.loadApplications()}
 	if m.view == viewTable {
 		cmds = append(cmds, m.loadTable())
 	}

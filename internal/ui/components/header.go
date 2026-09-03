@@ -22,10 +22,15 @@ type HeaderData struct {
 	ConnDetail string
 	Breadcrumb []string
 	Version    string
-	// Auto names the timed reload when it is running ("auto 10s"). It is on the
+	// Auto names the timed reload when it is running ("auto 2s"). It is on the
 	// header rather than in a menu because a screen that changes on its own has
 	// to say so.
 	Auto string
+	// Busy is set while a reload is actually in flight, and cleared the moment
+	// it lands. It sits beside Auto rather than on the status bar, which is
+	// where the keys live: a progress word is not worth hiding them for, and a
+	// word that outlives its work misreports how long the work took.
+	Busy string
 }
 
 // RenderHeader draws the two-line header: identity on top, position below.
@@ -58,6 +63,9 @@ func RenderHeader(t *theme.Theme, d HeaderData, width int) string {
 	right := t.Muted.Render(d.Version)
 	if d.Auto != "" {
 		right = t.Info.Render(d.Auto) + t.Muted.Render("  "+d.Version)
+	}
+	if d.Busy != "" {
+		right = t.Muted.Render(t.Glyphs.Busy+" "+d.Busy+"  ") + right
 	}
 
 	line1 := joinEnds(left, right, width)
