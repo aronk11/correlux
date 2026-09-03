@@ -5,9 +5,9 @@ your change are the ones worth reading.
 
 ## Getting started
 
-Requirements: Go 1.25 or newer, plus Docker if you want to run the integration
-tests. Nothing else — the tools are pinned and installed on demand into
-`.tools/`.
+Requirements: Go 1.25 or newer, plus Docker (or, on Apple Silicon, Apple's own
+`container` tool — see below) if you want to run the integration tests.
+Nothing else — the tools are pinned and installed on demand into `.tools/`.
 
 ```bash
 go install github.com/go-task/task/v3/cmd/task@latest
@@ -38,6 +38,34 @@ in production and cost your laptop nothing
 ([ADR 14](docs/adr/0014-load-testing-with-kind.md)). Everything it creates is
 labelled `app.kubernetes.io/managed-by=correlux-seed`, and `task kind:reset`
 removes exactly that.
+
+#### Apple Silicon without Docker Desktop
+
+`kind` has no native provider for Apple's own [`container`](https://github.com/apple/container)
+tool yet — Apple submitted one, but `kind`'s maintainers asked to hold off
+while it matures ([kubernetes-sigs/kind#3958](https://github.com/kubernetes-sigs/kind/issues/3958)).
+If you have `container` instead of Docker Desktop, OrbStack or Podman, `task
+kind:apple:up` / `task kind:apple:down` stand in for `kind:up` / `kind:down`
+using the community-verified workaround
+([apple/container#92](https://github.com/apple/container/issues/92)): a
+systemd-enabled Ubuntu VM, booted through `container`, with a real Docker
+Engine installed inside it. `kind` runs inside that VM exactly as it would on
+any other Docker host. See `test/kind/apple-container-compose.yaml` for what
+that means in full, and the caveats.
+
+```bash
+brew install container-compose   # https://github.com/full-chaos/container-compose
+task kind:apple:up
+task run:kind                    # everything downstream reads .tools/kind.kubeconfig same as kind:up
+task kind:apple:down
+```
+
+This is experimental: nothing here runs in CI (GitHub-hosted runners are
+Linux; `container` needs macOS on Apple Silicon), so it is only as good as
+what contributors report back. If the API server it publishes turns out not
+to be reachable from the host, everything still works run from inside the VM
+directly — `container-compose -f test/kind/apple-container-compose.yaml exec kind-host bash`
+gets you a shell with `kind` and `kubectl` already on `PATH`.
 
 ### Signing
 
