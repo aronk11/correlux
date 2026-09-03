@@ -154,6 +154,52 @@ func TestCrashLoopWithoutAPreviousRunSaysLess(t *testing.T) {
 	if d.Confidence == High {
 		t.Error("confidence must drop when the cluster did not say why")
 	}
+	if d.Unknown == "" {
+		t.Error("a rule that cannot establish the cause must say so in Unknown rather than staying silent")
+	}
+}
+
+// TestCrashLoopOOMKillSeparatesFactInferenceAndUnknown pins the FACT / INFERENCE
+// / UNKNOWN split ADR 10 and 18 exist to make legible: Evidence quotes exactly
+// what the container's last state said, Cause is the one reasonable reading of
+// it, and Unknown says what that reading still cannot explain.
+func TestCrashLoopOOMKillSeparatesFactInferenceAndUnknown(t *testing.T) {
+	oom := waiting("CrashLoopBackOff", "")
+	oom.LastExitCode = 137
+	oom.LastReason = "OOMKilled"
+	oom.OOMKilled = true
+
+	d := find(t, diagnose(t, &Input{App: app(pod("payments-1", oom))}), "pod.crashloop")
+
+	// FACT: quoted, attributed to the pod, using the cluster's own words and
+	// numbers — the reason string and the exit code, nothing more.
+	if len(d.Evidence) == 0 {
+		t.Fatal("the OOM kill must be backed by evidence")
+	}
+	fact := d.Evidence[0]
+	if fact.Kind != "Pod" || fact.Name != "payments-1" {
+		t.Errorf("the fact must be attributed to the pod that reported it, got %+v", fact)
+	}
+	if !strings.Contains(fact.Detail, "OOMKilled") || !strings.Contains(fact.Detail, "137") {
+		t.Errorf("the fact must quote the reason and the exit code the cluster reported, got %q", fact.Detail)
+	}
+	if strings.Contains(fact.Detail, "memory limit") {
+		t.Errorf("evidence must stay a quote, not the reading of it, got %q", fact.Detail)
+	}
+
+	// INFERENCE: the one reasonable reading, marked as such by a High
+	// confidence rather than presented as something the cluster stated.
+	if !strings.Contains(d.Cause, "memory limit") {
+		t.Errorf("the cause must read the OOM kill as a memory limit, got %q", d.Cause)
+	}
+	if d.Confidence != High {
+		t.Errorf("confidence = %v, want high", d.Confidence)
+	}
+
+	// UNKNOWN: what the reading still cannot explain, said outright.
+	if !strings.Contains(d.Unknown, "does not report why") {
+		t.Errorf("the rule must say what remains unknown, got %q", d.Unknown)
+	}
 }
 
 func TestImagePullTellsTheThreeFailuresApart(t *testing.T) {
@@ -187,8 +233,11 @@ func TestImagePullWithoutAMessageStaysHonest(t *testing.T) {
 	if d.Confidence != Low {
 		t.Errorf("without a message the rule is guessing; confidence = %v", d.Confidence)
 	}
-	if !strings.Contains(d.Cause, "did not say why") {
-		t.Errorf("the cause must admit what it does not know, got %q", d.Cause)
+	if d.Cause != "" {
+		t.Errorf("with no message to read, the rule must not invent a cause, got %q", d.Cause)
+	}
+	if !strings.Contains(d.Unknown, "did not say why") {
+		t.Errorf("the rule must say what it does not know, got %q", d.Unknown)
 	}
 }
 
