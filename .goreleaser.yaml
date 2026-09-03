@@ -77,7 +77,6 @@ homebrew_casks:
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/correlux"]
           end
 
-
 changelog:
   # Built from the commit messages, which is where the information is: the
   # groups below match Conventional Commit prefixes. Using git rather than the

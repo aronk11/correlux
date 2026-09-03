@@ -36,6 +36,7 @@ time from *"something is wrong"* to *"I know why"*.
 ## Install
 
 ```bash
+brew install aronk11/tap/correlux                      # macOS
 go install github.com/aronk11/correlux/cmd/correlux@latest
 ```
 
