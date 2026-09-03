@@ -206,22 +206,31 @@ pods after a deployment.
 
 ## 16. Exec
 
-`Ctrl+T` opens an interactive shell. Before a production shell, Correlux shows
-the context, namespace, pod and container and requires confirmation. The shell
-inherits the Correlux context, namespace and target explicitly — never the
-ambient external kubectl context.
+`x` opens an interactive shell in the pod in hand, or a running pod of the
+workload in hand. Before a production shell, Correlux shows the context,
+namespace and pod and requires confirmation. The shell inherits the Correlux
+context and target explicitly — never the ambient external kubectl context.
+The container is left to the server, exactly as reading logs leaves it: not
+guessed among several, and named in the refusal when that is ambiguous.
 
 ## 17. Safe destructive actions
 
 Destructive actions are explicit, never a bare keystroke. Confirmations state
 the blast radius ("this will remove 3 replicas"). Production contexts require a
-stronger confirmation by default. The safety system is configurable.
+stronger confirmation by default. The safety system is configurable. A key is
+offered only where it does something: decoding is not offered on an object
+with nothing to decode, scaling is not offered on a kind without a scale
+subresource, and so on — a hotkey bound to nothing happening is confusing
+whether or not it is destructive.
 
 ## 18. Copy system
 
-Clipboard is first-class: resource name, namespace/name, YAML, JSON, the
-equivalent `kubectl` command, logs, and the current table. It must work on
-macOS, Linux and Windows without assuming `pbcopy` or `xclip` exist.
+`c` copies the object in hand — its namespace/name — to the clipboard, and
+says what it copied. The command palette carries the rest: YAML, JSON, the
+equivalent `kubectl` command, logs, and the current table, each offered only
+where it applies rather than as a hotkey nobody could remember. Correlux uses
+OSC 52, which works over SSH and does not assume `pbcopy` or `xclip` exist on
+macOS, Linux or Windows.
 
 ## 19. Create / edit
 

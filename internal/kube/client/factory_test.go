@@ -151,6 +151,28 @@ func TestEveryRequestIsBoundedAndIdentifiesCorrelux(t *testing.T) {
 	}
 }
 
+func TestRESTConfigForExecHasNoRequestTimeout(t *testing.T) {
+	f := newFactory(t, Options{Timeout: 3 * time.Second})
+
+	cfg, err := f.RESTConfigForExec("staging")
+	if err != nil {
+		t.Fatalf("RESTConfigForExec: %v", err)
+	}
+	if cfg.Timeout != 0 {
+		t.Errorf("timeout = %v, want none: an exec session must not be cut off mid-session", cfg.Timeout)
+	}
+	if !strings.Contains(cfg.Host, "staging") {
+		t.Errorf("host = %q, want the exec config to authenticate exactly as RESTConfig does", cfg.Host)
+	}
+
+	// The cached, timeout-bearing config must be untouched: everything else
+	// that reads it still gets a bounded request.
+	plain, _ := f.RESTConfig("staging")
+	if plain.Timeout != 3*time.Second {
+		t.Errorf("RESTConfig's timeout = %v after RESTConfigForExec, want it unchanged", plain.Timeout)
+	}
+}
+
 func TestATimeoutIsAlwaysSet(t *testing.T) {
 	// Zero means the default, never "wait forever": the UI must be able to give
 	// up on a cluster that does not answer.

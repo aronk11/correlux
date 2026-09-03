@@ -95,6 +95,20 @@ func (f *Factory) Clientset(contextName string) (kubernetes.Interface, error) {
 	return c.clientset, nil
 }
 
+// RESTConfigForExec returns a REST configuration for a long-lived interactive
+// session: the same authentication RESTConfig returns, but without the
+// per-request timeout, which would otherwise cut an exec session off after
+// Timeout() regardless of whether anyone was still typing into it.
+func (f *Factory) RESTConfigForExec(contextName string) (*rest.Config, error) {
+	cfg, err := f.RESTConfig(contextName)
+	if err != nil {
+		return nil, err
+	}
+	cfg = rest.CopyConfig(cfg)
+	cfg.Timeout = 0
+	return cfg, nil
+}
+
 func (f *Factory) entry(contextName string) *cached {
 	f.mu.Lock()
 	defer f.mu.Unlock()
