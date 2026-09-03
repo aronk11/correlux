@@ -104,3 +104,62 @@ func TestAKindNoClusterServesIsReportedPerCluster(t *testing.T) {
 		t.Errorf("a kind nothing serves must be named as unknown:\n%s", out)
 	}
 }
+
+func TestTheProblemDigestNamesTheSeededBreakage(t *testing.T) {
+	// The kind cluster is seeded with applications stuck in CrashLoopBackOff.
+	// The dashboard must name that reason on the row, not only a ready count.
+	m := newModelFor(t)
+	drain(t, m, m.Init())
+	drainFleet(t, m, m.OpenFleetForTest(shared.context))
+
+	out := frame(m)
+	if !strings.Contains(out, "WHAT IS BROKEN") {
+		t.Fatalf("the seeded cluster has broken applications:\n%s", out)
+	}
+	if !strings.Contains(out, "CrashLoopBackOff") {
+		t.Errorf("the digest must quote the pod's own reason, not just a count:\n%s", out)
+	}
+	if strings.Contains(out, "nothing is broken anywhere") {
+		t.Errorf("the seeded breakage must be counted, not reported as clean:\n%s", out)
+	}
+}
+
+func TestABrokenNodeIsVisibleAlongsideBrokenApplications(t *testing.T) {
+	// The kind cluster carries a node the seeder stopped updating: it must be
+	// named on its own, in a section that belongs to no application.
+	m := newModelFor(t)
+	drain(t, m, m.Init())
+	drainFleet(t, m, m.OpenFleetForTest(shared.context))
+
+	out := frame(m)
+	if !strings.Contains(out, "NODES") {
+		t.Fatalf("the machines need their own section:\n%s", out)
+	}
+	if !strings.Contains(out, "correlux-load-node") {
+		t.Errorf("the not-ready seeded node must be named:\n%s", out)
+	}
+	if !strings.Contains(out, "not ready") {
+		t.Errorf("its state must say what is wrong with it:\n%s", out)
+	}
+}
+
+func TestStorageAndServicesSectionsAreHonestAboutARealCluster(t *testing.T) {
+	// Nothing in the seeded cluster leaves an unbound claim or a serviceless
+	// endpoint, so both sections must say plainly that nothing is wrong rather
+	// than staying blank — a blank section and "checked, nothing found" must
+	// never look the same.
+	m := newModelFor(t)
+	drain(t, m, m.Init())
+	drainFleet(t, m, m.OpenFleetForTest(shared.context))
+
+	out := frame(m)
+	if !strings.Contains(out, "STORAGE") {
+		t.Errorf("the storage section must be on screen:\n%s", out)
+	}
+	if !strings.Contains(out, "SERVICES") {
+		t.Errorf("the services section must be on screen:\n%s", out)
+	}
+	if strings.Contains(out, "could not be listed") {
+		t.Errorf("PersistentVolumeClaims and EndpointSlices are both readable on a kind cluster:\n%s", out)
+	}
+}
