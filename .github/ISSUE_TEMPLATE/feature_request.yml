@@ -1,0 +1,86 @@
+name: Feature request
+description: Something Correlux should be able to answer or do.
+labels: ["enhancement", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Correlux optimises for one thing: the time from *"something is wrong"*
+        to *"I know why"*. The most persuasive feature request is a real
+        situation where that took too long — not a feature name.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What were you trying to find out, and what made it slow or impossible?
+        Describe the situation, not the solution.
+      placeholder: |
+        I run twelve clusters. When an alert fires I do not know which of them
+        it came from, so I open each one in turn before I can start looking.
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do today instead
+      description: >
+        The kubectl invocation, the dashboard, the script, the tab you keep
+        open. This is what a good answer has to beat.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What a good answer would look like
+      description: >
+        Optional. A screen, a key, a column, a line of output — however
+        concrete you can make it. If you are not sure, leave this empty; the
+        problem above is the important half.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where it belongs
+      description: Your best guess. Nobody will hold you to it.
+      options:
+        - The dashboard — what is deployed here and is it healthy
+        - Why something is broken — the diagnosis
+        - Fleet — several clusters at once
+        - Resource usage
+        - Logs
+        - Objects and the resource browser
+        - Configuration, keybindings and startup
+        - Terminal rendering, colour or accessibility
+        - Packaging, installation and releases
+        - Somewhere else / not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Does it fit what Correlux is?
+      description: >
+        These are project constraints rather than a test you have to pass. Tick
+        what you know; an unticked box is a discussion, not a rejection.
+      options:
+        - label: It can be answered from the Kubernetes API, without installing anything in the cluster.
+          required: false
+        - label: It works read-only, or it is an action the user explicitly takes.
+          required: false
+        - label: It does not need a model, a service or a network call to anything but the cluster.
+          required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you file
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
