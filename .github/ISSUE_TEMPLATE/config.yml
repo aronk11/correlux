@@ -1,0 +1,17 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/aronk11/correlux/security/advisories/new
+    about: >
+      Please report security issues privately through GitHub's private
+      vulnerability reporting, never in a public issue. See SECURITY.md.
+  - name: Question, or not sure it is a bug
+    url: https://github.com/aronk11/correlux/discussions
+    about: >
+      Ask in Discussions. "Is this supposed to work like this?" is a perfectly
+      good question and does not need to become an issue first.
+  - name: How Correlux decides things
+    url: https://github.com/aronk11/correlux/tree/main/docs/adr
+    about: >
+      The architecture decision records. If you disagree with a behaviour, the
+      reasoning behind it is usually written down here.

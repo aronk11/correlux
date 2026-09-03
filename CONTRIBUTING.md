@@ -119,7 +119,19 @@ negotiable by writing a new ADR.
   columns — belongs in `test/integration`, behind the `integration` build tag,
   so `go test ./...` stays fast and needs no cluster.
 
-## Reporting bugs
+## Reporting bugs and asking for features
 
-Include: your OS and terminal, `correlux version`, the output of `correlux
-doctor` (it contains no secrets), and what you expected to see instead.
+[Open an issue](https://github.com/aronk11/correlux/issues/new/choose) and pick
+the form that fits. The forms ask for the things a report is useless without —
+for a bug, your OS and terminal, `correlux version` and the output of `correlux
+doctor`; for a feature, the situation that was slow rather than the name of the
+feature you have in mind.
+
+Two things do not belong in a public issue: a security vulnerability, which
+goes through [private reporting](SECURITY.md), and anything carrying secrets or
+internal cluster names — redact those and say that you did.
+
+Issues are labelled by type (`bug`, `enhancement`, `documentation`), by area
+(`area/tui`, `area/fleet`, `area/kubernetes`, `area/config`, `area/release`)
+and, until somebody has looked at them, `needs triage`. `good first issue`
+means exactly that: scoped, and with the reasoning already written down.

@@ -1,0 +1,30 @@
+name: Documentation
+description: Something in the README, the docs or an ADR is wrong, missing or misleading.
+labels: ["documentation", "needs triage"]
+body:
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The file, section or URL.
+      placeholder: README.md — "Where the pods are, and what they use"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong with it
+      description: >
+        Wrong, out of date, missing, or correct but impossible to follow — all
+        four are worth reporting, and the fix is different for each.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: What it should say
+      description: Optional. Even a rough sentence helps.
+    validations:
+      required: false

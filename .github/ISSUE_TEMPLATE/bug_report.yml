@@ -1,0 +1,112 @@
+name: Bug report
+description: Something Correlux does is wrong, or it says something that is not true.
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file this.
+
+        Correlux reads clusters and explains them, so the most useful bug
+        report says **what the cluster actually was** and **what Correlux said
+        about it**. The two commands below carry most of that for you.
+
+        Please do not paste output that contains secrets, private hostnames or
+        internal cluster names — redact them and say that you did.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, and what did Correlux do?
+      placeholder: |
+        I pressed Ctrl+W on the "payments" application and the diagnosis said
+        the deployment was healthy, but two of its pods were in CrashLoopBackOff.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >
+        Numbered, from starting Correlux. If it only happens against a
+        particular cluster, say what is unusual about that cluster — a CRD, an
+        admission webhook, a proxy, an auth plugin.
+      placeholder: |
+        1. correlux -n payments
+        2. Select the "payments" application
+        3. Press Ctrl+W
+    validations:
+      required: true
+
+  - type: textarea
+    id: version
+    attributes:
+      label: Version
+      description: "Output of `correlux version`."
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`correlux doctor`"
+      description: >
+        Output of `correlux doctor`. It reports the kubeconfig, the context,
+        the server version and which optional APIs are available — which is
+        usually where the answer is. Redact anything private.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: kubernetes
+    attributes:
+      label: Kubernetes
+      description: Server version and distribution.
+      placeholder: v1.31.4 — EKS / GKE / OpenShift / kind / k3s / …
+    validations:
+      required: true
+
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal
+      description: >
+        Terminal, OS and the value of `$TERM`. Rendering bugs are almost always
+        specific to one of the three.
+      placeholder: iTerm2 3.5 on macOS 15, TERM=xterm-256color
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot or paste of the screen
+      description: >
+        For anything visual — a truncated column, a colour that cannot be read,
+        a broken box — a screenshot is worth more than a description. Copied
+        terminal text is fine too.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you file
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: I am on the latest release, or I checked that this still happens on `main`.
+          required: false
+        - label: I removed secrets and private cluster details from everything I pasted.
+          required: true
