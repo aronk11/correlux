@@ -49,6 +49,14 @@ func (m *Model) openLogs() tea.Cmd {
 	m.logFollow = true
 	m.logClosed = false
 	m.logErr = nil
+	if m.view == viewWhy {
+		// The explanation already read whether these pods have a previous run
+		// worth seeing (why.go); opening logs from here shows that run rather
+		// than the one already on screen as CrashLoopBackOff or a bare retry.
+		if app, ok := m.currentApplication(); ok {
+			m.logPrevious = previousRunExists(&app)
+		}
+	}
 	m.view = viewLogs
 	m.rebuildCommands()
 	return m.startLogs()

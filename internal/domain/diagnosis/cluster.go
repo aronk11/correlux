@@ -34,6 +34,7 @@ func nodeUnhealthy(in *Input) []Diagnosis {
 			severity   = Warning
 			problem    string
 			cause      string
+			unknown    string
 			confidence = High
 		)
 		switch {
@@ -43,6 +44,8 @@ func nodeUnhealthy(in *Input) []Diagnosis {
 			cause = "the node stopped reporting as ready"
 			if node.Message != "" {
 				cause = node.Message
+			} else {
+				unknown = "The node does not report why it stopped being ready."
 			}
 		case len(node.Pressure) > 0:
 			problem = podsPhrase(len(pods)) + agree(len(pods), " runs", " run") + " on node " + name +
@@ -62,6 +65,7 @@ func nodeUnhealthy(in *Input) []Diagnosis {
 			Subject:    application.ObjectRef{Kind: "Node", Name: name, UID: node.UID},
 			Problem:    problem,
 			Cause:      cause,
+			Unknown:    unknown,
 			Confidence: confidence,
 			Chain:      chain(&in.App, "Pods", "Node/"+name),
 			Suggestions: []Suggestion{
@@ -114,15 +118,15 @@ func storageNotBound(in *Input) []Diagnosis {
 			seen[name] = true
 
 			cause, confidence := "no volume has been provisioned for the claim yet", Medium
+			unknown := "Kubernetes has not reported why provisioning has not happened yet."
 			events := warningsAbout(in, application.ObjectRef{
 				Kind: "PersistentVolumeClaim", Name: claim.Name, UID: claim.UID,
 			})
 			if len(events) > 0 {
-				cause, confidence = events[0].Message, High
+				cause, confidence, unknown = events[0].Message, High, ""
 			}
 			if claim.Phase == "Lost" {
-				cause = "the volume the claim was bound to is gone"
-				confidence = High
+				cause, confidence, unknown = "the volume the claim was bound to is gone", High, ""
 			}
 
 			d := Diagnosis{
@@ -133,6 +137,7 @@ func storageNotBound(in *Input) []Diagnosis {
 				},
 				Problem:    "PersistentVolumeClaim " + claim.Name + " is " + strings.ToLower(orUnknown(claim.Phase)) + ", so the pods that mount it cannot start",
 				Cause:      cause,
+				Unknown:    unknown,
 				Confidence: confidence,
 				Chain:      chain(&in.App, "Pods", "PersistentVolumeClaim/"+claim.Name, claim.Phase),
 				Suggestions: []Suggestion{
@@ -230,6 +235,7 @@ func rolloutPaused(in *Input) []Diagnosis {
 					{Text: "Resume the rollout when the pause is no longer wanted",
 						Command: "kubectl rollout resume " + strings.ToLower(w.Kind) + " -n " + w.Namespace + " " + w.Name},
 				},
+				Evidence: []Evidence{{Kind: w.Kind, Name: w.Name, Detail: "spec.paused is true"}},
 			})
 		case w.Suspended:
 			out = append(out, Diagnosis{
@@ -240,6 +246,7 @@ func rolloutPaused(in *Input) []Diagnosis {
 				Cause:      "it will not run again until it is resumed",
 				Confidence: High,
 				Chain:      chain(&in.App, "suspended"),
+				Evidence:   []Evidence{{Kind: w.Kind, Name: w.Name, Detail: "spec.suspend is true"}},
 			})
 		}
 	}

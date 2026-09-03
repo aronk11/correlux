@@ -126,6 +126,23 @@ func TestTheSeededBreakageIsReadCorrectly(t *testing.T) {
 					if f.Confidence != diagnosis.High {
 						t.Errorf("%s: confidence = %v, want high", apps[i].Key(), f.Confidence)
 					}
+					// Cause is a reading of the evidence, not the evidence
+					// itself: the OOM kill's exit code and reason must be
+					// quoted in Evidence, and the reading of it kept out.
+					if len(f.Evidence) == 0 {
+						t.Errorf("%s: an OOM kill must be backed by evidence", apps[i].Key())
+					}
+					for _, e := range f.Evidence {
+						if e.Kind == "Pod" && strings.Contains(e.Detail, "memory limit") {
+							t.Errorf("%s: evidence must quote the cluster, not the reading of it, got %q",
+								apps[i].Key(), e.Detail)
+						}
+					}
+					// Kubernetes reports the kill, not why memory grew; a rule
+					// that reached the end of what it can read says so.
+					if f.Unknown == "" {
+						t.Errorf("%s: an OOM kill still leaves something unknown", apps[i].Key())
+					}
 				}
 			}
 		}
@@ -161,5 +178,53 @@ func TestTheWhyScreenRendersAgainstTheCluster(t *testing.T) {
 	}
 	if strings.Contains(out, "have not been read yet") {
 		t.Errorf("the evidence must have been fetched by now:\n%s", out)
+	}
+}
+
+// TestTheWhyScreenSeparatesFactFromReadingAgainstTheCluster drives the real WHY
+// view for whichever seeded application the load generator broke with a crash
+// loop this run, and checks that the FACT / INFERENCE / UNKNOWN split (ADR 10,
+// ADR 18) survives all the way from real cluster state to what is on screen —
+// not just in a rule's unit test, but in the explanation a person would read.
+func TestTheWhyScreenSeparatesFactFromReadingAgainstTheCluster(t *testing.T) {
+	var namespace, name string
+	for _, ns := range seededNamespaces(t) {
+		apps, snapshot := applicationsIn(t, ns)
+		evidence := evidenceIn(t, ns)
+		for i := range apps {
+			findings := diagnosis.Diagnose(&diagnosis.Input{
+				App: apps[i], Context: evidence, Scope: snapshot, Now: time.Now(),
+			})
+			for _, f := range findings {
+				if f.Rule == "pod.crashloop" && strings.Contains(f.Cause, "memory limit") {
+					namespace, name = ns, apps[i].Name
+				}
+			}
+		}
+		if name != "" {
+			break
+		}
+	}
+	if name == "" {
+		t.Skip("no OOM crash loop in this run; the seeder spreads breakage by hash")
+	}
+
+	m := newModelFor(t)
+	drain(t, m, m.Init())
+	drain(t, m, m.SwitchNamespaceForTest(namespace))
+	drain(t, m, m.ExplainForTest(name))
+
+	out := frame(m)
+	for _, want := range []string{
+		"CAUSE",            // the reading, labelled as one
+		"UNKNOWN",          // what that reading still cannot explain
+		"EVIDENCE",         // what the cluster actually said
+		"reason OOMKilled", // the fact, quoted
+		"RELATED",          // the objects this finding touches
+		"NEXT",             // the real keys that do something here
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the WHY view for %s/%s must contain %q:\n%s", namespace, name, want, out)
+		}
 	}
 }
