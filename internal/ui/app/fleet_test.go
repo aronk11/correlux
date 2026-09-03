@@ -44,8 +44,13 @@ func TestTheFleetIsEmptyUntilItIsConfigured(t *testing.T) {
 		t.Fatalf("F must open the fleet, got view %v", m.view)
 	}
 	out := plainView(m)
-	if !strings.Contains(out, "No fleet configured") {
-		t.Errorf("an unconfigured fleet must say so rather than showing nothing:\n%s", out)
+	if !strings.Contains(out, "No clusters in the fleet yet") {
+		t.Errorf("an empty fleet must say so rather than showing nothing:\n%s", out)
+	}
+	// And it must say what to do about it here, rather than describing a YAML
+	// key in a file somewhere else.
+	if !strings.Contains(out, "choose them from your kubeconfig") {
+		t.Errorf("the empty fleet must lead somewhere:\n%s", out)
 	}
 	if len(m.fleetMembers) != 0 {
 		t.Error("Correlux must not reach for a cluster nobody named")

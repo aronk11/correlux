@@ -552,6 +552,11 @@ func (m *Model) handleFleetKey(keystroke string) (tea.Cmd, bool) {
 	case "enter", "right":
 		return m.enterFleetRow(), true
 	default:
+		// The edit key opens the picker rather than an object: on this screen
+		// the thing worth editing is which clusters are on it.
+		if keystroke == m.keys.Key(ActionEdit) {
+			return m.openFleetPicker(m.activeFleetGroup), true
+		}
 		return nil, false
 	}
 	return nil, true
