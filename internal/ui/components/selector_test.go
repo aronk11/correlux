@@ -181,3 +181,55 @@ func TestSelectorResetClearsQuery(t *testing.T) {
 		t.Errorf("got %d items after reset, want the unfiltered list", len(s.Items()))
 	}
 }
+
+// TestTheSelectedRowKeepsItsHighlightAcrossTheWholeLine is the regression test
+// for a row that was readable at the left edge and bare from the first badge
+// onwards.
+//
+// lipgloss ends every style with a reset, so a row composed plain and wrapped
+// once at the end loses the wrap the moment anything inside it is styled: the
+// badge's reset cancels the selection, and the title, the gap and the padding
+// after it are drawn on the terminal's own background. On screen that is a
+// highlight with a bite taken out of it.
+func TestTheSelectedRowKeepsItsHighlightAcrossTheWholeLine(t *testing.T) {
+	th := theme.New(theme.Capabilities{Color: true, Unicode: true, Dark: true, Attributes: true}, "")
+	s := NewSelector("Commands", "Type to filter", nil)
+	row := s.renderRow(th, Item{
+		Title:       "Switch cluster",
+		Subtitle:    "prod-eu",
+		Badge:       "prod",
+		BadgeStatus: theme.StatusCritical,
+		Highlight:   []int{0, 1},
+	}, true, 60)
+
+	// Every printable run has to carry a background. Splitting on the reset
+	// gives one segment per styled span; a segment with visible text and no
+	// background set is a hole in the highlight.
+	for _, segment := range strings.Split(row, "\x1b[m") {
+		text := stripSGR(segment)
+		if strings.TrimSpace(text) == "" && !strings.Contains(text, " ") {
+			continue
+		}
+		if !strings.Contains(segment, "48;2;") {
+			t.Errorf("segment %q is drawn with no background, tearing the selection out of the row", segment)
+		}
+	}
+}
+
+// stripSGR removes the escape sequences, leaving what the terminal prints.
+func stripSGR(s string) string {
+	var b strings.Builder
+	for {
+		start := strings.Index(s, "\x1b[")
+		if start < 0 {
+			b.WriteString(s)
+			return b.String()
+		}
+		b.WriteString(s[:start])
+		end := strings.IndexByte(s[start:], 'm')
+		if end < 0 {
+			return b.String()
+		}
+		s = s[start+end+1:]
+	}
+}

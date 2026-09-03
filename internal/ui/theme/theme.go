@@ -67,6 +67,29 @@ type Theme struct {
 	SelectedRow    lipgloss.Style
 	MatchHighlight lipgloss.Style
 	InputPrompt    lipgloss.Style
+
+	// Styles for text drawn *inside* the selected row. A row under the cursor
+	// sits on a background of its own, so a subtitle or a badge has to be
+	// legible against that rather than against the screen behind it — the
+	// muted grey that reads well on the terminal's own background is close
+	// enough to the selection to disappear into it.
+	//
+	// Each carries the selection background itself. A nested style ends with a
+	// reset, which otherwise punches a hole in the highlight halfway along the
+	// line and leaves the row looking torn.
+	SelectedMuted    lipgloss.Style
+	SelectedEmphasis lipgloss.Style
+	selectedStatus   [4]lipgloss.Style
+}
+
+// OnSelection returns the style for a status as drawn inside the selected row.
+// Callers rendering a badge or a coloured cell in a row under the cursor use
+// this instead of Style, which is mixed for the screen's own background.
+func (t *Theme) OnSelection(s Status) lipgloss.Style {
+	if s < 0 || int(s) >= len(t.selectedStatus) {
+		return t.SelectedMuted
+	}
+	return t.selectedStatus[s]
 }
 
 type palette struct {
@@ -75,6 +98,12 @@ type palette struct {
 	border, borderFocus         color.Color
 	selectedBG, selectedFG      color.Color
 	prodBG, prodFG              color.Color
+	// The same roles again, mixed for the selection background rather than for
+	// the screen's. Only the ones that would fall below the contrast floor
+	// differ from their counterparts above; the rest are repeated so that the
+	// contrast test has one place to read every pair it has to check.
+	selMuted, selAccent          color.Color
+	selHealthy, selWarn, selCrit color.Color
 }
 
 func darkPalette() palette {
@@ -92,6 +121,13 @@ func darkPalette() palette {
 		selectedFG:  lipgloss.Color("#ffffff"),
 		prodBG:      lipgloss.Color("#7d2233"),
 		prodFG:      lipgloss.Color("#ffffff"),
+		// muted lifted from #8a8f98, which reads at 3.9:1 on the selection and
+		// is the grey a subtitle under the cursor was disappearing into.
+		selMuted:   lipgloss.Color("#a4abb8"),
+		selAccent:  lipgloss.Color("#a8c2ff"),
+		selHealthy: lipgloss.Color("#4ec9a5"),
+		selWarn:    lipgloss.Color("#e0af68"),
+		selCrit:    lipgloss.Color("#f7768e"),
 	}
 }
 
@@ -110,6 +146,14 @@ func lightPalette() palette {
 		selectedFG:  lipgloss.Color("#10151a"),
 		prodBG:      lipgloss.Color("#c02637"),
 		prodFG:      lipgloss.Color("#ffffff"),
+		// Green and amber are the two that fail against a pale blue selection;
+		// both are darkened rather than shifted in hue, so the row still reads
+		// as the same colour it does anywhere else on the screen.
+		selMuted:   lipgloss.Color("#56606b"),
+		selAccent:  lipgloss.Color("#1f5fbf"),
+		selHealthy: lipgloss.Color("#0f6338"),
+		selWarn:    lipgloss.Color("#7f5500"),
+		selCrit:    lipgloss.Color("#c02637"),
 	}
 }
 
@@ -137,9 +181,12 @@ func New(caps Capabilities, pref config.Theme) *Theme {
 			&t.Base, &t.Panel, &t.PanelTitle, &t.Header, &t.StatusBar, &t.Key, &t.KeyDesc,
 			&t.Muted, &t.Emphasis, &t.Title, &t.Healthy, &t.Warning, &t.Critical, &t.Info,
 			&t.ContextProd, &t.ContextSafe, &t.Overlay, &t.OverlayTitle, &t.SelectedRow,
-			&t.MatchHighlight, &t.InputPrompt,
+			&t.MatchHighlight, &t.InputPrompt, &t.SelectedMuted, &t.SelectedEmphasis,
 		} {
 			*style = base
+		}
+		for i := range t.selectedStatus {
+			t.selectedStatus[i] = base
 		}
 		return t
 	}
@@ -167,6 +214,14 @@ func New(caps Capabilities, pref config.Theme) *Theme {
 		t.SelectedRow = base.Reverse(true)
 		t.MatchHighlight = base.Underline(true)
 		t.InputPrompt = base.Bold(true)
+		// Reversed video is the selection here, so everything inside the row
+		// has to be reversed too or it reads as a gap rather than as a cell.
+		t.SelectedMuted = base.Reverse(true)
+		t.SelectedEmphasis = base.Reverse(true).Bold(true)
+		for i := range t.selectedStatus {
+			t.selectedStatus[i] = base.Reverse(true)
+		}
+		t.selectedStatus[StatusCritical] = base.Reverse(true).Bold(true)
 		return t
 	}
 
@@ -191,6 +246,17 @@ func New(caps Capabilities, pref config.Theme) *Theme {
 	t.SelectedRow = base.Foreground(p.selectedFG).Background(p.selectedBG).Bold(true)
 	t.MatchHighlight = base.Foreground(p.accent).Bold(true)
 	t.InputPrompt = base.Foreground(p.accent).Bold(true)
+	onSelection := func(fg color.Color) lipgloss.Style {
+		return base.Foreground(fg).Background(p.selectedBG)
+	}
+	t.SelectedMuted = onSelection(p.selMuted)
+	t.SelectedEmphasis = onSelection(p.selAccent).Bold(true)
+	t.selectedStatus = [4]lipgloss.Style{
+		StatusUnknown:  t.SelectedMuted,
+		StatusHealthy:  onSelection(p.selHealthy),
+		StatusWarning:  onSelection(p.selWarn),
+		StatusCritical: onSelection(p.selCrit),
+	}
 	return t
 }
 
