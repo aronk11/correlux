@@ -101,8 +101,16 @@ type Diagnosis struct {
 	Subject application.ObjectRef
 	// Problem states what is wrong, in the user's terms.
 	Problem string
-	// Cause states why, when the evidence supports saying so.
+	// Cause is a reading of the evidence, never a paraphrase of something the
+	// cluster did not say. It is always an inference — Confidence is what says
+	// how strong a reading it is, from a fact the cluster stated outright
+	// (High) down to a likely explanation for a bare observation (Low).
 	Cause string
+	// Unknown states what the evidence available cannot establish, so a gap in
+	// understanding is said out loud rather than papered over with a guess.
+	// Most findings have nothing here: it is set only where the rule reached a
+	// point past which Kubernetes itself has nothing more to say.
+	Unknown string
 	// Chain is the path from the workload to the failure, rendered as the
 	// breadcrumb in the WHY view: Deployment → Pods → CrashLoopBackOff.
 	Chain       []string

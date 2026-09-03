@@ -15,15 +15,28 @@ type WhyFinding struct {
 	Glyph    string
 	Status   theme.Status
 	Severity string
-	// Problem is what is wrong, Cause is why. Cause is empty when the cluster
-	// did not say, and the view shows that plainly rather than filling the gap.
+	// Problem is what is wrong. Cause is a reading of the evidence — never a
+	// quote — and is shown under its own heading so it is never mistaken for
+	// something the cluster itself said; it is empty when the evidence does
+	// not support a reading at all.
 	Problem string
 	Cause   string
+	// Unknown states what the evidence cannot establish. It renders as nothing
+	// when empty, rather than as a sentence filling the gap.
+	Unknown string
 	// Chain is the path from the workload to the failure.
 	Chain       []string
 	Evidence    []WhyEvidence
 	Suggestions []WhySuggestion
 	Confidence  string
+}
+
+// WhyAction is one real key the user can press right now, and what it does.
+// Only actions that actually exist and are actually reachable from this screen
+// belong here — a hint for a key that does nothing is worse than no hint.
+type WhyAction struct {
+	Key  string
+	Text string
 }
 
 // WhyEvidence is one fact, attributed to the object that stated it.
@@ -51,7 +64,10 @@ type WhyData struct {
 	Findings     []WhyFinding
 	// Notes qualify the answer itself: evidence that could not be read, or that
 	// has not arrived yet.
-	Notes  []string
+	Notes []string
+	// Next is what to do about it, in the real keys bound to this build —
+	// never a hint for a keystroke that would do nothing here.
+	Next   []WhyAction
 	Offset int
 	// Empty is shown when there is nothing to explain, which is its own answer.
 	Empty         string
@@ -118,6 +134,18 @@ func whyLines(t *theme.Theme, d WhyData, width int) []string {
 		return append(lines, "", muted(truncateTo(orDefault(d.Empty, "Nothing to explain."), width)))
 	}
 
+	// NEXT leads rather than trails: with several findings stacked below, a
+	// line appended after all of them would scroll out of sight, which is the
+	// one place a real, reachable action must never be able to hide.
+	if len(d.Next) > 0 {
+		lines = append(lines, "", style(func(t *theme.Theme) lipgloss.Style { return t.PanelTitle }, "NEXT"))
+		parts := make([]string, 0, len(d.Next))
+		for _, a := range d.Next {
+			parts = append(parts, "["+a.Key+"] "+a.Text)
+		}
+		lines = append(lines, muted(truncateTo(strings.Join(parts, "   "), width)))
+	}
+
 	for _, f := range d.Findings {
 		head := f.Glyph + " " + f.Problem
 		if t != nil {
@@ -135,11 +163,21 @@ func whyLines(t *theme.Theme, d WhyData, width int) []string {
 			lines = append(lines, muted(truncateTo("  "+strings.Join(f.Chain, arrow), width)))
 		}
 
-		if f.Cause != "" {
-			lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.PanelTitle }, "  WHY"))
+		switch {
+		case f.Cause != "":
+			// CAUSE is always a reading of the evidence, never a quote of it —
+			// that is what EVIDENCE below is for. Keeping the two under
+			// different headings is what makes the difference legible without
+			// tagging every sentence.
+			lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.PanelTitle }, "  CAUSE"))
 			lines = append(lines, wrapInto(f.Cause, width-4, "    ", t)...)
-		} else {
+		case f.Unknown == "":
 			lines = append(lines, muted("  The cluster did not say why."))
+		}
+
+		if f.Unknown != "" {
+			lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.PanelTitle }, "  UNKNOWN"))
+			lines = append(lines, wrapInto(f.Unknown, width-4, "    ", t)...)
 		}
 
 		if len(f.Evidence) > 0 {
@@ -151,6 +189,13 @@ func whyLines(t *theme.Theme, d WhyData, width int) []string {
 				}
 				lines = append(lines, muted(truncateTo(label, width)))
 				lines = append(lines, wrapInto(e.Detail, width-6, "      ", t)...)
+			}
+		}
+
+		if rel := relatedTo(f); len(rel) > 0 {
+			lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.PanelTitle }, "  RELATED"))
+			for _, r := range rel {
+				lines = append(lines, muted(truncateTo("    "+r, width)))
 			}
 		}
 
@@ -168,6 +213,35 @@ func whyLines(t *theme.Theme, d WhyData, width int) []string {
 		lines = append(lines, muted(truncateTo("  confidence: "+f.Confidence, width)))
 	}
 	return lines
+}
+
+// relatedTo lists the objects one finding touches — the workload it chains
+// from, the object it is about, and whatever else its evidence names — so the
+// reader can walk to any of them. An event is a record about an object, not an
+// object of its own, so it is left out; the object it describes is already
+// here under its own kind.
+func relatedTo(f WhyFinding) []string {
+	seen := make(map[string]bool, len(f.Chain)+len(f.Evidence))
+	var out []string
+	add := func(ref string) {
+		if ref == "" || seen[ref] {
+			return
+		}
+		seen[ref] = true
+		out = append(out, ref)
+	}
+	for _, c := range f.Chain {
+		if strings.Contains(c, "/") {
+			add(c)
+		}
+	}
+	for _, e := range f.Evidence {
+		if strings.HasPrefix(e.Source, "Event/") {
+			continue
+		}
+		add(e.Source)
+	}
+	return out
 }
 
 func bullet(t *theme.Theme) string {

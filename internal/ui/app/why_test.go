@@ -45,15 +45,29 @@ func TestWhyExplainsTheApplicationUnderTheCursor(t *testing.T) {
 	out := plainView(m)
 	for _, want := range []string{
 		"payments",
-		"restart in a loop", // the problem
-		"memory limit",      // the cause, read from the previous run
-		"WHY",               // the section a user is looking for
-		"WHAT TO CHECK",     // and what to do next
-		"kubectl logs",      // with the command that shows it
-		"confidence: high",  // and how sure Correlux is
+		"restart in a loop",               // the problem
+		"memory limit",                    // the cause, read from the previous run
+		"CAUSE",                           // the reading of the evidence, labelled as one
+		"UNKNOWN",                         // what that reading still cannot explain
+		"does not report why",             // said out loud rather than guessed
+		"EVIDENCE",                        // what the cluster actually said
+		"reason OOMKilled, exit code 137", // quoted, not paraphrased
+		"RELATED",                         // what to walk to next
+		"Deployment/payments",
+		"WHAT TO CHECK",    // and what to do next
+		"kubectl logs",     // with the command that shows it
+		"confidence: high", // and how sure Correlux is
+		"NEXT",             // the real keys that do something here
+		"previous run's logs",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the WHY view must contain %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "memory limit") {
+		evidenceLine := out[strings.Index(out, "EVIDENCE"):strings.Index(out, "RELATED")]
+		if strings.Contains(evidenceLine, "memory limit") {
+			t.Errorf("evidence must quote the cluster, not the reading of it:\n%s", evidenceLine)
 		}
 	}
 }
@@ -180,6 +194,66 @@ func TestAHealthyApplicationHasNoWhyCommand(t *testing.T) {
 		if strings.HasPrefix(c.Title, "Why is api") {
 			t.Error("Correlux must not offer to explain an application that is fine")
 		}
+	}
+}
+
+func TestNextOffersPreviousLogsOnlyWhenAPreviousRunExists(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, brokenApplication())
+	press(t, m, "ctrl+w")
+
+	out := plainView(m)
+	if !strings.Contains(out, "[l] read the previous run's logs") {
+		t.Errorf("a crash loop has a previous run; the hint must offer it honestly:\n%s", out)
+	}
+}
+
+func TestNextNeverClaimsAPreviousRunThatDoesNotExist(t *testing.T) {
+	m := newTestModel(t)
+	app := testApplication("payments", application.Degraded, 1, 2)
+	for i := range app.Pods {
+		app.Pods[i].Reason = ""
+		app.Pods[i].Phase = "Running"
+		app.Pods[i].Containers = []application.Container{{Name: "payments", State: "running"}}
+	}
+	app.Pods[1].Ready = false
+	loadApplicationsInto(m, app)
+	press(t, m, "ctrl+w")
+
+	out := plainView(m)
+	if !strings.Contains(out, "[l]") {
+		t.Fatalf("the pods have logs to read; the hint must be offered:\n%s", out)
+	}
+	if strings.Contains(out, "previous run's logs") {
+		t.Errorf("none of these pods have a previous run; offering it would be a lie:\n%s", out)
+	}
+}
+
+func TestNextOffersNothingWhenThereIsNothingToExplain(t *testing.T) {
+	m := newTestModel(t)
+	healthy := testApplication("api", application.Healthy, 2, 2)
+	for i := range healthy.Pods {
+		healthy.Pods[i].Containers = []application.Container{{Name: "api", State: "running", Ready: true}}
+	}
+	loadApplicationsInto(m, healthy)
+	press(t, m, "ctrl+w")
+
+	if out := plainView(m); strings.Contains(out, "NEXT") {
+		t.Errorf("a healthy application has nothing to act on, so NEXT must not appear:\n%s", out)
+	}
+}
+
+func TestPressingLFromWhyActuallyOpensThePreviousRun(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, brokenApplication())
+	press(t, m, "ctrl+w")
+	press(t, m, "l")
+
+	if m.view != viewLogs {
+		t.Fatalf("l must open the logs the hint promised, got view %v", m.view)
+	}
+	if !m.logPrevious {
+		t.Error("the hint said \"previous run\"; the log stream it opens must ask for it")
 	}
 }
 

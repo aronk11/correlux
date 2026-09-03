@@ -56,6 +56,24 @@ func TestUnreadyPodsBehindAServiceAreNamedAsSuch(t *testing.T) {
 	}
 }
 
+func TestReadyPodsWithNoPublishedAddressSayWhatIsUnknown(t *testing.T) {
+	a := app(pod("payments-1"))
+	a.Pods[0].Ready = true
+	a.Services = []application.Service{service("payments", map[string]string{"app": "payments"})}
+
+	d := find(t, diagnose(t, &Input{
+		App:     a,
+		Context: application.Context{Endpoints: []application.EndpointSet{endpoints("payments", 0, 0)}},
+	}), "service.noendpoints")
+
+	if d.Confidence != Low {
+		t.Errorf("confidence = %v, want low", d.Confidence)
+	}
+	if d.Unknown == "" {
+		t.Error("the rule cannot explain a ready pod with no endpoint and must say so in Unknown")
+	}
+}
+
 func TestAServiceWithReadyEndpointsIsNotReported(t *testing.T) {
 	a := app(pod("payments-1"))
 	a.Pods[0].Ready = true

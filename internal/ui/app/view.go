@@ -291,6 +291,7 @@ func (m *Model) statusData() components.StatusData {
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Scroll", Priority: 70},
 			{Key: "Enter", Desc: "Objects", Priority: 72},
+			{Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
 			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewFleet:

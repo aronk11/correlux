@@ -46,6 +46,7 @@ func serviceWithoutEndpoints(in *Input) []Diagnosis {
 		var (
 			cause      string
 			confidence Confidence
+			unknown    string
 			chainTail  = "0 ready endpoints"
 		)
 		switch {
@@ -59,6 +60,7 @@ func serviceWithoutEndpoints(in *Input) []Diagnosis {
 		default:
 			cause = "pods are ready but no address is published for this service"
 			confidence = Low
+			unknown = "Kubernetes does not explain why a ready pod has no published endpoint."
 		}
 
 		d := Diagnosis{
@@ -67,6 +69,7 @@ func serviceWithoutEndpoints(in *Input) []Diagnosis {
 			Subject:    application.ObjectRef{Kind: "Service", Name: svc.Name, UID: svc.UID},
 			Problem:    "Service/" + svc.Name + " has no ready endpoints, so nothing it fronts can be reached",
 			Cause:      cause,
+			Unknown:    unknown,
 			Confidence: confidence,
 			Chain:      chain(&in.App, "Service/"+svc.Name, chainTail),
 			Suggestions: []Suggestion{

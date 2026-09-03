@@ -118,10 +118,51 @@ func (m *Model) whyData() screens.WhyData {
 	d.Empty = "Nothing is wrong with " + app.Name + " that Correlux can see."
 
 	now := time.Now()
-	for _, f := range m.findingsFor(app.Key()) {
+	findings := m.findingsFor(app.Key())
+	for _, f := range findings {
 		d.Findings = append(d.Findings, m.whyFinding(f, now))
 	}
+	if len(findings) > 0 {
+		d.Next = m.whyNextActions(&app)
+	}
 	return d
+}
+
+// whyNextActions is what a person can actually do next, in the keys this build
+// actually binds. A hint for a key that does nothing here would be a lie the
+// screen tells about itself, so every entry is checked against what is really
+// reachable before it is offered.
+func (m *Model) whyNextActions(app *application.Application) []screens.WhyAction {
+	var actions []screens.WhyAction
+	if key := m.keys.Key(ActionLogs); key != "" && len(app.Pods) > 0 {
+		text := "read the pods' logs"
+		if previousRunExists(app) {
+			// Pressing the key opens exactly this: openLogs sets Previous once
+			// it sees the same signal (logs.go), so the hint stays true.
+			text = "read the previous run's logs"
+		}
+		actions = append(actions, screens.WhyAction{Key: key, Text: text})
+	}
+	// Enter is not part of the configurable key map — it is wired directly in
+	// handleWhyKey — but it is always reachable from here, to the objects the
+	// explanation is about.
+	actions = append(actions, screens.WhyAction{Key: "enter", Text: "inspect the objects involved"})
+	return actions
+}
+
+// previousRunExists reports whether any of the application's pods carries a
+// previous container run worth reading — the exact signal the crash-loop and
+// out-of-memory rules read to explain a failure (pods.go). It is what makes
+// "read the previous run's logs" true rather than assumed.
+func previousRunExists(app *application.Application) bool {
+	for i := range app.Pods {
+		for _, c := range app.Pods[i].Containers {
+			if c.OOMKilled || c.LastExitCode != 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // evidenceNotes says what the answer is missing, so a thin explanation is never
@@ -154,6 +195,7 @@ func (m *Model) whyFinding(f diagnosis.Diagnosis, now time.Time) screens.WhyFind
 		Severity:   f.Severity.String(),
 		Problem:    f.Problem,
 		Cause:      f.Cause,
+		Unknown:    f.Unknown,
 		Chain:      f.Chain,
 		Confidence: f.Confidence.String(),
 	}

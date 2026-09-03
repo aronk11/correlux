@@ -44,7 +44,7 @@ func crashLoop(in *Input) []Diagnosis {
 		return nil
 	}
 
-	cause, confidence := crashCause(hits)
+	cause, confidence, unknown := crashCause(hits)
 	first := hits[0]
 	d := Diagnosis{
 		Rule:       "pod.crashloop",
@@ -52,6 +52,7 @@ func crashLoop(in *Input) []Diagnosis {
 		Subject:    podRef(first.pod),
 		Problem:    podsPhrase(countPods(hits)) + agree(countPods(hits), " restarts", " restart") + " in a loop",
 		Cause:      cause,
+		Unknown:    unknown,
 		Confidence: confidence,
 		Chain:      chain(&in.App, "Pods", "CrashLoopBackOff", crashChainTail(hits)),
 		Suggestions: []Suggestion{
@@ -80,11 +81,14 @@ func crashLoop(in *Input) []Diagnosis {
 }
 
 // crashCause reads the previous run. Only the cluster's own numbers are used:
-// an exit code and a reason, never a guess about what the program does.
-func crashCause(hits []affected) (string, Confidence) {
+// an exit code and a reason, never a guess about what the program does. The
+// numbers themselves are quoted in Evidence; what is returned here is the one
+// reasonable reading of them, plus what that reading still cannot explain.
+func crashCause(hits []affected) (cause string, confidence Confidence, unknown string) {
 	for _, h := range hits {
 		if h.container.OOMKilled {
-			return "the container is killed for exceeding its memory limit (exit 137)", High
+			return "the container exceeded its memory limit and was killed for it", High,
+				"Kubernetes does not report why memory use grew; that requires the application's own metrics or logs."
 		}
 	}
 	for _, h := range hits {
@@ -94,15 +98,16 @@ func crashCause(hits []affected) (string, Confidence) {
 			if h.container.LastReason != "" && h.container.LastReason != "Error" {
 				cause += " (" + h.container.LastReason + ")"
 			}
-			return cause, High
+			return cause, High,
+				"Kubernetes does not know why the process exited with this code; that is determined by the application, not the cluster."
 		}
 	}
 	for _, h := range hits {
 		if h.container.LastReason == "Completed" || h.container.LastExitCode == 0 && h.container.LastReason != "" {
-			return "the container exits successfully and is restarted; a long-running workload's process must not return", High
+			return "the container exits successfully and is restarted; a long-running workload's process must not return", High, ""
 		}
 	}
-	return "", Medium
+	return "", Medium, "Kubernetes has not recorded why the previous run ended: there is no exit code or reason to read."
 }
 
 func crashChainTail(hits []affected) string {
@@ -119,12 +124,23 @@ func crashChainTail(hits []affected) string {
 	return "restarting"
 }
 
+// lastRun quotes what the previous run's own state said, not what it is read
+// to mean — that reading belongs in Cause, not in evidence someone might check
+// against the object itself.
 func lastRun(c *application.Container) string {
 	switch {
 	case c.OOMKilled:
-		return "was killed for exceeding its memory limit"
+		reason := c.LastReason
+		if reason == "" {
+			reason = "OOMKilled"
+		}
+		return "last terminated with reason " + reason + ", exit code " + strconv.Itoa(int(c.LastExitCode))
 	case c.LastExitCode != 0:
-		return "last exited with code " + strconv.Itoa(int(c.LastExitCode))
+		detail := "last exited with code " + strconv.Itoa(int(c.LastExitCode))
+		if c.LastReason != "" && c.LastReason != "Error" {
+			detail += ", reason " + c.LastReason
+		}
+		return detail
 	case c.LastReason != "":
 		return "last ended: " + c.LastReason
 	default:
@@ -141,13 +157,14 @@ func imagePull(in *Input) []Diagnosis {
 	}
 
 	first := hits[0]
-	cause, confidence := imageCause(hits)
+	cause, confidence, unknown := imageCause(hits)
 	d := Diagnosis{
 		Rule:       "pod.imagepull",
 		Severity:   Critical,
 		Subject:    podRef(first.pod),
 		Problem:    podsPhrase(countPods(hits)) + " cannot pull " + agree(countPods(hits), "its", "their") + " image",
 		Cause:      cause,
+		Unknown:    unknown,
 		Confidence: confidence,
 		Chain:      chain(&in.App, "Pods", first.container.Reason),
 		Suggestions: []Suggestion{
@@ -174,29 +191,29 @@ func imagePull(in *Input) []Diagnosis {
 
 // imageCause reads the kubelet's message. The three failures below are the ones
 // worth telling apart, because the fix differs: a typo, a credential, a network.
-func imageCause(hits []affected) (string, Confidence) {
+func imageCause(hits []affected) (cause string, confidence Confidence, unknown string) {
 	for _, h := range hits {
 		message := strings.ToLower(h.container.Message)
 		switch {
 		case h.container.Reason == "InvalidImageName":
-			return "the image reference is not a valid name", High
+			return "the image reference is not a valid name", High, ""
 		case strings.Contains(message, "not found"),
 			strings.Contains(message, "manifest unknown"),
 			strings.Contains(message, "repository does not exist"):
-			return "the registry does not have that image or tag", High
+			return "the registry does not have that image or tag", High, ""
 		case strings.Contains(message, "unauthorized"),
 			strings.Contains(message, "authentication required"),
 			strings.Contains(message, "denied"),
 			strings.Contains(message, "forbidden"):
-			return "the registry refused the pull: the node has no credentials for it", High
+			return "the registry refused the pull: the node has no credentials for it", High, ""
 		case strings.Contains(message, "no such host"),
 			strings.Contains(message, "timeout"),
 			strings.Contains(message, "connection refused"),
 			strings.Contains(message, "i/o timeout"):
-			return "the node cannot reach the registry", High
+			return "the node cannot reach the registry", High, ""
 		}
 	}
-	return "the image could not be pulled; the kubelet did not say why", Low
+	return "", Low, "The kubelet did not say why the pull failed: it could be a missing image, an expired credential or a network problem."
 }
 
 // containerConfig explains a container the kubelet cannot even create, which is
@@ -208,9 +225,9 @@ func containerConfig(in *Input) []Diagnosis {
 	}
 
 	first := hits[0]
-	cause, confidence := "", Medium
+	cause, confidence, unknown := "", Medium, "The kubelet gave no message about why the container could not be created."
 	if first.container.Message != "" {
-		cause, confidence = first.container.Message, High
+		cause, confidence, unknown = first.container.Message, High, ""
 	}
 	d := Diagnosis{
 		Rule:       "pod.configerror",
@@ -218,6 +235,7 @@ func containerConfig(in *Input) []Diagnosis {
 		Subject:    podRef(first.pod),
 		Problem:    podsPhrase(countPods(hits)) + " cannot start " + agree(countPods(hits), "its", "their") + " container",
 		Cause:      cause,
+		Unknown:    unknown,
 		Confidence: confidence,
 		Chain:      chain(&in.App, "Pods", first.container.Reason),
 		Suggestions: []Suggestion{
@@ -254,6 +272,7 @@ func outOfMemory(in *Input) []Diagnosis {
 		Problem: podsPhrase(countPods(hits)) + agree(countPods(hits), " has", " have") +
 			" been killed for exceeding " + agree(countPods(hits), "its", "their") + " memory limit",
 		Cause:      "the container's memory use reached its limit and the kernel killed it",
+		Unknown:    "Kubernetes does not report why memory use grew; that requires the application's own metrics or logs.",
 		Confidence: High,
 		Chain:      chain(&in.App, "Pods", "OOMKilled"),
 		Suggestions: []Suggestion{
@@ -291,9 +310,10 @@ func unschedulable(in *Input) []Diagnosis {
 	}
 
 	cause, confidence := "", Medium
+	unknown := "The scheduler has not reported why these pods remain unscheduled."
 	for _, p := range pods {
 		if p.ScheduledMessage != "" {
-			cause, confidence = p.ScheduledMessage, High
+			cause, confidence, unknown = p.ScheduledMessage, High, ""
 			break
 		}
 	}
@@ -303,6 +323,7 @@ func unschedulable(in *Input) []Diagnosis {
 		Subject:    podRef(pods[0]),
 		Problem:    podsPhrase(len(pods)) + " cannot be scheduled onto any node",
 		Cause:      cause,
+		Unknown:    unknown,
 		Confidence: confidence,
 		Chain:      chain(&in.App, "Pods", "Pending", "Unschedulable"),
 		Suggestions: []Suggestion{
@@ -339,9 +360,9 @@ func podFailed(in *Input) []Diagnosis {
 		return nil
 	}
 
-	cause, confidence := "", Low
+	cause, confidence, unknown := "", Low, "Kubernetes does not report why the pod failed."
 	if reason := pods[0].Reason; reason != "" {
-		confidence = High
+		confidence, unknown = High, ""
 		switch reason {
 		case "Evicted":
 			cause = "the node evicted the pod, which happens when it runs short of memory or disk"
@@ -360,6 +381,7 @@ func podFailed(in *Input) []Diagnosis {
 		Problem: podsPhrase(len(pods)) + agree(len(pods), " has", " have") + " failed and " +
 			agree(len(pods), "is", "are") + " not running",
 		Cause:      cause,
+		Unknown:    unknown,
 		Confidence: confidence,
 		Chain:      chain(&in.App, "Pods", "Failed"),
 		Suggestions: []Suggestion{
@@ -388,10 +410,11 @@ func notReady(in *Input) []Diagnosis {
 	}
 
 	cause, confidence := "the readiness probe has not succeeded", Low
+	unknown := "Kubernetes does not say why the probe is failing without an event to quote."
 	var quoted []application.Event
 	for _, p := range pods {
 		if events := warningsAbout(in, podRef(p), "Unhealthy", "ProbeWarning"); len(events) > 0 {
-			cause, confidence = events[0].Message, High
+			cause, confidence, unknown = events[0].Message, High, ""
 			quoted = events
 			break
 		}
@@ -403,6 +426,7 @@ func notReady(in *Input) []Diagnosis {
 		Problem: podsPhrase(len(pods)) + agree(len(pods), " is", " are") +
 			" running but not ready, so nothing routes to " + agree(len(pods), "it", "them"),
 		Cause:      cause,
+		Unknown:    unknown,
 		Confidence: confidence,
 		Chain:      chain(&in.App, "Pods", "not ready"),
 		Suggestions: []Suggestion{

@@ -172,4 +172,42 @@ func TestAPausedRolloutIsInformationNotAFault(t *testing.T) {
 	if !strings.Contains(d.Suggestions[0].Command, "rollout resume") {
 		t.Errorf("the suggestion must say how to undo it, got %q", d.Suggestions[0].Command)
 	}
+	// ADR 10: every diagnosis carries evidence the user can verify, even one
+	// that states a deliberate configuration rather than a fault.
+	if len(d.Evidence) == 0 {
+		t.Error("a paused rollout must be backed by evidence, not just asserted")
+	}
+}
+
+func TestANodeThatStoppedReportingReadyWithNoMessageSaysSo(t *testing.T) {
+	unready := node("node-1", false)
+
+	d := find(t, diagnose(t, &Input{
+		App:     app(pod("payments-1")),
+		Context: application.Context{Nodes: []application.Node{unready}},
+	}), "node.unhealthy")
+
+	if d.Unknown == "" {
+		t.Error("without a message from the node, the rule must say why it does not know more")
+	}
+}
+
+func TestAnUnboundClaimWithNoEventSaysWhatIsUnknown(t *testing.T) {
+	p := pod("payments-1")
+	p.Claims = []string{"payments-data"}
+
+	d := find(t, diagnose(t, &Input{
+		App: app(p),
+		Context: application.Context{Claims: []application.Claim{{
+			Meta:  application.Meta{Kind: "PersistentVolumeClaim", Name: "payments-data", Namespace: "shop", UID: "pvc-uid"},
+			Phase: "Pending",
+		}}},
+	}), "storage.unbound")
+
+	if d.Confidence != Medium {
+		t.Errorf("confidence = %v, want medium", d.Confidence)
+	}
+	if d.Unknown == "" {
+		t.Error("without a provisioner event the rule must say it does not know why")
+	}
 }
