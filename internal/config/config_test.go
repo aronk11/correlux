@@ -179,6 +179,21 @@ func TestTheFleetIsEmptyUntilItIsNamed(t *testing.T) {
 	}
 }
 
+func TestNamedFleetGroupsAreLoaded(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	write(t, path, "fleetGroups:\n  - name: production\n    contexts: [prod-eu, prod-us]\n  - name: non-prod\n    contexts: [staging, dev]\n")
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.FleetGroups) != 2 || cfg.FleetGroups[0].Name != "production" {
+		t.Fatalf("fleet groups = %#v", cfg.FleetGroups)
+	}
+	if got := cfg.FleetGroups[1].Contexts; len(got) != 2 || got[0] != "staging" {
+		t.Errorf("non-prod contexts = %v", got)
+	}
+}
+
 func TestTheConfigLivesWhereTheOperatingSystemPutsIt(t *testing.T) {
 	// CORRELUX_CONFIG_DIR wins over everything, which is what the tests and a
 	// container image both need.

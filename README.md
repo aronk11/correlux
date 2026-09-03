@@ -291,10 +291,32 @@ is merely cordoned is named too, because it is the reason a rollout will not
 land there, and a kind Correlux was not allowed to read is counted rather than
 passed over in silence.
 
-It covers the contexts listed under `fleet:` in your config and nothing else —
-Correlux never discovers on its own that opening it authenticated against every
+It covers the contexts of the selected fleet group and nothing else — Correlux
+never discovers on its own that opening it authenticated against every
 production cluster you hold credentials for. Adding all of them is a command you
 run, for one session.
+
+Groups are named sets of contexts, which is how production, staging, a region or
+a team stay apart without authenticating against anything outside the one you
+opened:
+
+```yaml
+fleetGroups:
+  - name: production
+    contexts: [prod-eu, prod-us]
+  - name: non-prod
+    contexts: [staging, dev]
+```
+
+`Open fleet group …` in the command palette switches between them. Switching
+cancels the reads in flight and never carries a session-only addition into the
+next group, so a cluster you added by hand to one group cannot appear in
+another.
+
+A plain `fleet:` list still works, and is offered as the group named `default`:
+a configuration written before groups existed opens on exactly the clusters it
+always did, and stays reachable from the palette when named groups sit beside
+it.
 
 From the overview, `Ctrl+B` browses **one resource kind across every cluster** —
 pods, deployments, or a custom resource — as one table:

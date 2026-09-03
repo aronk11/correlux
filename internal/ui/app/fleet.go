@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/aronk11/correlux/internal/config"
 	"github.com/aronk11/correlux/internal/domain/application"
 	"github.com/aronk11/correlux/internal/domain/fleet"
 	"github.com/aronk11/correlux/internal/kube/workloads"
@@ -21,6 +22,9 @@ import (
 // requests, and it must not wait for the slowest cluster before showing the
 // first answer either. Four at a time does both (ADR 19).
 const fleetConcurrency = 4
+
+// defaultFleetGroup names the implicit group made of the top-level fleet list.
+const defaultFleetGroup = "default"
 
 // fleetMemberMsg carries one cluster's answer.
 type fleetMemberMsg struct {
@@ -54,7 +58,7 @@ func (m *Model) openFleet() tea.Cmd {
 // configuration, plus whatever the user added for this session. Never every
 // context in the kubeconfig by default.
 func (m *Model) fleetContexts() []string {
-	named := append([]string(nil), m.cfg.Fleet...)
+	named := append([]string(nil), m.configuredFleetContexts()...)
 	named = append(named, m.fleetExtra...)
 
 	seen := map[string]bool{}
@@ -72,6 +76,61 @@ func (m *Model) fleetContexts() []string {
 		out = append(out, name)
 	}
 	return out
+}
+
+// fleetGroups are the groups the user can switch between: the named ones,
+// preceded by the top-level fleet list as an implicit "default".
+//
+// The implicit group is what keeps a configuration carrying both shapes
+// usable. Without it the top-level list would be stranded the moment a named
+// group was selected, because nothing in the palette could name it again.
+// A group actually called "default" owns the word, and no implicit one is
+// synthesised beside it.
+func (m *Model) fleetGroups() []config.FleetGroup {
+	if len(m.cfg.Fleet) == 0 {
+		return m.cfg.FleetGroups
+	}
+	for _, group := range m.cfg.FleetGroups {
+		if group.Name == defaultFleetGroup {
+			return m.cfg.FleetGroups
+		}
+	}
+	groups := make([]config.FleetGroup, 0, len(m.cfg.FleetGroups)+1)
+	groups = append(groups, config.FleetGroup{Name: defaultFleetGroup, Contexts: m.cfg.Fleet})
+	return append(groups, m.cfg.FleetGroups...)
+}
+
+// configuredFleetContexts returns only the selected group.
+func (m *Model) configuredFleetContexts() []string {
+	for _, group := range m.fleetGroups() {
+		if group.Name == m.activeFleetGroup {
+			return group.Contexts
+		}
+	}
+	return m.cfg.Fleet
+}
+
+func (m *Model) fleetGroupLabel() string {
+	if m.activeFleetGroup != "" {
+		return m.activeFleetGroup
+	}
+	return defaultFleetGroup
+}
+
+// switchFleetGroup cancels the old fan-out before starting the selected one.
+// Session-only additions do not leak between groups.
+func (m *Model) switchFleetGroup(name string) tea.Cmd {
+	for _, group := range m.fleetGroups() {
+		if group.Name != name {
+			continue
+		}
+		m.stopFleet()
+		m.activeFleetGroup = name
+		m.fleetExtra = nil
+		m.notice("Fleet group: "+name, theme.StatusHealthy)
+		return tea.Batch(m.openFleet(), m.expireNotice())
+	}
+	return nil
 }
 
 // includeEveryContext adds every context in the kubeconfig to the fleet, for
@@ -308,7 +367,7 @@ func (m *Model) fleetData() screens.FleetData {
 	}
 
 	summary := fleet.Summarise(m.fleetMembers)
-	d.Title = "Fleet"
+	d.Title = "Fleet / " + m.fleetGroupLabel()
 	d.Subtitle = fleetSubtitle(summary)
 
 	clusters := screens.DetailSection{

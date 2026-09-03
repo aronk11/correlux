@@ -212,6 +212,61 @@ func TestAContextThatLeftTheKubeconfigIsDropped(t *testing.T) {
 	}
 }
 
+func TestNamedFleetGroupsCanBeSwitchedWithoutMixingContexts(t *testing.T) {
+	m := newTestModel(t, func(o *Options) {
+		o.Config = config.Default()
+		o.Config.FleetGroups = []config.FleetGroup{
+			{Name: "production", Contexts: []string{"prod-eu"}},
+			{Name: "non-prod", Contexts: []string{"staging"}},
+		}
+	})
+	press(t, m, "F")
+	if got := m.fleetContexts(); len(got) != 1 || got[0] != "prod-eu" {
+		t.Fatalf("initial group contexts = %v", got)
+	}
+	if out := plainView(m); !strings.Contains(out, "Fleet / production") {
+		t.Errorf("active group must be visible:\n%s", out)
+	}
+
+	m.fleetExtra = append(m.fleetExtra, "staging")
+	m.switchFleetGroup("non-prod")
+	if got := m.fleetContexts(); len(got) != 1 || got[0] != "staging" {
+		t.Fatalf("switched group contexts = %v", got)
+	}
+	if len(m.fleetExtra) != 0 {
+		t.Error("session additions from one group must not leak into another")
+	}
+}
+
+func TestTheTopLevelFleetListStaysReachableBesideNamedGroups(t *testing.T) {
+	m := newTestModel(t, func(o *Options) {
+		o.Config = config.Default()
+		o.Config.Fleet = []string{"prod-eu"}
+		o.Config.FleetGroups = []config.FleetGroup{
+			{Name: "non-prod", Contexts: []string{"staging"}},
+		}
+	})
+	press(t, m, "F")
+
+	// A configuration that predates named groups opens on the clusters it
+	// always did, not on whichever group happens to be listed first.
+	if got := m.fleetContexts(); len(got) != 1 || got[0] != "prod-eu" {
+		t.Fatalf("initial contexts = %v", got)
+	}
+
+	m.switchFleetGroup("non-prod")
+	if got := m.fleetContexts(); len(got) != 1 || got[0] != "staging" {
+		t.Fatalf("switched contexts = %v", got)
+	}
+
+	// And back: without an implicit group the top-level list would be
+	// stranded, because nothing could name it again.
+	m.switchFleetGroup("default")
+	if got := m.fleetContexts(); len(got) != 1 || got[0] != "prod-eu" {
+		t.Fatalf("contexts after returning to the default group = %v", got)
+	}
+}
+
 // answerPart delivers one cluster's page of a resource.
 func answerPart(m *Model, source string, table *resources.Table, err error) {
 	m.Update(fleetPartMsg{gen: m.fleetGeneration, part: resources.Part{

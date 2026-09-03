@@ -171,10 +171,11 @@ type Model struct {
 	// The fleet overview. It is read-only and explicitly opted into: the
 	// members are the contexts named in the configuration, plus whatever was
 	// added for this session.
-	fleetMembers    []fleet.Member
-	fleetExtra      []string
-	fleetResults    <-chan fleet.Member
-	fleetGeneration uint64
+	fleetMembers     []fleet.Member
+	fleetExtra       []string
+	activeFleetGroup string
+	fleetResults     <-chan fleet.Member
+	fleetGeneration  uint64
 	// pendingApplication and pendingObject are opened once the cluster they
 	// belong to has loaded, which is how Enter in the fleet view lands on the
 	// right screen in the right cluster.
@@ -296,6 +297,12 @@ func New(opts Options) *Model {
 		allNamespaces: opts.AllNamespaces,
 		resize:        layout.NewDebouncer(layout.DefaultResizeDebounce),
 		registry:      palette.NewRegistry(),
+	}
+	// The first group is the one the session opens on. When a top-level fleet
+	// list is present that is the implicit "default", so a configuration that
+	// predates named groups keeps opening exactly the clusters it always did.
+	if groups := m.fleetGroups(); len(groups) > 0 {
+		m.activeFleetGroup = groups[0].Name
 	}
 
 	// A malformed interval is reported by the caller as a config warning; the

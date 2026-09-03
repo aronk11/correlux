@@ -16,32 +16,33 @@ import (
 // Palette action identifiers. Direct actions carry their target in Command.Arg,
 // so "switch to prod-eu" is one keystroke away without opening a submenu.
 const (
-	paletteOpenContexts    palette.ActionID = "open.contexts"
-	paletteOpenNamespaces  palette.ActionID = "open.namespaces"
-	paletteSwitchContext   palette.ActionID = "switch.context"
-	paletteSwitchNamespace palette.ActionID = "switch.namespace"
-	paletteToggleAllNS     palette.ActionID = "toggle.allnamespaces"
-	paletteOpenApps        palette.ActionID = "open.applications"
-	paletteOpenFleet       palette.ActionID = "open.fleet"
-	paletteFleetEverything palette.ActionID = "fleet.everything"
-	paletteOpenApp         palette.ActionID = "open.application"
-	paletteExplain         palette.ActionID = "explain"
-	paletteGrouping        palette.ActionID = "application.grouping"
-	paletteToggleYAML      palette.ActionID = "object.yaml"
-	paletteToggleDecode    palette.ActionID = "object.decode"
-	paletteScale           palette.ActionID = "scale"
-	paletteEdit            palette.ActionID = "edit"
-	paletteLogs            palette.ActionID = "logs"
-	paletteUsage           palette.ActionID = "usage"
-	paletteOpenResources   palette.ActionID = "open.resources"
-	paletteOpenResource    palette.ActionID = "open.resource"
-	paletteToggleWide      palette.ActionID = "toggle.wide"
-	paletteBackToOverview  palette.ActionID = "open.overview"
-	paletteRefresh         palette.ActionID = "refresh"
-	paletteAutoRefresh     palette.ActionID = "refresh.auto"
-	paletteReloadConfig    palette.ActionID = "reload.kubeconfig"
-	paletteHelp            palette.ActionID = "help"
-	paletteQuit            palette.ActionID = "quit"
+	paletteOpenContexts     palette.ActionID = "open.contexts"
+	paletteOpenNamespaces   palette.ActionID = "open.namespaces"
+	paletteSwitchContext    palette.ActionID = "switch.context"
+	paletteSwitchNamespace  palette.ActionID = "switch.namespace"
+	paletteToggleAllNS      palette.ActionID = "toggle.allnamespaces"
+	paletteOpenApps         palette.ActionID = "open.applications"
+	paletteOpenFleet        palette.ActionID = "open.fleet"
+	paletteFleetEverything  palette.ActionID = "fleet.everything"
+	paletteSwitchFleetGroup palette.ActionID = "fleet.group"
+	paletteOpenApp          palette.ActionID = "open.application"
+	paletteExplain          palette.ActionID = "explain"
+	paletteGrouping         palette.ActionID = "application.grouping"
+	paletteToggleYAML       palette.ActionID = "object.yaml"
+	paletteToggleDecode     palette.ActionID = "object.decode"
+	paletteScale            palette.ActionID = "scale"
+	paletteEdit             palette.ActionID = "edit"
+	paletteLogs             palette.ActionID = "logs"
+	paletteUsage            palette.ActionID = "usage"
+	paletteOpenResources    palette.ActionID = "open.resources"
+	paletteOpenResource     palette.ActionID = "open.resource"
+	paletteToggleWide       palette.ActionID = "toggle.wide"
+	paletteBackToOverview   palette.ActionID = "open.overview"
+	paletteRefresh          palette.ActionID = "refresh"
+	paletteAutoRefresh      palette.ActionID = "refresh.auto"
+	paletteReloadConfig     palette.ActionID = "reload.kubeconfig"
+	paletteHelp             palette.ActionID = "help"
+	paletteQuit             palette.ActionID = "quit"
 )
 
 // allNamespacesID is the synthetic namespace-picker row for cluster-wide scope.
@@ -271,6 +272,23 @@ func (m *Model) rebuildCommands() {
 			Category: "Navigate",
 			Keywords: []string{"fleet", "every", "all contexts", "add"},
 			Weight:   50,
+			Enabled:  true,
+		})
+	}
+
+	for _, group := range m.fleetGroups() {
+		if group.Name == m.fleetGroupLabel() {
+			continue
+		}
+		cmds = append(cmds, palette.Command{
+			ID:       "fleet.group." + group.Name,
+			Action:   paletteSwitchFleetGroup,
+			Arg:      group.Name,
+			Title:    "Open fleet group " + group.Name,
+			Subtitle: itoa(len(group.Contexts)) + " clusters",
+			Category: "Navigate",
+			Keywords: []string{"fleet", "group", "environment", "team", "region"},
+			Weight:   91,
 			Enabled:  true,
 		})
 	}
@@ -643,6 +661,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.openFleet()
 	case paletteFleetEverything:
 		return m.includeEveryContext()
+	case paletteSwitchFleetGroup:
+		return m.switchFleetGroup(cmd.Arg)
 	case paletteOpenApp:
 		return m.openApplication(cmd.Arg)
 	case paletteExplain:
