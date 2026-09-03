@@ -19,7 +19,7 @@ func fleetModel(t *testing.T, contexts ...string) *Model {
 }
 
 // answer delivers one cluster's result the way the reader would.
-func answer(m *Model, member fleet.Member) {
+func answer(m *Model, member fleet.Member) { //nolint:gocritic // hugeParam: test helper, not a hot path
 	m.Update(fleetMemberMsg{gen: m.fleetGeneration, member: member})
 }
 
@@ -134,9 +134,10 @@ func TestEnterGoesToTheClusterAndNothingElse(t *testing.T) {
 	answer(m, ready("prod-eu", true, fleetApp("payments", application.Down, 0, 3)))
 	answer(m, ready("staging", false))
 
-	// The first row is the first configured cluster.
+	// Clusters are listed worst first: prod-eu has a down application, so it
+	// leads the list whatever order it was configured in.
 	press(t, m, "enter")
-	if m.Context() != "staging" {
+	if m.Context() != "prod-eu" {
 		t.Fatalf("Enter on a cluster row must switch to it, context = %q", m.Context())
 	}
 	if m.view == viewFleet {
@@ -438,5 +439,111 @@ func TestACordonedNodeAloneStillMarksTheCluster(t *testing.T) {
 	}
 	if !strings.Contains(out, "cordoned") {
 		t.Errorf("it must be named on the cluster row:\n%s", out)
+	}
+}
+
+func TestClustersAreListedWorstFirst(t *testing.T) {
+	m := fleetModel(t, "staging", "prod-eu")
+	press(t, m, "F")
+
+	answer(m, ready("staging", false, fleetApp("api", application.Healthy, 1, 1)))
+	answer(m, ready("prod-eu", true, fleetApp("payments", application.Down, 0, 3)))
+
+	out := plainView(m)
+	// Only the CLUSTERS section matters here: the status bar above it already
+	// names the active context and would give a false answer.
+	start := strings.Index(out, "CLUSTERS")
+	if start < 0 {
+		t.Fatalf("no CLUSTERS section on screen:\n%s", out)
+	}
+	section := out[start:]
+	end := strings.Index(section, "NODES")
+	if end < 0 {
+		t.Fatalf("no NODES section on screen:\n%s", out)
+	}
+	section = section[:end]
+
+	// prod-eu has a down application; it must lead the cluster list even
+	// though it was configured and answered second.
+	if strings.Index(section, "prod-eu") > strings.Index(section, "staging") {
+		t.Errorf("clusters must be listed worst first, not in configuration order:\n%s", out)
+	}
+}
+
+func TestAnUnboundClaimIsShownWithItsCluster(t *testing.T) {
+	m := fleetModel(t, "prod-eu")
+	press(t, m, "F")
+
+	member := ready("prod-eu", true, fleetApp("api", application.Healthy, 1, 1))
+	member.Claims = []application.Claim{
+		{Meta: application.Meta{Kind: "PersistentVolumeClaim", Name: "data-0", Namespace: "shop"}, Phase: "Pending"},
+	}
+	answer(m, member)
+
+	out := plainView(m)
+	for _, want := range []string{"STORAGE", "data-0", "unbound"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("an unbound claim must be named, missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestAServiceWithNoReadyEndpointIsShownWithItsCluster(t *testing.T) {
+	m := fleetModel(t, "prod-eu")
+	press(t, m, "F")
+
+	member := ready("prod-eu", true, fleetApp("api", application.Healthy, 1, 1))
+	member.Endpoints = []application.EndpointSet{
+		{Service: "checkout", Namespace: "shop", Ready: 0, NotReady: 2},
+	}
+	answer(m, member)
+
+	out := plainView(m)
+	for _, want := range []string{"SERVICES", "checkout", "no ready endpoints"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("a service with no ready endpoint must be named, missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestEnterOnAnUnboundClaimOpensItInItsCluster(t *testing.T) {
+	m := fleetModel(t, "staging", "prod-eu")
+	catalog := testCatalog()
+	catalog.Resources = append(catalog.Resources,
+		resource("", "v1", "persistentvolumeclaims", "PersistentVolumeClaim", true, true, "pvc"))
+	loadCatalogInto(m, catalog)
+	press(t, m, "F")
+	answer(m, ready("staging", false))
+
+	member := ready("prod-eu", true, fleetApp("api", application.Healthy, 1, 1))
+	member.Claims = []application.Claim{
+		{Meta: application.Meta{Kind: "PersistentVolumeClaim", Name: "data-0", Namespace: "shop"}, Phase: "Pending"},
+	}
+	answer(m, member)
+
+	// Two cluster rows, then the claim.
+	press(t, m, "down")
+	press(t, m, "down")
+	press(t, m, "enter")
+
+	if m.Context() != "prod-eu" {
+		t.Fatalf("context = %q, want the cluster the claim belongs to", m.Context())
+	}
+	if m.pendingObject.Kind != "PersistentVolumeClaim" || m.pendingObject.Name != "data-0" {
+		t.Errorf("pending = %+v, want the claim under the cursor", m.pendingObject)
+	}
+}
+
+func TestTheProblemDigestNamesTheReasonNotOnlyTheCount(t *testing.T) {
+	m := fleetModel(t, "prod-eu")
+	press(t, m, "F")
+
+	app := fleetApp("payments", application.Down, 0, 4)
+	app.Problems = []application.Problem{{Reason: "OOMKilled", Count: 1}}
+	answer(m, ready("prod-eu", true, app))
+
+	out := plainView(m)
+	if !strings.Contains(out, "OOMKilled") {
+		t.Errorf("the digest must quote the cluster's own reason:\n%s", out)
 	}
 }
