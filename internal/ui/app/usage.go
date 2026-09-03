@@ -25,8 +25,9 @@ const usageBarWidth = 6
 // is a scrolling problem rather than a reading one, and the rows worth reading
 // sort first.
 const (
-	maxUsageNodes = 100
-	maxUsageApps  = 100
+	maxUsageNodes      = 100
+	maxUsageNamespaces = 100
+	maxUsageApps       = 100
 )
 
 // openUsage shows where the pods are and what they use. Pressing the key again
@@ -37,6 +38,7 @@ func (m *Model) openUsage() tea.Cmd {
 	}
 	m.view = viewUsage
 	m.usagePort.Offset, m.usagePort.Cursor = 0, 0
+	m.usageDrilledIn = false
 	m.rebuildCommands()
 
 	cmds := []tea.Cmd{m.loadUsage()}
@@ -140,7 +142,19 @@ func (m *Model) buildUsage() usage.Report {
 
 // usageData assembles the view.
 func (m *Model) usageData() screens.UsageData {
-	d := screens.UsageData{Title: "Resource usage in " + m.scopeLabel(), Offset: m.usagePort.Offset}
+	d, _ := m.usageView()
+	return d
+}
+
+// usageView assembles the screen and its drill-down targets in the same pass.
+// Namespace rows exist only cluster-wide; application rows exist only after a
+// namespace has been selected, keeping the first screen useful at 80 columns
+// and avoiding a flat list of hundreds of applications.
+func (m *Model) usageView() (screens.UsageData, []objectRef) {
+	d := screens.UsageData{
+		Title: "Resource usage in " + m.scopeLabel(), Offset: m.usagePort.Offset,
+		Selected: m.usagePort.Cursor,
+	}
 
 	// The pods come from one request and the machines from another, and a
 	// screen that cannot say which of them it is still waiting for is a screen
@@ -148,32 +162,69 @@ func (m *Model) usageData() screens.UsageData {
 	switch {
 	case m.apps.State() == async.Idle, m.apps.State() == async.Loading:
 		d.Message = "Looking for pods in " + m.scopeLabel() + "…"
-		return d
+		return d, nil
 	case m.apps.State() == async.Failed:
 		d.Message = "Could not read " + m.scopeLabel() + ": " + shortError(m.apps.Err())
 		d.MessageStatus = theme.StatusCritical
-		return d
+		return d, nil
 	case m.usage.State() == async.Idle, m.usage.State() == async.Loading:
 		d.Message = "Measuring " + m.scopeLabel() + "…"
-		return d
+		return d, nil
 	case m.usage.State() == async.Failed:
 		d.Message = "Could not read the nodes: " + shortError(m.usage.Err())
 		d.MessageStatus = theme.StatusCritical
-		return d
+		return d, nil
 	}
 
 	report := m.usage.Get()
 	d.Subtitle = m.usageSubtitle(&report, time.Now())
 	d.Notes = m.usageNotes(&report)
 
-	sections, _ := numberTargets([]detailSection{
-		m.usageNodeSection(&report),
-		m.usageUnscheduledSection(&report),
-		m.usageApplicationSection(&report),
-		m.usageTotalsSection(&report),
-	})
-	d.Sections = sections
-	return d
+	sections := []detailSection{m.usageNodeSection(&report), m.usageUnscheduledSection(&report)}
+	if m.allNamespaces {
+		sections = append([]detailSection{m.usageNamespaceSection(&report)}, sections...)
+	} else {
+		sections = append(sections, m.usageApplicationSection(&report))
+	}
+	sections = append(sections, m.usageTotalsSection(&report))
+	rendered, targets := numberTargets(sections)
+	d.Sections = rendered
+	return d, targets
+}
+
+// usageNamespaceSection is the cluster-wide entry point. Namespace resource
+// use is shown as absolute values: there is no honest percentage without a
+// ResourceQuota, and a node's allocatable is shared by every namespace.
+func (m *Model) usageNamespaceSection(report *usage.Report) detailSection {
+	live := report.Metrics.Available
+	section := detailSection{
+		Title: "Namespaces", Empty: "no namespace is running a pod",
+		Columns: []string{"Namespace", "Applications", "Pods", "Nodes", cpuHeading(live), memoryHeading(live)},
+	}
+	for i := range report.Namespaces {
+		if i >= maxUsageNamespaces {
+			break
+		}
+		ns := &report.Namespaces[i]
+		row := detailRow{
+			Cells: []string{
+				ns.Name, itoa(ns.Apps), itoa(ns.Pods), itoa(len(ns.Nodes)),
+				triple(live, ns.Used, ns.Requests, ns.Limits, cpuOf),
+				triple(live, ns.Used, ns.Requests, ns.Limits, memoryOf),
+			},
+			Ref: objectRef{Kind: "Namespace", Name: ns.Name},
+		}
+		if ns.Unscheduled > 0 || ns.Unsized == ns.Pods {
+			row.Status = theme.StatusWarning
+		}
+		section.Rows = append(section.Rows, row)
+	}
+	if extra := len(report.Namespaces) - maxUsageNamespaces; extra > 0 {
+		section.Rows = append(section.Rows, detailRow{Cells: []string{
+			m.theme.Glyphs.Ellipsis + " " + itoa(extra) + " more namespaces",
+		}})
+	}
+	return section
 }
 
 // usageSubtitle answers the first question in one line: how many machines, how
@@ -344,7 +395,10 @@ func (m *Model) usageApplicationSection(report *usage.Report) detailSection {
 			triple(live, a.Used, a.Requests, a.Limits, cpuOf),
 			triple(live, a.Used, a.Requests, a.Limits, memoryOf),
 		)
-		row := detailRow{Cells: cells}
+		row := detailRow{
+			Cells: cells,
+			Ref:   objectRef{Kind: "Application", Name: a.Name, Namespace: a.Namespace},
+		}
 		if a.Unsized == a.Pods {
 			// Every pod unsized: the scheduler is placing this application
 			// blind, which is worth noticing before anything goes wrong.
@@ -547,15 +601,18 @@ func nodeCondition(n *application.Node) (string, theme.Status) {
 	}
 }
 
-// handleUsageKey scrolls the view. Nothing on it is selectable: every row is
-// something to read.
+// handleUsageKey moves across the namespace/application drill-down and scrolls
+// the surrounding evidence without losing the selected row.
 func (m *Model) handleUsageKey(keystroke string) (tea.Cmd, bool) {
+	d, targets := m.usageView()
 	page := max(m.screen.Body.Height-1, 1)
 	switch keystroke {
 	case "up", "k":
-		m.scrollUsage(-1)
+		m.usagePort.MoveTarget(-1, d.TargetLines(m.screen.Body.Width), len(targets),
+			d.LineCount(m.screen.Body.Width), m.bodyHeight())
 	case "down", "j":
-		m.scrollUsage(1)
+		m.usagePort.MoveTarget(1, d.TargetLines(m.screen.Body.Width), len(targets),
+			d.LineCount(m.screen.Body.Width), m.bodyHeight())
 	case "pgup":
 		m.scrollUsage(-page)
 	case "pgdown", " ":
@@ -564,7 +621,28 @@ func (m *Model) handleUsageKey(keystroke string) (tea.Cmd, bool) {
 		m.usagePort.Offset = 0
 	case "end", "G":
 		m.scrollUsage(m.usageLines())
+	case "enter":
+		if len(targets) == 0 {
+			return nil, true
+		}
+		target := targets[clampInt(m.usagePort.Cursor, len(targets)-1)]
+		switch target.Kind {
+		case "Namespace":
+			// The scope change resets the drill-down state along with every
+			// other scoped view, so the flag is set after it, not before.
+			cmd := m.switchNamespace(target.Name)
+			m.usageDrilledIn = true
+			return cmd, true
+		case "Application":
+			return m.openApplication(target.Name), true
+		}
 	case "esc", "left", "h":
+		// Esc goes back the way it came. Widening the scope is only going back
+		// for somebody who narrowed it here; for anyone who opened the screen
+		// in a namespace it would be a scope change they never asked for.
+		if m.usageDrilledIn {
+			return m.setAllNamespaces(true), true
+		}
 		return m.backToApplications(), true
 	default:
 		return nil, false
@@ -577,5 +655,7 @@ func (m *Model) usageLines() int {
 }
 
 func (m *Model) scrollUsage(delta int) {
-	m.usagePort.ScrollLines(delta, m.usageLines(), m.bodyHeight())
+	d, targets := m.usageView()
+	m.usagePort.ScrollTargets(delta, d.TargetLines(m.screen.Body.Width), len(targets),
+		d.LineCount(m.screen.Body.Width), m.bodyHeight())
 }

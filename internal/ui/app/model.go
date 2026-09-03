@@ -131,6 +131,11 @@ type Model struct {
 	activityPort   layout.Viewport
 	fleetPort      layout.Viewport
 	fleetTablePort layout.Viewport
+	// usageDrilledIn records that the active namespace was entered from the
+	// cluster-wide usage screen, which is what Esc walks back out of there. A
+	// session that simply started in a namespace has nothing to walk back to,
+	// and Esc must leave the screen the way it does everywhere else.
+	usageDrilledIn bool
 	// selectedApp is the application the detail view shows, addressed by key
 	// rather than by index: a reload re-sorts the list, and a cursor position
 	// would then follow the ranking instead of the application.

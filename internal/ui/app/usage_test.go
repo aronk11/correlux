@@ -70,6 +70,15 @@ func loadScopeInto(m *Model, apps []application.Application, pods ...application
 	})
 }
 
+func loadClusterScopeInto(m *Model, apps []application.Application, pods ...application.Pod) {
+	m.Update(applicationsLoadedMsg{
+		gen: m.apps.Generation(),
+		list: applicationList{Apps: apps, Snapshot: application.Snapshot{
+			Pods: pods, FetchedAt: time.Now(),
+		}},
+	})
+}
+
 func loadUsageInto(m *Model, live usage.Live) {
 	m.Update(usageLoadedMsg{gen: m.usage.Generation(), live: live})
 }
@@ -113,6 +122,95 @@ func TestUsageKeyOpensAndClosesTheView(t *testing.T) {
 	press(t, m, "esc")
 	if m.view != viewApplications {
 		t.Fatalf("esc must leave the usage view, got %v", m.view)
+	}
+}
+
+func TestClusterUsageShowsNamespacesAndDrillsIntoTheirApplications(t *testing.T) {
+	m := newTestModel(t)
+	m.allNamespaces = true
+
+	paymentsPod := usagePod("payments-0", "node-1", 500, 512<<20)
+	paymentsPod.Namespace = "payments"
+	jobsPod := usagePod("worker-0", "node-1", 100, 128<<20)
+	jobsPod.Namespace = "jobs"
+	paymentsApp := usageApplication("payments", paymentsPod)
+	paymentsApp.Namespace = "payments"
+	jobsApp := usageApplication("worker", jobsPod)
+	jobsApp.Namespace = "jobs"
+
+	press(t, m, "u")
+	loadClusterScopeInto(m, []application.Application{paymentsApp, jobsApp}, paymentsPod, jobsPod)
+	loadUsageInto(m, usage.Live{
+		Nodes: []application.Node{usageNode("node-1", true, 4000, 8<<30, 110)},
+		Metrics: liveMetrics(nil, []usage.PodSample{
+			{Namespace: "payments", Name: "payments-0", Used: application.Amounts{
+				CPUMilli: 250, MemoryBytes: 256 << 20, HasCPU: true, HasMemory: true}},
+			{Namespace: "jobs", Name: "worker-0", Used: application.Amounts{
+				CPUMilli: 50, MemoryBytes: 64 << 20, HasCPU: true, HasMemory: true}},
+		}),
+	})
+
+	out := view(m)
+	for _, want := range []string{"NAMESPACES", "payments", "jobs", "250m / 500m / 1000m"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("cluster usage must show %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "APPLICATIONS\n") {
+		t.Errorf("cluster usage should lead with namespaces instead of a flat application list:\n%s", out)
+	}
+
+	press(t, m, "enter")
+	if m.allNamespaces || m.namespace != "payments" || m.view != viewUsage {
+		t.Fatalf("namespace drill-down = all=%v namespace=%q view=%v",
+			m.allNamespaces, m.namespace, m.view)
+	}
+
+	loadScopeInto(m, []application.Application{paymentsApp}, paymentsPod)
+	loadUsageInto(m, usage.Live{Nodes: []application.Node{usageNode("node-1", true, 4000, 8<<30, 110)}})
+	out = view(m)
+	if !strings.Contains(out, "APPLICATIONS") || !strings.Contains(out, "payments") || strings.Contains(out, "jobs") {
+		t.Errorf("selected namespace must show only its applications:\n%s", out)
+	}
+
+	press(t, m, "esc")
+	if !m.allNamespaces || m.view != viewUsage {
+		t.Fatalf("Esc must return to namespace usage, all=%v view=%v",
+			m.allNamespaces, m.view)
+	}
+}
+
+func TestEscInANamespaceUsageViewLeavesRatherThanWideningTheScope(t *testing.T) {
+	m := newTestModel(t)
+	pod := usagePod("api-0", "node-1", 100, 128<<20)
+	openUsageWith(t, m,
+		usage.Live{Nodes: []application.Node{usageNode("node-1", true, 4000, 8<<30, 110)}},
+		[]application.Application{usageApplication("api", pod)}, pod,
+	)
+
+	// Nobody narrowed the scope here, so there is nothing to walk back out of:
+	// Esc means "leave", the way it does on every other screen. Widening it
+	// would authenticate against namespaces the session never asked about.
+	press(t, m, "esc")
+	if m.view != viewApplications || m.allNamespaces {
+		t.Fatalf("esc = view %v all=%v, want the dashboard in the same scope",
+			m.view, m.allNamespaces)
+	}
+}
+
+func TestApplicationUsageRowOpensTheApplication(t *testing.T) {
+	m := newTestModel(t)
+	pod := usagePod("api-0", "node-1", 100, 128<<20)
+	app := usageApplication("api", pod)
+	openUsageWith(t, m,
+		usage.Live{Nodes: []application.Node{usageNode("node-1", true, 4000, 8<<30, 110)}},
+		[]application.Application{app}, pod,
+	)
+
+	press(t, m, "enter")
+	if m.view != viewApplication || m.selectedApp != app.Key() {
+		t.Fatalf("application usage row opened view=%v app=%q, want application %q",
+			m.view, m.selectedApp, app.Key())
 	}
 }
 
