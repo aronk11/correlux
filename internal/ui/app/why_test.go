@@ -132,6 +132,25 @@ func TestWhyOnAHealthyApplicationSaysThereIsNothing(t *testing.T) {
 	}
 }
 
+func TestWhyHealthIncludesAServiceFailureAfterEvidenceLoads(t *testing.T) {
+	m := newTestModel(t)
+	app := testApplication("api", application.Healthy, 1, 1)
+	app.Services = []application.Service{{
+		Meta:     application.Meta{Kind: "Service", Name: "api", Namespace: "default"},
+		Selector: map[string]string{"app": "does-not-match"},
+	}}
+	loadApplicationsInto(m, app)
+	loadEvidenceInto(m, application.Context{Endpoints: []application.EndpointSet{{
+		Service: "api", Namespace: "default",
+	}}})
+
+	press(t, m, "ctrl+w")
+	out := plainView(m)
+	if !strings.Contains(out, "down") || !strings.Contains(out, "matches no pods") {
+		t.Errorf("delivery failures must change the displayed application health:\n%s", out)
+	}
+}
+
 func TestWhyFailsLoudlyRatherThanQuietly(t *testing.T) {
 	m := newTestModel(t)
 	loadApplicationsInto(m, brokenApplication())
@@ -226,6 +245,21 @@ func TestNextNeverClaimsAPreviousRunThatDoesNotExist(t *testing.T) {
 	}
 	if strings.Contains(out, "previous run's logs") {
 		t.Errorf("none of these pods have a previous run; offering it would be a lie:\n%s", out)
+	}
+}
+
+func TestNextDoesNotOfferLogsWhenAContainerNeverStarted(t *testing.T) {
+	m := newTestModel(t)
+	app := testApplication("payments", application.Down, 0, 1)
+	app.Pods[0].Containers = []application.Container{{
+		Name: "payments", State: "waiting", Reason: "CreateContainerConfigError",
+		Message: `secret "database" not found`,
+	}}
+	loadApplicationsInto(m, app)
+	press(t, m, "ctrl+w")
+
+	if out := plainView(m); strings.Contains(out, "read the pods' logs") {
+		t.Errorf("a container that never started has no logs to offer:\n%s", out)
 	}
 }
 

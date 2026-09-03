@@ -160,10 +160,10 @@ func (m *Model) rebuildCommands() {
 		{
 			ID:       "cmd.session",
 			Action:   paletteBackToOverview,
-			Title:    "Show session and connection details",
+			Title:    "Show cluster problems and session details",
 			Subtitle: m.contextName,
 			Category: "Cluster",
-			Keywords: []string{"session", "connection", "server", "version", "kubeconfig", "diagnostics"},
+			Keywords: []string{"problems", "health", "nodes", "events", "session", "connection", "server", "version", "kubeconfig", "diagnostics"},
 			Weight:   65,
 			Enabled:  true,
 		},
@@ -669,7 +669,14 @@ func (m *Model) backToOverview() tea.Cmd {
 	m.view = viewOverview
 	m.table.Reset()
 	m.rebuildCommands()
-	return nil
+	var cmds []tea.Cmd
+	if m.apps.State() == async.Idle {
+		cmds = append(cmds, m.loadApplications())
+	}
+	if m.evidence.State() == async.Idle {
+		cmds = append(cmds, m.loadEvidence())
+	}
+	return tea.Batch(cmds...)
 }
 
 // toggleWide switches between the compact and the wide column set.

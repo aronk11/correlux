@@ -117,6 +117,10 @@ type Diagnosis struct {
 	Evidence    []Evidence
 	Suggestions []Suggestion
 	Confidence  Confidence
+	// Consequence marks a downstream impact whose cause is another finding in
+	// the same explanation. Root causes sort before their consequences even
+	// when the consequence has the greater operational severity.
+	Consequence bool
 }
 
 // Input is everything the rules may look at.
@@ -173,6 +177,9 @@ func Diagnose(in *Input) []Diagnosis {
 		out = append(out, r(&input)...)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Consequence != out[j].Consequence {
+			return !out[i].Consequence
+		}
 		if out[i].Severity != out[j].Severity {
 			return out[i].Severity > out[j].Severity
 		}

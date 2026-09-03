@@ -1,6 +1,7 @@
 package app
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/aronk11/correlux/internal/config"
 	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/diagnosis"
 	"github.com/aronk11/correlux/internal/domain/fleet"
 	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	"github.com/aronk11/correlux/internal/kube/resources"
@@ -618,11 +620,172 @@ func (m *Model) overviewData() screens.OverviewData {
 	})
 
 	return screens.OverviewData{
-		Panels: []screens.Panel{connection, session, environment},
-		Roadmap: []string{
-			"WHY diagnosis engine (Phase 3)",
-			"Logs, exec and object detail (Phase 4)",
-		},
+		Panels: []screens.Panel{connection, m.problemsPanel(), session, environment},
+	}
+}
+
+// problemsPanel is the bounded cluster triage pass. It combines application
+// findings with node state and warning events about resources that do not
+// belong to an inferred application (Certificates and Issuers, for example).
+// It deliberately does not list arbitrary CRDs: doing so would turn one screen
+// refresh into an unbounded discovery-wide scan.
+func (m *Model) problemsPanel() screens.Panel {
+	panel := screens.Panel{Title: "Cluster problems"}
+	if m.apps.State() == async.Loading || m.evidence.State() == async.Loading ||
+		m.apps.State() == async.Idle || m.evidence.State() == async.Idle {
+		panel.Fields = []screens.Field{{Label: "Status", Value: "Scanning…", Glyph: true}}
+		panel.Note = "Reading applications, nodes, endpoints and recent events in this scope."
+		return panel
+	}
+
+	var problems []screens.Field
+	add := func(field screens.Field) {
+		field.Emphasize = true
+		problems = append(problems, field)
+	}
+
+	if m.apps.State() == async.Failed {
+		add(screens.Field{
+			Label: "Applications", Value: "unavailable — " + shortError(m.apps.Err()),
+			Status: theme.StatusCritical, Glyph: true,
+		})
+	}
+	if m.evidence.State() == async.Failed {
+		add(screens.Field{
+			Label: "Evidence", Value: "unavailable — " + shortError(m.evidence.Err()),
+			Status: theme.StatusWarning, Glyph: true,
+		})
+		return finishProblemsPanel(panel, problems)
+	}
+
+	evidence := m.evidence.Get()
+	for i := range evidence.Nodes {
+		n := &evidence.Nodes[i]
+		status, detail := theme.StatusUnknown, ""
+		switch {
+		case !n.Ready:
+			status, detail = theme.StatusCritical, "not ready"
+		case len(n.Pressure) > 0:
+			status, detail = theme.StatusWarning, strings.Join(n.Pressure, ", ")
+		case n.Unschedulable:
+			status, detail = theme.StatusWarning, "cordoned"
+		}
+		if detail != "" {
+			add(screens.Field{
+				Label: "Node/" + n.Name, Value: detail, Status: status, Glyph: true,
+			})
+		}
+	}
+
+	apps := m.applications()
+	for i := range apps {
+		a := &apps[i]
+		primary, ok := diagnosis.Primary(m.findingsFor(a.Key()))
+		if !ok || primary.Severity == diagnosis.Info {
+			continue
+		}
+		status := severityStatus(primary.Severity)
+		add(screens.Field{
+			Label: a.Namespace + "/" + a.Name, Value: primary.Problem, Status: status, Glyph: true,
+		})
+	}
+
+	// Problem events about objects outside the application graph are the generic
+	// extension point for operators and CRDs. Some controllers (cert-manager in
+	// particular) report an IssuerNotFound event as Normal, so the reason is as
+	// important as the type here. Application-owned events are already
+	// represented by their higher-quality deterministic finding.
+	events := append([]application.Event(nil), evidence.Events...)
+	sort.SliceStable(events, func(i, j int) bool { return events[i].LastSeen.After(events[j].LastSeen) })
+	seen := map[string]bool{}
+	for i := range events {
+		e := &events[i]
+		status, problem := problemEventStatus(e)
+		if !problem || applicationEventKind(e.About.Kind) {
+			continue
+		}
+		key := e.About.Kind + "/" + e.About.Name + "/" + e.Reason + "/" + e.Message
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		add(screens.Field{
+			Label: e.About.Kind + "/" + e.About.Name,
+			Value: e.Reason + ": " + e.Message, Status: status, Glyph: true,
+		})
+		if len(seen) >= 5 {
+			break
+		}
+	}
+
+	return finishProblemsPanel(panel, problems)
+}
+
+func finishProblemsPanel(panel screens.Panel, problems []screens.Field) screens.Panel {
+	if len(problems) == 0 {
+		panel.Status = theme.StatusHealthy
+		panel.Fields = []screens.Field{{
+			Label: "Status", Value: "no known problems", Status: theme.StatusHealthy, Glyph: true, Emphasize: true,
+		}}
+		panel.Note = "Bounded scan of application state, nodes, endpoints and recent problem events; respects the active scope and RBAC."
+		return panel
+	}
+
+	sort.SliceStable(problems, func(i, j int) bool {
+		if problems[i].Status != problems[j].Status {
+			return problems[i].Status > problems[j].Status
+		}
+		return problems[i].Label < problems[j].Label
+	})
+	panel.Status = problems[0].Status
+	critical, warnings := 0, 0
+	for _, problem := range problems {
+		switch problem.Status {
+		case theme.StatusCritical:
+			critical++
+		case theme.StatusWarning:
+			warnings++
+		}
+	}
+	parts := make([]string, 0, 2)
+	if critical > 0 {
+		parts = append(parts, itoa(critical)+" critical")
+	}
+	if warnings > 0 {
+		parts = append(parts, itoa(warnings)+" warning")
+	}
+	panel.Fields = append(panel.Fields, screens.Field{
+		Label: "Status", Value: strings.Join(parts, ", "), Status: panel.Status, Glyph: true, Emphasize: true,
+	})
+	const problemLimit = 7 // plus the summary row above
+	shown := min(len(problems), problemLimit)
+	panel.Fields = append(panel.Fields, problems[:shown]...)
+	panel.Note = "Bounded scan of application state, nodes, endpoints and recent problem events; respects the active scope and RBAC."
+	if len(problems) > shown {
+		panel.Note = itoa(len(problems)-shown) + " more problem(s). " + panel.Note
+	}
+	return panel
+}
+
+func problemEventStatus(e *application.Event) (theme.Status, bool) {
+	reason := strings.ToLower(e.Reason)
+	for _, signal := range []string{"failed", "error", "unhealthy", "backoff", "notfound"} {
+		if strings.Contains(reason, signal) {
+			return theme.StatusCritical, true
+		}
+	}
+	if e.Type == "Warning" {
+		return theme.StatusWarning, true
+	}
+	return theme.StatusUnknown, false
+}
+
+func applicationEventKind(kind string) bool {
+	switch kind {
+	case "Pod", "Deployment", "ReplicaSet", "StatefulSet", "DaemonSet", "Job", "CronJob", "Service":
+		return true
+	default:
+		return false
 	}
 }
 

@@ -107,6 +107,21 @@ func TestCrashLoopExplainsTheLastRunNotTheWait(t *testing.T) {
 	}
 }
 
+func TestCrashLoopRemainsVisibleDuringTheTerminatedWindow(t *testing.T) {
+	crashing := application.Container{
+		Name: "app", State: "terminated", Reason: "Error", ExitCode: 42, Restarts: 3,
+	}
+
+	d := find(t, diagnose(t, &Input{App: app(pod("payments-1", crashing))}), "pod.crashloop")
+
+	if !strings.Contains(d.Cause, "code 42") {
+		t.Errorf("the current termination must explain the loop between backoff waits, got %q", d.Cause)
+	}
+	if !strings.Contains(d.Evidence[0].Detail, "exited with code 42") {
+		t.Errorf("the current termination must be quoted as evidence, got %q", d.Evidence[0].Detail)
+	}
+}
+
 func TestFindingsReadAsEnglishForOnePodAndForSeveral(t *testing.T) {
 	crashing := waiting("CrashLoopBackOff", "")
 	crashing.LastExitCode = 1
@@ -238,6 +253,17 @@ func TestImagePullWithoutAMessageStaysHonest(t *testing.T) {
 	}
 	if !strings.Contains(d.Unknown, "did not say why") {
 		t.Errorf("the rule must say what it does not know, got %q", d.Unknown)
+	}
+}
+
+func TestMissingImageDoesNotSuggestCredentials(t *testing.T) {
+	d := find(t, diagnose(t, &Input{App: app(pod("payments-1",
+		waiting("ImagePullBackOff", "manifest unknown: not found")))}), "pod.imagepull")
+
+	for _, suggestion := range d.Suggestions {
+		if strings.Contains(suggestion.Text, "pull secret") {
+			t.Errorf("a confirmed missing tag must not send the operator to credentials: %+v", d.Suggestions)
+		}
 	}
 }
 

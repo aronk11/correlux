@@ -20,12 +20,18 @@ type Field struct {
 	Status theme.Status
 	// Glyph renders the status glyph before the value.
 	Glyph bool
+	// Emphasize colours and bolds the whole row, including its label. It is
+	// reserved for scan-first status rows; ordinary metadata stays quiet.
+	Emphasize bool
 }
 
 // Panel is a titled group of fields.
 type Panel struct {
 	Title  string
 	Fields []Field
+	// Status colours the panel title and border. A glyph inside the panel still
+	// carries the meaning when colour is unavailable.
+	Status theme.Status
 	// Note is a dimmed line under the fields.
 	Note string
 }
@@ -107,15 +113,29 @@ func renderPanel(t *theme.Theme, p Panel, width int) string {
 	labelWidth = min(labelWidth, max(inner/3, 8))
 
 	var b strings.Builder
-	b.WriteString(t.PanelTitle.Render(p.Title))
+	panelStyle := t.Panel
+	titleStyle := t.PanelTitle
+	if p.Status != theme.StatusUnknown {
+		titleStyle = t.Style(p.Status).Bold(true)
+		if t.Caps.Color {
+			panelStyle = panelStyle.BorderForeground(t.Style(p.Status).GetForeground())
+		}
+	}
+	b.WriteString(titleStyle.Render(p.Title))
 	for _, f := range p.Fields {
 		b.WriteString("\n")
-		label := t.Muted.Render(padRight(f.Label, labelWidth))
+		fieldStyle := t.Style(f.Status)
+		labelStyle := t.Muted
+		if f.Emphasize {
+			fieldStyle = fieldStyle.Bold(true)
+			labelStyle = fieldStyle
+		}
+		label := labelStyle.Render(padRight(f.Label, labelWidth))
 		value := f.Value
 		if f.Glyph {
 			value = t.Glyph(f.Status) + " " + value
 		}
-		value = t.Style(f.Status).Render(truncateTo(value, max(inner-labelWidth-2, 4)))
+		value = fieldStyle.Render(truncateTo(value, max(inner-labelWidth-2, 4)))
 		b.WriteString(label + "  " + value)
 	}
 	if p.Note != "" {
@@ -123,7 +143,7 @@ func renderPanel(t *theme.Theme, p Panel, width int) string {
 		// half an explanation is worse than none.
 		b.WriteString("\n" + t.Muted.Width(inner).Render(p.Note))
 	}
-	return t.Panel.Width(width).Render(b.String())
+	return panelStyle.Width(width).Render(b.String())
 }
 
 func clipHeight(s string, height int) string {

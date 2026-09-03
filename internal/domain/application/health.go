@@ -165,7 +165,8 @@ func classify(s state) (Health, string) {
 		// bug in Correlux rather than a state of the cluster.
 		summary := replicaSummary(s.ready, s.desired)
 		if s.ready >= s.desired && s.notReady > 0 {
-			summary += ", " + itoa(int(s.notReady)) + notReadyPhrase(s.notReady)
+			summary = itoa(int(s.ready)) + " of " + itoa(int(s.desired)) + " desired replicas ready; " +
+				itoa(int(s.notReady)) + " rollout" + notReadyPhrase(s.notReady)
 		}
 		return Degraded, summary + note
 	default:
