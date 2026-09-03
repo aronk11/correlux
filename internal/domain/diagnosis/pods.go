@@ -33,13 +33,21 @@ func waitingFor(reasons ...string) func(*application.Container) bool {
 	}
 }
 
+// restarting includes the short terminated window between two backoff waits.
+// A crash loop alternates between terminated and CrashLoopBackOff; diagnosing
+// only the latter makes the answer disappear depending on refresh timing.
+func restarting(c *application.Container) bool {
+	return c.State == "waiting" && c.Reason == "CrashLoopBackOff" ||
+		c.State == "terminated" && c.Restarts > 0 && c.ExitCode != 0
+}
+
 // crashLoop explains containers that keep restarting.
 //
 // The pod's own status only says "CrashLoopBackOff", which is a symptom: the
 // container is waiting to be restarted. What explains it is how the *previous*
 // run ended, which is why the last termination state is collected at all.
 func crashLoop(in *Input) []Diagnosis {
-	hits := findContainers(&in.App, waitingFor("CrashLoopBackOff"))
+	hits := findContainers(&in.App, restarting)
 	if len(hits) == 0 {
 		return nil
 	}
@@ -103,6 +111,17 @@ func crashCause(hits []affected) (cause string, confidence Confidence, unknown s
 		}
 	}
 	for _, h := range hits {
+		if h.container.ExitCode > 0 {
+			cause := "the container exits with code " + strconv.Itoa(int(h.container.ExitCode)) +
+				" shortly after starting"
+			if h.container.Reason != "" && h.container.Reason != "Error" {
+				cause += " (" + h.container.Reason + ")"
+			}
+			return cause, High,
+				"Kubernetes does not know why the process exited with this code; that is determined by the application, not the cluster."
+		}
+	}
+	for _, h := range hits {
 		if h.container.LastReason == "Completed" || h.container.LastExitCode == 0 && h.container.LastReason != "" {
 			return "the container exits successfully and is restarted; a long-running workload's process must not return", High, ""
 		}
@@ -119,6 +138,11 @@ func crashChainTail(hits []affected) string {
 	for _, h := range hits {
 		if h.container.LastExitCode != 0 {
 			return "exit " + strconv.Itoa(int(h.container.LastExitCode))
+		}
+	}
+	for _, h := range hits {
+		if h.container.ExitCode != 0 {
+			return "exit " + strconv.Itoa(int(h.container.ExitCode))
 		}
 	}
 	return "restarting"
@@ -143,6 +167,12 @@ func lastRun(c *application.Container) string {
 		return detail
 	case c.LastReason != "":
 		return "last ended: " + c.LastReason
+	case c.State == "terminated" && c.ExitCode != 0:
+		detail := "exited with code " + strconv.Itoa(int(c.ExitCode))
+		if c.Reason != "" && c.Reason != "Error" {
+			detail += ", reason " + c.Reason
+		}
+		return detail
 	default:
 		return "is waiting to restart"
 	}
@@ -159,21 +189,15 @@ func imagePull(in *Input) []Diagnosis {
 	first := hits[0]
 	cause, confidence, unknown := imageCause(hits)
 	d := Diagnosis{
-		Rule:       "pod.imagepull",
-		Severity:   Critical,
-		Subject:    podRef(first.pod),
-		Problem:    podsPhrase(countPods(hits)) + " cannot pull " + agree(countPods(hits), "its", "their") + " image",
-		Cause:      cause,
-		Unknown:    unknown,
-		Confidence: confidence,
-		Chain:      chain(&in.App, "Pods", first.container.Reason),
-		Suggestions: []Suggestion{
-			{Text: "Check the image name and tag in the pod template"},
-			{
-				Text:    "Check that the namespace has a pull secret for this registry",
-				Command: "kubectl get serviceaccount -n " + first.pod.Namespace + " default -o yaml",
-			},
-		},
+		Rule:        "pod.imagepull",
+		Severity:    Critical,
+		Subject:     podRef(first.pod),
+		Problem:     podsPhrase(countPods(hits)) + " cannot pull " + agree(countPods(hits), "its", "their") + " image",
+		Cause:       cause,
+		Unknown:     unknown,
+		Confidence:  confidence,
+		Chain:       chain(&in.App, "Pods", first.container.Reason),
+		Suggestions: imageSuggestions(first, cause),
 	}
 	for _, h := range limit(hits) {
 		detail := containerOf(h.container) + " wants " + h.container.Image
@@ -187,6 +211,20 @@ func imagePull(in *Input) []Diagnosis {
 		d.Evidence = append(d.Evidence, eventEvidence(&quoted[i]))
 	}
 	return []Diagnosis{d}
+}
+
+func imageSuggestions(first affected, cause string) []Suggestion {
+	out := []Suggestion{{
+		Text:    "Check the image name and tag in the pod template",
+		Command: describeCommand("pod", first.pod.Namespace, first.pod.Name),
+	}}
+	if strings.Contains(cause, "credentials") || cause == "" {
+		out = append(out, Suggestion{
+			Text:    "Check that the namespace has a pull secret for this registry",
+			Command: "kubectl get serviceaccount -n " + first.pod.Namespace + " default -o yaml",
+		})
+	}
+	return out
 }
 
 // imageCause reads the kubelet's message. The three failures below are the ones
@@ -258,7 +296,7 @@ func containerConfig(in *Input) []Diagnosis {
 // problem and disappears from a dashboard that only looks at readiness.
 func outOfMemory(in *Input) []Diagnosis {
 	hits := findContainers(&in.App, func(c *application.Container) bool {
-		return c.OOMKilled && (c.State != "waiting" || c.Reason != "CrashLoopBackOff")
+		return c.OOMKilled && !restarting(c)
 	})
 	if len(hits) == 0 {
 		return nil

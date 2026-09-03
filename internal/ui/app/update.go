@@ -347,10 +347,17 @@ func (m *Model) autoReload() []tea.Cmd {
 		}
 		return []tea.Cmd{m.loadTable()}
 	case viewOverview:
-		if m.clusterLoading {
-			return nil
+		var cmds []tea.Cmd
+		if !m.clusterLoading {
+			cmds = append(cmds, m.probeCluster())
 		}
-		return []tea.Cmd{m.probeCluster()}
+		if !m.appsLoading {
+			cmds = append(cmds, m.loadApplications())
+		}
+		if !m.evidenceLoading {
+			cmds = append(cmds, m.loadEvidence())
+		}
+		return cmds
 	}
 	return nil
 }

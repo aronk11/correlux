@@ -104,8 +104,18 @@ labelled or configured first, and `Enter` opens an application to show the
 workloads, pods and network it is actually made of
 ([ADR 16](docs/adr/0016-application-inference.md)).
 
-Health comes from what the cluster reports — replica counts and pod states —
-and stops there. *Why* something is broken is the next section's question.
+Health starts with what the cluster reports in replica counts and pod states.
+After evidence has been loaded, delivery failures such as a Service with no
+ready endpoints are folded into the displayed health as well. *Why* something
+is broken is the next section's question.
+
+The command palette action **Show cluster problems and session details** opens
+a bounded triage overview. It combines unhealthy applications, standalone node
+conditions and recent problem events in the active scope. This also catches
+operator and custom-resource failures generically—for example cert-manager's
+`IssuerNotFound` event—even when a controller labels such an event `Normal`.
+The scan is capped, respects RBAC, and never attempts to list every custom
+resource installed in the cluster.
 
 ### Why is it broken?
 
@@ -137,8 +147,9 @@ plausible cause. Every finding carries the evidence it rests on, attributed to
 the object that stated it.
 
 The evidence — events, endpoints, node conditions, volume claims — is fetched
-when you open an application or ask the question, never on the dashboard's
-timer ([ADR 18](docs/adr/0018-evidence-on-demand.md)).
+when you open an application, ask the question, or explicitly open the cluster
+problem overview; never on the dashboard's timer
+([ADR 18](docs/adr/0018-evidence-on-demand.md)).
 
 ### From an application to the object, and back
 
