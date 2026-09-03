@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 func TestOverviewAggregatesApplicationsNodesAndGenericWarningEvents(t *testing.T) {
@@ -16,7 +17,7 @@ func TestOverviewAggregatesApplicationsNodesAndGenericWarningEvents(t *testing.T
 			Ready: false,
 		}},
 		Events: []application.Event{{
-			Type: "Normal", Reason: "IssuerNotFound", Message: "issuer refused the request",
+			Type: "Warning", Reason: "ReconcileDelayed", Message: "issuer refused the request",
 			About: application.ObjectRef{Kind: "Certificate", Name: "api-tls"},
 		}},
 	})
@@ -25,6 +26,7 @@ func TestOverviewAggregatesApplicationsNodesAndGenericWarningEvents(t *testing.T
 	out := plainView(m)
 	for _, want := range []string{
 		"Cluster problems",
+		"2 critical, 1 warning",
 		"Node/worker-1",
 		"not ready",
 		"payments",
@@ -35,6 +37,16 @@ func TestOverviewAggregatesApplicationsNodesAndGenericWarningEvents(t *testing.T
 		if !strings.Contains(out, want) {
 			t.Errorf("problem overview must contain %q:\n%s", want, out)
 		}
+	}
+	if strings.Index(out, "default/payments") > strings.Index(out, "Certificate/api-tls") {
+		t.Errorf("critical findings must sort before warnings:\n%s", out)
+	}
+}
+
+func TestExplicitFailureReasonsAreCriticalEvenOnNormalEvents(t *testing.T) {
+	status, problem := problemEventStatus(&application.Event{Type: "Normal", Reason: "IssuerNotFound"})
+	if !problem || status != theme.StatusCritical {
+		t.Errorf("IssuerNotFound = %v/%v, want critical problem", status, problem)
 	}
 }
 

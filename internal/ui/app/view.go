@@ -638,13 +638,10 @@ func (m *Model) problemsPanel() screens.Panel {
 		return panel
 	}
 
-	const problemLimit = 8
-	total := 0
+	var problems []screens.Field
 	add := func(field screens.Field) {
-		total++
-		if len(panel.Fields) < problemLimit {
-			panel.Fields = append(panel.Fields, field)
-		}
+		field.Emphasize = true
+		problems = append(problems, field)
 	}
 
 	if m.apps.State() == async.Failed {
@@ -658,7 +655,7 @@ func (m *Model) problemsPanel() screens.Panel {
 			Label: "Evidence", Value: "unavailable — " + shortError(m.evidence.Err()),
 			Status: theme.StatusWarning, Glyph: true,
 		})
-		return panel
+		return finishProblemsPanel(panel, problems)
 	}
 
 	evidence := m.evidence.Get()
@@ -703,7 +700,8 @@ func (m *Model) problemsPanel() screens.Panel {
 	seen := map[string]bool{}
 	for i := range events {
 		e := &events[i]
-		if !problemEvent(e) || applicationEventKind(e.About.Kind) {
+		status, problem := problemEventStatus(e)
+		if !problem || applicationEventKind(e.About.Kind) {
 			continue
 		}
 		key := e.About.Kind + "/" + e.About.Name + "/" + e.Reason + "/" + e.Message
@@ -713,36 +711,73 @@ func (m *Model) problemsPanel() screens.Panel {
 		seen[key] = true
 		add(screens.Field{
 			Label: e.About.Kind + "/" + e.About.Name,
-			Value: e.Reason + ": " + e.Message, Status: theme.StatusWarning, Glyph: true,
+			Value: e.Reason + ": " + e.Message, Status: status, Glyph: true,
 		})
 		if len(seen) >= 5 {
 			break
 		}
 	}
 
-	if len(panel.Fields) == 0 {
+	return finishProblemsPanel(panel, problems)
+}
+
+func finishProblemsPanel(panel screens.Panel, problems []screens.Field) screens.Panel {
+	if len(problems) == 0 {
+		panel.Status = theme.StatusHealthy
 		panel.Fields = []screens.Field{{
-			Label: "Status", Value: "no known problems", Status: theme.StatusHealthy, Glyph: true,
+			Label: "Status", Value: "no known problems", Status: theme.StatusHealthy, Glyph: true, Emphasize: true,
 		}}
+		panel.Note = "Bounded scan of application state, nodes, endpoints and recent problem events; respects the active scope and RBAC."
+		return panel
 	}
+
+	sort.SliceStable(problems, func(i, j int) bool {
+		if problems[i].Status != problems[j].Status {
+			return problems[i].Status > problems[j].Status
+		}
+		return problems[i].Label < problems[j].Label
+	})
+	panel.Status = problems[0].Status
+	critical, warnings := 0, 0
+	for _, problem := range problems {
+		switch problem.Status {
+		case theme.StatusCritical:
+			critical++
+		case theme.StatusWarning:
+			warnings++
+		}
+	}
+	parts := make([]string, 0, 2)
+	if critical > 0 {
+		parts = append(parts, itoa(critical)+" critical")
+	}
+	if warnings > 0 {
+		parts = append(parts, itoa(warnings)+" warning")
+	}
+	panel.Fields = append(panel.Fields, screens.Field{
+		Label: "Status", Value: strings.Join(parts, ", "), Status: panel.Status, Glyph: true, Emphasize: true,
+	})
+	const problemLimit = 7 // plus the summary row above
+	shown := min(len(problems), problemLimit)
+	panel.Fields = append(panel.Fields, problems[:shown]...)
 	panel.Note = "Bounded scan of application state, nodes, endpoints and recent problem events; respects the active scope and RBAC."
-	if total > len(panel.Fields) {
-		panel.Note = itoa(total-len(panel.Fields)) + " more problem(s). " + panel.Note
+	if len(problems) > shown {
+		panel.Note = itoa(len(problems)-shown) + " more problem(s). " + panel.Note
 	}
 	return panel
 }
 
-func problemEvent(e *application.Event) bool {
-	if e.Type == "Warning" {
-		return true
-	}
+func problemEventStatus(e *application.Event) (theme.Status, bool) {
 	reason := strings.ToLower(e.Reason)
 	for _, signal := range []string{"failed", "error", "unhealthy", "backoff", "notfound"} {
 		if strings.Contains(reason, signal) {
-			return true
+			return theme.StatusCritical, true
 		}
 	}
-	return false
+	if e.Type == "Warning" {
+		return theme.StatusWarning, true
+	}
+	return theme.StatusUnknown, false
 }
 
 func applicationEventKind(kind string) bool {
