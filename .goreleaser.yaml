@@ -34,6 +34,49 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Homebrew is the first install path people try, so the cask is written by the
+# same run that builds the archives it points at: a formula naming a release
+# that does not exist yet is the classic way to ship a broken `brew install`.
+#
+# A cask rather than a formula because GoReleaser deprecated `brews`, and
+# because this is a pre-built binary rather than something Homebrew compiles.
+# Casks are macOS-only, which is why the README keeps the release archive and
+# `go install` as first-class paths for Linux.
+homebrew_casks:
+  - name: correlux
+    binaries: [correlux]
+    repository:
+      owner: aronk11
+      name: homebrew-tap
+      branch: main
+      # A token scoped to the tap repository alone, set as a secret on this
+      # repository. It is deliberately not the workflow's own GITHUB_TOKEN:
+      # that one cannot write to another repository.
+      # `index` rather than `.Env.X`: a missing key is an empty string here
+      # and a hard template failure there, and a release must not die because
+      # a variable was never set.
+      token: '{{ index .Env "HOMEBREW_TAP_TOKEN" }}'
+    # A release must not fail because nobody has configured the tap token yet,
+    # and a prerelease must never overwrite the cask people install from.
+    skip_upload: '{{ if index .Env "HOMEBREW_TAP_TOKEN" }}auto{{ else }}true{{ end }}'
+    directory: Casks
+    homepage: "https://github.com/aronk11/correlux"
+    description: "Fleet-first Kubernetes troubleshooting from your terminal"
+    license: "Apache-2.0"
+    commit_author:
+      name: aronk11
+      email: dev@aron.gg
+    commit_msg_template: "chore: correlux {{ .Tag }}"
+    # The binaries are not notarised with an Apple developer certificate, so
+    # macOS would quarantine them and refuse the first run. Removing the
+    # attribute at install time is what every unsigned cask does.
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/correlux"]
+          end
+
 changelog:
   # Built from the commit messages, which is where the information is: the
   # groups below match Conventional Commit prefixes. Using git rather than the
