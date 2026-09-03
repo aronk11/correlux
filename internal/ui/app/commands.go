@@ -82,6 +82,10 @@ type resizeSettledMsg struct{}
 
 type messageExpiredMsg struct{ seq uint64 }
 
+// busyAdmittedMsg fires when a reload has run long enough for the header to
+// say so.
+type busyAdmittedMsg struct{ seq uint64 }
+
 // probeCluster starts a connectivity probe for the active context, cancelling
 // any probe still in flight for a context the user has left.
 func (m *Model) probeCluster() tea.Cmd {
@@ -318,6 +322,16 @@ func scheduleAutoRefresh(seq uint64, every time.Duration) tea.Cmd {
 // scheduleResize asks to be woken once the resize burst has settled.
 func scheduleResize(after time.Duration) tea.Cmd {
 	return tea.Tick(after, func(time.Time) tea.Msg { return resizeSettledMsg{} })
+}
+
+// admitBusy lets the header say it is reloading, once the reload has gone on
+// long enough to be worth saying. A newer burst supersedes the message, so a
+// reload that finished before the grace period never turns the indicator on.
+func admitBusy(seq uint64, after time.Duration) tea.Cmd {
+	if after <= 0 {
+		return func() tea.Msg { return busyAdmittedMsg{seq: seq} }
+	}
+	return tea.Tick(after, func(time.Time) tea.Msg { return busyAdmittedMsg{seq: seq} })
 }
 
 // expireMessage clears a transient status message after a delay, unless a newer

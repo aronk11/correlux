@@ -10,6 +10,7 @@ import (
 
 	"github.com/aronk11/correlux/internal/config"
 	"github.com/aronk11/correlux/internal/domain/application"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	"github.com/aronk11/correlux/internal/kube/resources"
 )
 
@@ -35,7 +36,7 @@ func TestAutoRefreshIsOffUntilItIsAskedFor(t *testing.T) {
 	if !m.autoRefresh {
 		t.Fatal("the toggle must turn it on")
 	}
-	if out := view(m); !strings.Contains(out, "auto 10s") {
+	if out := view(m); !strings.Contains(out, "auto "+config.DefaultRefreshInterval.String()) {
 		t.Errorf("a screen that changes on its own must say so:\n%s", out)
 	}
 
@@ -206,5 +207,67 @@ func TestRefreshingATableKeepsTheCursorOnItsRow(t *testing.T) {
 	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: podTablePage("api-2", "api-3", "api-4")})
 	if got := m.cursorRowKey(); got != "default/api-3" {
 		t.Errorf("the cursor is on %q, want the row it was on", got)
+	}
+}
+
+// TestTheRefreshIndicatorLastsExactlyAsLongAsTheRefresh is the honesty rule for
+// the header.
+//
+// The notice it replaced sat on the status bar for five seconds after every
+// refresh, whatever the cluster actually took — hiding every key hint behind
+// it, and telling somebody whose cluster answered instantly that refreshing
+// takes five seconds.
+func TestTheRefreshIndicatorLastsExactlyAsLongAsTheRefresh(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
+	if out := plainView(m); strings.Contains(out, "refreshing") {
+		t.Fatalf("nothing is being refreshed:\n%s", out)
+	}
+
+	press(t, m, "ctrl+r")
+	if out := plainView(m); !strings.Contains(out, "refreshing") {
+		t.Errorf("a key the user pressed must be acknowledged at once:\n%s", out)
+	}
+
+	// The answers land — all of them: a refresh re-probes the cluster and
+	// reloads the namespaces as well as the dashboard, and it is still running
+	// while any of the three is outstanding.
+	m.Update(clusterProbedMsg{gen: m.cluster.Generation(), info: kubeclient.ClusterInfo{
+		State: kubeclient.ConnOK, ServerVersion: "v1.31.2",
+	}})
+	m.Update(namespacesLoadedMsg{gen: m.namespaces.Generation(), list: kubeclient.NamespaceList{}})
+	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
+
+	// The word goes with them. No timer holds it on screen afterwards.
+	if out := plainView(m); strings.Contains(out, "refreshing") {
+		t.Errorf("the indicator outlived the work it was reporting:\n%s", out)
+	}
+
+	// And the hints are never hidden behind it, which is what the old notice
+	// did for five seconds at a time.
+	press(t, m, "ctrl+r")
+	if out := plainView(m); !strings.Contains(out, "Help") {
+		t.Errorf("refreshing must not blank the key hints:\n%s", out)
+	}
+}
+
+// TestATimedReloadKeepsQuietUnlessItIsSlow: at a two-second interval a header
+// that blinks on every tick of a cluster answering in milliseconds reports
+// nothing except that something is flashing.
+func TestATimedReloadKeepsQuietUnlessItIsSlow(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
+
+	press(t, m, "ctrl+f")
+	tick(m)
+	if out := plainView(m); strings.Contains(out, "refreshing") {
+		t.Errorf("the timer must not announce itself before the grace period:\n%s", out)
+	}
+
+	// Still running once the grace period is up: now it is worth saying, or
+	// the screen has simply gone quiet with no explanation.
+	m.Update(busyAdmittedMsg{seq: m.busySeq})
+	if out := plainView(m); !strings.Contains(out, "refreshing") {
+		t.Errorf("a slow reload must say so:\n%s", out)
 	}
 }

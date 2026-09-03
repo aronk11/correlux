@@ -21,6 +21,9 @@ type Glyphs struct {
 	Critical string
 	Unknown  string
 	Pending  string
+	// Busy marks work in flight. It is drawn beside a word, never alone: a
+	// symbol on its own says something is happening without saying what.
+	Busy     string
 	Bullet   string
 	Selected string
 	Arrow    string
@@ -39,6 +42,7 @@ var unicodeGlyphs = Glyphs{
 	Critical: "✖",
 	Unknown:  "?",
 	Pending:  "…",
+	Busy:     "⟳",
 	Bullet:   "•",
 	Selected: "▸",
 	Arrow:    "→",
@@ -55,6 +59,7 @@ var asciiGlyphs = Glyphs{
 	Critical: "X",
 	Unknown:  "?",
 	Pending:  "..",
+	Busy:     "~",
 	Bullet:   "*",
 	Selected: ">",
 	Arrow:    "->",

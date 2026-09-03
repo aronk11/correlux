@@ -14,6 +14,13 @@ import (
 // noticeTTL is how long a transient status message stays on screen.
 const noticeTTL = 5 * time.Second
 
+// busyGrace is how long a timed reload may run before the header admits to it.
+//
+// Below this the reload is over before the eye has settled on the word, and
+// all the indicator conveys is that something blinked. Above it the screen has
+// gone quiet for long enough that silence would read as a hang.
+const busyGrace = 400 * time.Millisecond
+
 // Update is the single place where state changes. It must never block: any
 // work that can take time is returned as a command.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -175,6 +182,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.messageStatus = theme.StatusUnknown
 		}
 		return m, nil
+
+	case busyAdmittedMsg:
+		// Only if the burst this was scheduled for is the current one and is
+		// still running. A reload that landed inside the grace period leaves
+		// the header alone entirely.
+		if msg.seq == m.busySeq && m.busy() {
+			m.busyShown = true
+		}
+		return m, nil
 	}
 	return m, nil
 }
@@ -284,7 +300,12 @@ func (m *Model) handleAutoRefreshTick(msg autoRefreshTickMsg) tea.Cmd {
 	}
 	cmds := []tea.Cmd{scheduleAutoRefresh(m.refreshSeq, m.autoRefreshDelay())}
 	if m.overlay == overlayNone {
-		cmds = append(cmds, m.autoReload()...)
+		if reload := m.autoReload(); len(reload) > 0 {
+			// The timer announces itself only if it turns out to be slow, so a
+			// cluster that answers quickly leaves the header still.
+			cmds = append(cmds, m.beginBusy(false))
+			cmds = append(cmds, reload...)
+		}
 	}
 	return tea.Batch(cmds...)
 }
@@ -1022,3 +1043,33 @@ func connectionNotice(info kubeclient.ClusterInfo) string {
 }
 
 func shortError(err error) string { return kubeclient.FriendlyError(err) }
+
+// busy reports whether anything the screen is showing is being reloaded.
+func (m *Model) busy() bool {
+	return m.appsLoading || m.evidenceLoading || m.objectLoading ||
+		m.tableLoading || m.clusterLoading || m.usageLoading
+}
+
+// beginBusy starts a burst of reloading and decides when the header may say
+// so: at once for something the user asked for, after a grace period for the
+// timer, which is the difference between acknowledging a keystroke and
+// narrating a background job.
+func (m *Model) beginBusy(announce bool) tea.Cmd {
+	m.busySeq++
+	m.busyShown = announce
+	if announce {
+		return nil
+	}
+	return admitBusy(m.busySeq, busyGrace)
+}
+
+// busyLabel is what the header says while a reload is in flight, and nothing
+// at all once it has landed. There is no timer holding the word on screen
+// after the work is done: an indicator that outlives its work is a claim that
+// the work took longer than it did.
+func (m *Model) busyLabel() string {
+	if !m.busyShown || !m.busy() {
+		return ""
+	}
+	return "refreshing"
+}

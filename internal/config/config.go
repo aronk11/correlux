@@ -88,9 +88,17 @@ type Refresh struct {
 
 // Refresh interval bounds.
 const (
-	// DefaultRefreshInterval is slow enough to be unnoticeable on the API
-	// server and fast enough to watch a rollout.
-	DefaultRefreshInterval = 10 * time.Second
+	// DefaultRefreshInterval is fast enough that the screen keeps up with a
+	// rollout as it happens rather than reporting it afterwards, which is the
+	// whole point of watching one.
+	//
+	// It costs more than the ten seconds it used to be, and deliberately: a
+	// timed reload only refetches what the current screen shows, it never
+	// stacks a second request on an unanswered one, it stops entirely while an
+	// overlay is open, and it backs off exponentially once a cluster starts
+	// failing. Somebody who wants it cheaper sets `refresh.every`, and
+	// somebody who wants it off presses the key.
+	DefaultRefreshInterval = 2 * time.Second
 	// MinRefreshInterval stops a mistyped config from turning Correlux into a
 	// load generator.
 	MinRefreshInterval = 2 * time.Second
