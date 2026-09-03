@@ -57,6 +57,9 @@ func serviceWithoutEndpoints(in *Input) []Diagnosis {
 		case ready == 0:
 			cause = "every pod the selector matches is not ready, so none of them are published"
 			confidence = High
+			// Pod readiness is the root cause; the empty service is its impact.
+			// Keep the cause before the consequence in the WHY view.
+			chainTail = "0 ready endpoints"
 		default:
 			cause = "pods are ready but no address is published for this service"
 			confidence = Low
@@ -64,14 +67,15 @@ func serviceWithoutEndpoints(in *Input) []Diagnosis {
 		}
 
 		d := Diagnosis{
-			Rule:       "service.noendpoints",
-			Severity:   Critical,
-			Subject:    application.ObjectRef{Kind: "Service", Name: svc.Name, UID: svc.UID},
-			Problem:    "Service/" + svc.Name + " has no ready endpoints, so nothing it fronts can be reached",
-			Cause:      cause,
-			Unknown:    unknown,
-			Confidence: confidence,
-			Chain:      chain(&in.App, "Service/"+svc.Name, chainTail),
+			Rule:        "service.noendpoints",
+			Severity:    Critical,
+			Subject:     application.ObjectRef{Kind: "Service", Name: svc.Name, UID: svc.UID},
+			Problem:     "Service/" + svc.Name + " has no ready endpoints, so nothing it fronts can be reached",
+			Cause:       cause,
+			Unknown:     unknown,
+			Confidence:  confidence,
+			Consequence: len(selected) > 0 && ready == 0,
+			Chain:       chain(&in.App, "Service/"+svc.Name, chainTail),
 			Suggestions: []Suggestion{
 				{Text: "Compare the service selector with the labels on the pods",
 					Command: describeCommand("service", svc.Namespace, svc.Name)},

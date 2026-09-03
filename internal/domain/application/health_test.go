@@ -75,7 +75,7 @@ func TestAWorkloadThatLooksCompleteButHasAnUnreadyPodSaysSo(t *testing.T) {
 	if a.Health != Degraded {
 		t.Errorf("a pod that is not ready is a degraded application, got %v", a.Health)
 	}
-	if a.Summary != "2 of 2 pods ready, 1 pod not ready" {
+	if a.Summary != "2 of 2 desired replicas ready; 1 rollout pod not ready" {
 		t.Errorf("summary = %q, want the contradiction stated", a.Summary)
 	}
 }
