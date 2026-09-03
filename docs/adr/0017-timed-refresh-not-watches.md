@@ -7,13 +7,13 @@
 
 A dashboard that shows a cluster's health has to be able to keep up with it:
 watching a rollout recover by pressing refresh every few seconds is exactly the
-workflow kubeui exists to replace.
+workflow Correlux exists to replace.
 
 The obvious answer is watches. `client-go` informers deliver changes as they
 happen, which is what every controller in a cluster does. For a long-lived
 process that reconciles everything, informers are unambiguously right.
 
-kubeui is not that process. It shows one namespace at a time, for minutes, and
+Correlux is not that process. It shows one namespace at a time, for minutes, and
 its scope changes whenever the user presses a key. An informer per kind per
 scope means a cache of every object in that scope in memory, a resync storm on
 every scope change, and a permanent open connection per kind to somebody's
@@ -23,7 +23,7 @@ that is discarded when the user switches namespace.
 
 ## Decision
 
-kubeui reloads on a timer, and the timer is off until the user turns it on
+Correlux reloads on a timer, and the timer is off until the user turns it on
 (`Ctrl+F`, the command palette, or `refresh.auto` in the config file).
 
 The interval is configurable, defaults to ten seconds and is floored at two.
@@ -51,11 +51,11 @@ has to admit it.
 
 ## Consequences
 
-- kubeui makes no requests at all when nobody is looking at it. Against a
+- Correlux makes no requests at all when nobody is looking at it. Against a
   production API server, that is the difference between a tool that is welcome
   and one that is banned.
 - Updates lag by up to one interval. For a human watching a rollout that is
-  invisible; for a controller it would be unacceptable, and kubeui is not one.
+  invisible; for a controller it would be unacceptable, and Correlux is not one.
 - The implementation is a `tea.Tick` and two booleans rather than an informer
   factory, which keeps the concurrency story small enough to reason about.
 - Watches are not ruled out. If a future screen genuinely needs sub-second

@@ -51,7 +51,7 @@ func TestUsageWithoutMetricsStillAnswers(t *testing.T) {
 
 	out := frame(m)
 	// Whether the metrics API is installed is a property of the cluster, not
-	// of kubeui; both answers are correct and each has its own shape.
+	// of Correlux; both answers are correct and each has its own shape.
 	if strings.Contains(out, "no live usage") {
 		if strings.Contains(out, "CPU USED") {
 			t.Errorf("without samples there must be no used column to misread:\n%s", out)
@@ -78,7 +78,7 @@ func TestUsageShowsANodeThatIsNotReady(t *testing.T) {
 	if !strings.Contains(out, "NotReady") && !strings.Contains(out, "cordoned") {
 		t.Skipf("this cluster has no unhealthy node to show:\n%s", out)
 	}
-	if !strings.Contains(out, "kubeui-load-node") {
+	if !strings.Contains(out, "correlux-load-node") {
 		t.Errorf("the node that is not well must be named:\n%s", out)
 	}
 }

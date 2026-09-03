@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/kube/resources"
 )
 
 // typeFilter opens the filter and types into it.

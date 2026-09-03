@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 func objectData() ObjectData {

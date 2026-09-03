@@ -1,8 +1,8 @@
-# kubeui — Product & Engineering Specification
+# Correlux — Product & Engineering Specification
 
 ## 1. Product
 
-kubeui is a modern, terminal-native Kubernetes operations UI for macOS, Linux
+Correlux is a modern, terminal-native Kubernetes operations UI for macOS, Linux
 and Windows.
 
 It is inspired by the usefulness of tools like K9s, and it is not a K9s clone.
@@ -11,7 +11,7 @@ The central philosophy is:
 > Kubernetes should be presented around applications, health, relationships and
 > problems — not around raw Kubernetes resource types.
 
-Opening kubeui must immediately answer:
+Opening Correlux must immediately answer:
 
 - What applications exist?
 - Which are healthy?
@@ -69,7 +69,7 @@ Users drill down into the underlying resources when they need to.
 ## 4. Main screen
 
 ```
-┌─ kubeui ─────────────────────────────────────────────────────────┐
+┌─ correlux ───────────────────────────────────────────────────────┐
 │ 🔴 prod-eu / payments                                  CPU 42%   │
 ├──────────────────────────────────────────────────────────────────┤
 │ APPLICATIONS                                                     │
@@ -185,7 +185,7 @@ is not a graph visualisation.
 ## 13. Change history
 
 `Ctrl+H` shows recent changes derived from Kubernetes events and observed state
-transitions. kubeui must clearly distinguish **observed by kubeui** from
+transitions. Correlux must clearly distinguish **observed by Correlux** from
 **Kubernetes event**, and must not claim a complete audit log that Kubernetes
 does not provide. V1 keeps an in-memory session history; the architecture allows
 persistence later.
@@ -206,9 +206,9 @@ pods after a deployment.
 
 ## 16. Exec
 
-`Ctrl+T` opens an interactive shell. Before a production shell, kubeui shows the
-context, namespace, pod and container and requires confirmation. The shell
-inherits the kubeui context, namespace and target explicitly — never the
+`Ctrl+T` opens an interactive shell. Before a production shell, Correlux shows
+the context, namespace, pod and container and requires confirmation. The shell
+inherits the Correlux context, namespace and target explicitly — never the
 ambient external kubectl context.
 
 ## 17. Safe destructive actions
@@ -230,7 +230,7 @@ preview → apply, with a plan shown before applying.
 
 ## 20. Performance architecture
 
-kubeui must stay responsive on large clusters.
+Correlux must stay responsive on large clusters.
 
 - Do not load the whole cluster into memory at startup.
 - Do not make the first frame depend on listing everything.
@@ -264,9 +264,9 @@ If it is not, say so plainly and keep working.
 
 ## 24. Configuration
 
-Minimal, in an OS-appropriate location (`~/.config/kubeui/config.yaml`,
-`%APPDATA%\kubeui\config.yaml`): theme, dangerous-action policy, startup context
-and namespace, scopes, keybindings.
+Minimal, in an OS-appropriate location (`~/.config/correlux/config.yaml`,
+`%APPDATA%\correlux\config.yaml`): theme, dangerous-action policy, startup
+context and namespace, scopes, keybindings.
 
 ## 25. Themes
 
@@ -281,12 +281,12 @@ navigation, configurable keybindings, minimal animation.
 ## 27. CLI
 
 ```
-kubeui
-kubeui --context prod-eu
-kubeui --namespace payments
-kubeui --all-namespaces
-kubeui version
-kubeui doctor
+correlux
+correlux --context prod-eu
+correlux --namespace payments
+correlux --all-namespaces
+correlux version
+correlux doctor
 ```
 
 `doctor` checks kubeconfig, connectivity, permissions, terminal capabilities,
@@ -301,7 +301,7 @@ maintainability. Do not over-engineer.
 ## 29. Project structure
 
 ```
-cmd/kubeui/
+cmd/correlux/
 internal/
   kube/{client,discovery,cache,watch}
   domain/{application,topology,diagnosis,history,scope}
@@ -328,9 +328,9 @@ cloud management platform.
 ## 32. Definition of success
 
 An engineer can go from *see broken application* → *open it* → *press WHY* →
-*understand the root cause* → *inspect logs and events* → *perform a safe action*
-→ *verify recovery*, without leaving kubeui, and faster than running the
-equivalent `kubectl` sequence by hand.
+*understand the root cause* → *inspect logs and events* → *perform a safe
+action* → *verify recovery*, without leaving Correlux, and faster than running
+the equivalent `kubectl` sequence by hand.
 
 The primary KPI: **time from "something is wrong" to "I know why".**
 

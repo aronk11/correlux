@@ -1,4 +1,4 @@
-// Package palette implements kubeui's command registry and its fuzzy ranking.
+// Package palette implements Correlux's command registry and its fuzzy ranking.
 //
 // The palette is the discoverability layer of the product: every action must be
 // reachable by typing a word a human would think of, not a memorised key. The

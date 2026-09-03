@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aronk11/kubeui/internal/kube/discovery"
-	"github.com/aronk11/kubeui/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/kube/resources"
 )
 
 // deploymentResource resolves the Deployment kind through real discovery, the
@@ -63,7 +63,7 @@ func TestScalingAWorkloadReachesTheCluster(t *testing.T) {
 
 func TestEditingAnObjectSendsTheDocumentBack(t *testing.T) {
 	const name = "app-02"
-	const key = "kubeui.dev/integration-test"
+	const key = "correlux.dev/integration-test"
 
 	// A previous run may have been interrupted before its cleanup; adding the
 	// same key twice would produce a duplicate, which the strict reader
@@ -99,22 +99,22 @@ func TestAnEditWrittenAgainstAStaleVersionIsRefused(t *testing.T) {
 	// somebody else changed the object while it sat in the editor, and losing
 	// their change silently would be worse than being told to try again.
 	const name = "app-03"
-	removeAnnotation(t, name, "kubeui.dev/conflict")
-	removeAnnotation(t, name, "kubeui.dev/second")
+	removeAnnotation(t, name, "correlux.dev/conflict")
+	removeAnnotation(t, name, "correlux.dev/second")
 	stale := getDeployment(t, name)
 
 	// Somebody else's change lands first.
 	current := strings.Replace(stale.YAML,
-		"  annotations:\n", "  annotations:\n    kubeui.dev/conflict: \"1\"\n", 1)
+		"  annotations:\n", "  annotations:\n    correlux.dev/conflict: \"1\"\n", 1)
 	if _, err := shared.factory.UpdateObject(ctx(t), shared.context, deploymentResource(t),
 		seededNamespace, name, []byte(current)); err != nil {
 		t.Fatalf("first update: %v", err)
 	}
-	t.Cleanup(func() { removeAnnotation(t, name, "kubeui.dev/conflict") })
+	t.Cleanup(func() { removeAnnotation(t, name, "correlux.dev/conflict") })
 
 	// Now the edit that was opened before it.
 	edited := strings.Replace(stale.YAML,
-		"  annotations:\n", "  annotations:\n    kubeui.dev/second: \"1\"\n", 1)
+		"  annotations:\n", "  annotations:\n    correlux.dev/second: \"1\"\n", 1)
 	_, err := shared.factory.UpdateObject(ctx(t), shared.context, deploymentResource(t),
 		seededNamespace, name, []byte(edited))
 	if err == nil {

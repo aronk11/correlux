@@ -1,4 +1,4 @@
-# Contributing to kubeui
+# Contributing to Correlux
 
 Thanks for helping. This document is short on purpose; the parts that constrain
 your change are the ones worth reading.
@@ -12,8 +12,8 @@ tests. Nothing else — the tools are pinned and installed on demand into
 ```bash
 go install github.com/go-task/task/v3/cmd/task@latest
 
-git clone https://github.com/aronk11/kubeui
-cd kubeui
+git clone https://github.com/aronk11/correlux
+cd correlux
 task              # list every task
 task check        # vet + lint + race tests: exactly what CI runs on a PR
 task run          # run against your current kubeconfig
@@ -26,7 +26,7 @@ task frames       # render the TUI into .frames/*.txt without a terminal
 task kind:up                                   # local kind cluster
 task kind:seed                                 # a small, realistically broken cluster
 task kind:seed -- --namespaces 50 --pods-per-app 10   # thousands of pods
-task run:kind                                  # kubeui, pointed at it
+task run:kind                                  # correlux, pointed at it
 task test:integration                          # the integration suite
 task bench:cluster                             # the benchmarks
 task kind:down                                 # tear it down
@@ -36,7 +36,7 @@ The seeder never runs a container: pods are attached to a node object with no
 kubelet behind it, so ten thousand of them cost the API server what they would
 in production and cost your laptop nothing
 ([ADR 14](docs/adr/0014-load-testing-with-kind.md)). Everything it creates is
-labelled `app.kubernetes.io/managed-by=kubeui-seed`, and `task kind:reset`
+labelled `app.kubernetes.io/managed-by=correlux-seed`, and `task kind:reset`
 removes exactly that.
 
 ### Signing
@@ -121,5 +121,5 @@ negotiable by writing a new ADR.
 
 ## Reporting bugs
 
-Include: your OS and terminal, `kubeui version`, the output of `kubeui doctor`
-(it contains no secrets), and what you expected to see instead.
+Include: your OS and terminal, `correlux version`, the output of `correlux
+doctor` (it contains no secrets), and what you expected to see instead.

@@ -1,4 +1,4 @@
-// Package components holds kubeui's reusable terminal widgets.
+// Package components holds Correlux's reusable terminal widgets.
 //
 // Components are pure view state: they know how to render themselves and how to
 // react to key presses, and nothing about Kubernetes. Anything that needs the
@@ -11,11 +11,11 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // Input is a single-line text field with the editing keys people expect from a
-// shell prompt. It is intentionally small: kubeui uses it for filtering, not
+// shell prompt. It is intentionally small: Correlux uses it for filtering, not
 // for authoring text.
 type Input struct {
 	value  []rune

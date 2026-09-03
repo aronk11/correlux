@@ -16,7 +16,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 // Live is what only the cluster can say at this instant: its machines, and —
@@ -197,7 +197,7 @@ func Build(live Live, snapshot application.Snapshot, apps []application.Applicat
 
 		node, known := byNode[pod.Node]
 		if !known {
-			// A pod on a node kubeui could not read. Counting it under a node
+			// A pod on a node Correlux could not read. Counting it under a node
 			// that is not on screen would make the totals disagree with the
 			// rows; it stays in the scope totals only.
 			continue

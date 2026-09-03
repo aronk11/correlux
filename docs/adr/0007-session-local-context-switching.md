@@ -1,4 +1,4 @@
-# 7. Switching context inside kubeui never writes to the kubeconfig
+# 7. Switching context inside Correlux never writes to the kubeconfig
 
 - Status: accepted
 - Date: 2026-09-01
@@ -13,10 +13,10 @@ is pointed at staging, and is wrong.
 
 ## Decision
 
-Context and namespace selection inside kubeui is session state. kubeui reads the
-kubeconfig and never writes to it. A REST client is built per context from the
-in-memory merged configuration, and an external `kubectl` keeps pointing exactly
-where the user left it.
+Context and namespace selection inside Correlux is session state. Correlux reads
+the kubeconfig and never writes to it. A REST client is built per context from
+the in-memory merged configuration, and an external `kubectl` keeps pointing
+exactly where the user left it.
 
 The active context is therefore always displayed, and production contexts are
 badged in text as well as colour (ADR 8), because the user can no longer infer
@@ -25,8 +25,8 @@ the target from their shell.
 ## Consequences
 
 - The UI carries the burden of making the target obvious at all times. The
-  header is never allowed to be ambiguous, and shells opened from kubeui
-  (`exec`) inherit the kubeui context explicitly rather than the ambient one.
-- Users who want kubeui to change their shell context must do it themselves;
+  header is never allowed to be ambiguous, and shells opened from Correlux
+  (`exec`) inherit the Correlux context explicitly rather than the ambient one.
+- Users who want Correlux to change their shell context must do it themselves;
   we may later offer an explicit, clearly labelled action, but never as a
   side effect of navigation.

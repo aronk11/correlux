@@ -4,10 +4,10 @@ import (
 	"context"
 	"sync"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/domain/usage"
-	"github.com/aronk11/kubeui/internal/kube/metrics"
-	"github.com/aronk11/kubeui/internal/kube/workloads"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/usage"
+	"github.com/aronk11/correlux/internal/kube/metrics"
+	"github.com/aronk11/correlux/internal/kube/workloads"
 )
 
 // Applications reads a scope and groups it into applications.

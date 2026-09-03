@@ -11,9 +11,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/diff"
-	"github.com/aronk11/kubeui/internal/kube/resources"
-	"github.com/aronk11/kubeui/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/domain/diff"
+	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
 // editFinishedMsg reports that the editor has exited.
@@ -31,7 +31,7 @@ type editedMsg struct {
 
 // editObject opens the object's document in the user's editor.
 //
-// kubeui does not implement an editor. People have one, they have configured
+// Correlux does not implement an editor. People have one, they have configured
 // it, and the worst possible time to learn somebody else's keybindings is while
 // changing a production object — so the terminal is handed over to $EDITOR and
 // taken back when it exits, exactly as `kubectl edit` does.
@@ -80,7 +80,7 @@ func (m *Model) applyEditedBuffer(msg editFinishedMsg) tea.Cmd {
 		return m.expireNotice()
 	}
 
-	edited, err := os.ReadFile(msg.path) //nolint:gosec // the path kubeui just wrote
+	edited, err := os.ReadFile(msg.path) //nolint:gosec // the path Correlux just wrote
 	if err != nil {
 		m.notice("Could not read the edited file: "+err.Error(), theme.StatusCritical)
 		return m.expireNotice()
@@ -119,7 +119,7 @@ func (m *Model) applyEditedBuffer(msg editFinishedMsg) tea.Cmd {
 	})
 }
 
-// The edits kubeui refuses to send.
+// The edits Correlux refuses to send.
 var (
 	errChangedKind      = errors.New("the edit changed the object's kind; apply it with kubectl instead")
 	errChangedName      = errors.New("the edit renamed the object; that creates a new one rather than changing this")
@@ -185,7 +185,7 @@ func (m *Model) applyEdited(msg editedMsg) tea.Cmd {
 // look to see what they are changing.
 func writeEditBuffer(obj *resources.Object) (string, error) {
 	name := strings.ToLower(obj.Kind) + "-" + obj.Name
-	file, err := os.CreateTemp("", "kubeui-"+sanitiseFileName(name)+"-*.yaml")
+	file, err := os.CreateTemp("", "correlux-"+sanitiseFileName(name)+"-*.yaml")
 	if err != nil {
 		return "", err
 	}

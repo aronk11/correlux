@@ -19,7 +19,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 // Severity is how much attention a finding deserves.
@@ -86,7 +86,7 @@ type Evidence struct {
 type Suggestion struct {
 	Text string
 	// Command is the equivalent kubectl invocation, ready to run or copy. It is
-	// always a read-only command: kubeui suggests looking, never acting
+	// always a read-only command: Correlux suggests looking, never acting
 	// (SPEC 17).
 	Command string
 }

@@ -38,6 +38,6 @@ know why".
 - The domain model needs a real `application` package with its own tests, rather
   than a view that happens to group rows.
 - Users arriving from other tools must be able to reach the familiar
-  resource-type lists immediately, or kubeui will feel like it hides things.
+  resource-type lists immediately, or Correlux will feel like it hides things.
 - The dashboard cannot be built from a single API call, which forces the lazy,
   scoped loading strategy in ADR 6.

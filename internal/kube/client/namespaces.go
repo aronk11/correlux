@@ -11,7 +11,7 @@ import (
 
 // NamespaceList is the result of listing namespaces, including the case where
 // the user is not allowed to list them at all — a common, entirely normal
-// situation for scoped service accounts that kubeui must handle without
+// situation for scoped service accounts that Correlux must handle without
 // pretending the cluster is empty.
 type NamespaceList struct {
 	// Names are the namespaces that were returned, sorted.

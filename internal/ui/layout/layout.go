@@ -1,4 +1,4 @@
-// Package layout computes kubeui's screen geometry.
+// Package layout computes Correlux's screen geometry.
 //
 // Layout is pure arithmetic on a width and a height: no styles, no I/O, no
 // Bubble Tea. That keeps the responsive behaviour — including the awkward
@@ -6,7 +6,7 @@
 // without rendering anything.
 package layout
 
-// Minimum usable terminal size. Below this kubeui shows a "resize me" notice
+// Minimum usable terminal size. Below this Correlux shows a "resize me" notice
 // rather than drawing a broken frame.
 const (
 	MinWidth  = 60

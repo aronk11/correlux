@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aronk11/kubeui/internal/kube/discovery"
-	"github.com/aronk11/kubeui/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/kube/resources"
 )
 
 func catalogFor(t *testing.T) *discovery.Catalog {
@@ -61,7 +61,7 @@ func TestListTableRendersNativeResources(t *testing.T) {
 
 func TestListTableRendersCRDPrinterColumns(t *testing.T) {
 	// This is what "CRD support" means in practice: the columns the CRD author
-	// declared arrive from the server, and kubeui needs no code for them.
+	// declared arrive from the server, and Correlux needs no code for them.
 	table, err := shared.factory.ListTable(ctx(t), shared.context, lookup(t, "widgets"), resources.ListOptions{Limit: 20})
 	if err != nil {
 		t.Fatalf("ListTable: %v", err)
@@ -169,7 +169,7 @@ func TestPagingTerminatesAndDoesNotRepeatObjects(t *testing.T) {
 
 func TestListTableRespectsLabelSelectors(t *testing.T) {
 	table, err := shared.factory.ListTable(ctx(t), shared.context, lookup(t, "pods"), resources.ListOptions{
-		LabelSelector: "app.kubernetes.io/managed-by=kubeui-seed",
+		LabelSelector: "app.kubernetes.io/managed-by=correlux-seed",
 		Limit:         200,
 	})
 	if err != nil {
@@ -179,7 +179,7 @@ func TestListTableRespectsLabelSelectors(t *testing.T) {
 		t.Fatal("no seeded pods matched the selector")
 	}
 	for _, row := range table.Rows {
-		if !strings.HasPrefix(row.Namespace, "kubeui-load-") {
+		if !strings.HasPrefix(row.Namespace, "correlux-load-") {
 			t.Errorf("row %s/%s does not belong to the seeded load", row.Namespace, row.Name)
 		}
 	}
@@ -201,10 +201,10 @@ func TestListTableOnAClusterScopedResource(t *testing.T) {
 }
 
 func TestSeededHealthMixIsVisible(t *testing.T) {
-	// kubeui exists to show what is broken; the test cluster must therefore
+	// Correlux exists to show what is broken; the test cluster must therefore
 	// contain something broken, and it must be visible in the table.
 	table, err := shared.factory.ListTable(ctx(t), shared.context, lookup(t, "pods"), resources.ListOptions{
-		LabelSelector: "app.kubernetes.io/managed-by=kubeui-seed",
+		LabelSelector: "app.kubernetes.io/managed-by=correlux-seed",
 		Limit:         500,
 	})
 	if err != nil {

@@ -1,7 +1,7 @@
 // Package client turns kubeconfig contexts into ready-to-use Kubernetes
 // clients.
 //
-// The factory is the only place in kubeui that talks to the Kubernetes API
+// The factory is the only place in Correlux that talks to the Kubernetes API
 // wiring; everything above it receives interfaces and cancellable calls. All
 // operations take a context.Context, because the UI must be able to abandon a
 // slow request without freezing.
@@ -27,8 +27,8 @@ const (
 	DefaultBurst   = 100
 )
 
-// UserAgent identifies kubeui in API server logs and audit trails.
-var UserAgent = "kubeui"
+// UserAgent identifies Correlux in API server logs and audit trails.
+var UserAgent = "correlux"
 
 // Factory builds and caches clients per kubeconfig context.
 //

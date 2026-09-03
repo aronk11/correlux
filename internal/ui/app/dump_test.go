@@ -9,8 +9,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
-	"github.com/aronk11/kubeui/internal/domain/usage"
+	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/usage"
 )
 
 var ansi = regexp.MustCompile("\x1b\\[[0-9;]*m")
@@ -69,12 +69,12 @@ func dumpUsageScope() ([]application.Application, []application.Pod) {
 }
 
 // TestDumpFrames writes plain-text renderings of the main screen and each
-// overlay to KUBEUI_DUMP_DIR. It is a development aid for reviewing the layout
-// without a terminal, and a no-op in normal test runs.
+// overlay to CORRELUX_DUMP_DIR. It is a development aid for reviewing the
+// layout without a terminal, and a no-op in normal test runs.
 func TestDumpFrames(t *testing.T) {
-	dir := os.Getenv("KUBEUI_DUMP_DIR")
+	dir := os.Getenv("CORRELUX_DUMP_DIR")
 	if dir == "" {
-		t.Skip("set KUBEUI_DUMP_DIR to dump rendered frames")
+		t.Skip("set CORRELUX_DUMP_DIR to dump rendered frames")
 	}
 
 	frames := map[string]string{

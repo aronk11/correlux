@@ -1,4 +1,4 @@
-// Package cli wires kubeui's command line: flag parsing, kubeconfig discovery
+// Package cli wires Correlux's command line: flag parsing, kubeconfig discovery
 // and process lifecycle. It owns everything that must happen before the TUI
 // takes over the terminal, and nothing that happens afterwards.
 package cli
@@ -14,11 +14,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/aronk11/kubeui/internal/buildinfo"
-	"github.com/aronk11/kubeui/internal/config"
-	kubeclient "github.com/aronk11/kubeui/internal/kube/client"
-	"github.com/aronk11/kubeui/internal/kube/kubeconfig"
-	"github.com/aronk11/kubeui/internal/ui/app"
+	"github.com/aronk11/correlux/internal/buildinfo"
+	"github.com/aronk11/correlux/internal/config"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
+	"github.com/aronk11/correlux/internal/kube/kubeconfig"
+	"github.com/aronk11/correlux/internal/ui/app"
 )
 
 type globalFlags struct {
@@ -29,15 +29,15 @@ type globalFlags struct {
 	configPath    string
 }
 
-// Execute runs kubeui and returns the process exit code.
+// Execute runs Correlux and returns the process exit code.
 func Execute() int {
 	silenceClientLogs()
 
 	var flags globalFlags
 	root := &cobra.Command{
-		Use:   "kubeui",
+		Use:   "correlux",
 		Short: "A terminal Kubernetes operations UI that shows what matters",
-		Long: "kubeui is a terminal-native Kubernetes operations UI.\n\n" +
+		Long: "Correlux is a terminal-native Kubernetes operations UI.\n\n" +
 			"It runs against your existing kubeconfig; there is no server, agent or CRD to install.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -56,7 +56,7 @@ func Execute() int {
 	root.PersistentFlags().BoolVarP(&flags.allNamespaces, "all-namespaces", "A", false,
 		"start scoped to all namespaces")
 	root.PersistentFlags().StringVar(&flags.configPath, "config", "",
-		"path to the kubeui config file")
+		"path to the Correlux config file")
 
 	root.AddCommand(newVersionCommand())
 	root.AddCommand(newDoctorCommand(&flags))
@@ -68,13 +68,13 @@ func Execute() int {
 		if errors.Is(err, context.Canceled) {
 			return 130
 		}
-		fmt.Fprintln(os.Stderr, "kubeui: "+err.Error())
+		fmt.Fprintln(os.Stderr, "correlux: "+err.Error())
 		return 1
 	}
 	return 0
 }
 
-// startup is the resolved state kubeui needs before drawing anything.
+// startup is the resolved state Correlux needs before drawing anything.
 type startup struct {
 	cfg        config.Config
 	kubeconfig *kubeconfig.Config
@@ -85,7 +85,7 @@ type startup struct {
 }
 
 // prepare loads configuration and the kubeconfig. It performs no network I/O,
-// so kubeui starts instantly even when the cluster is unreachable — the
+// so Correlux starts instantly even when the cluster is unreachable — the
 // connection state is then shown inside the UI rather than as a startup crash.
 func prepare(flags globalFlags) (*startup, error) {
 	warnings := make([]string, 0, 2)

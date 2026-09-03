@@ -1,4 +1,4 @@
-module github.com/aronk11/kubeui
+module github.com/aronk11/correlux
 
 go 1.25.4
 

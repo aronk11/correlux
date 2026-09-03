@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 func app(name string, health application.Health, ready, desired int32) application.Application {

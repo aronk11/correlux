@@ -3,8 +3,8 @@ package client
 import (
 	"context"
 
-	"github.com/aronk11/kubeui/internal/kube/discovery"
-	"github.com/aronk11/kubeui/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/kube/discovery"
+	"github.com/aronk11/correlux/internal/kube/resources"
 )
 
 // ListTable fetches one page of any resource — native or custom — as a

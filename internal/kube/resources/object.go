@@ -14,7 +14,7 @@ import (
 
 // Object is one Kubernetes object, exactly as the server returned it.
 //
-// The raw document is kept because it is the truth: kubeui renders it to YAML
+// The raw document is kept because it is the truth: Correlux renders it to YAML
 // for reading, but never re-serialises a parsed structure, which would quietly
 // drop the fields it does not know about — and on a custom resource that is
 // most of them.
@@ -116,7 +116,7 @@ func decodeObject(target Target, raw []byte) (*Object, error) {
 		})
 	}
 
-	// A document kubeui cannot render as YAML is still worth showing as the
+	// A document Correlux cannot render as YAML is still worth showing as the
 	// JSON it came as, rather than as an error about a resource that is fine.
 	if converted, err := yaml.JSONToYAML(raw); err == nil {
 		out.YAML = string(converted)

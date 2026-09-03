@@ -1,7 +1,7 @@
 // Package kubeconfig reads the user's kubeconfig and exposes it as a list of
 // selectable contexts.
 //
-// It never writes to the kubeconfig: switching context inside kubeui changes
+// It never writes to the kubeconfig: switching context inside Correlux changes
 // the session only, so an external `kubectl` keeps pointing wherever the user
 // left it.
 package kubeconfig
@@ -137,9 +137,9 @@ func (c *Config) Names() []string {
 	return out
 }
 
-// ResolveStartContext picks the context kubeui should open with, preferring an
-// explicit request, then the configured startup context, then the kubeconfig's
-// current-context, then the only context if there is exactly one.
+// ResolveStartContext picks the context Correlux should open with, preferring
+// an explicit request, then the configured startup context, then the
+// kubeconfig's current-context, then the only context if there is exactly one.
 //
 // It returns an error only when nothing usable exists, so the caller can show a
 // precise message instead of a generic failure.

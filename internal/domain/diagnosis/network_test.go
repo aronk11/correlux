@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aronk11/kubeui/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/application"
 )
 
 func service(name string, selector map[string]string) application.Service {
@@ -124,7 +124,7 @@ func TestAnIngressWithItsBackendPresentIsNotReported(t *testing.T) {
 }
 
 func TestWithoutTheScopeAnIngressIsNotAccused(t *testing.T) {
-	// The backend may well exist; kubeui simply has not looked. Silence beats
+	// The backend may well exist; Correlux simply has not looked. Silence beats
 	// a confident lie.
 	a := app(pod("payments-1"))
 	a.Ingresses = []application.Ingress{{

@@ -115,7 +115,7 @@ func (f *Factory) Probe(ctx context.Context, contextName string) ClusterInfo {
 
 // classify turns a client-go error into a state plus a hint that tells the user
 // what to do next. Kubernetes surfaces these as long wrapped strings; the point
-// of this function is that kubeui never shows one raw.
+// of this function is that Correlux never shows one raw.
 func classify(err error) (ConnState, string) {
 	switch {
 	case err == nil:

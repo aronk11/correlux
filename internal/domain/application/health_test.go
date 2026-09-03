@@ -69,7 +69,7 @@ func TestHealthFollowsTheReplicaCounts(t *testing.T) {
 func TestAWorkloadThatLooksCompleteButHasAnUnreadyPodSaysSo(t *testing.T) {
 	// The Deployment's status claims both replicas are ready; one pod says
 	// otherwise. Reporting "2 of 2 pods ready" next to a degraded badge would
-	// look like kubeui contradicting itself.
+	// look like Correlux contradicting itself.
 	a := app(replicaSet(2, 2), pod(true, "Running", "", 0), pod(false, "Running", "", 0))
 
 	if a.Health != Degraded {

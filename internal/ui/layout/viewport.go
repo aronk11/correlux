@@ -2,7 +2,7 @@ package layout
 
 // Viewport is a window onto a list that does not fit the screen.
 //
-// Every scrollable screen in kubeui had the same two problems — which line to
+// Every scrollable screen in Correlux had the same two problems — which line to
 // start drawing at, and where the selection is — and had grown its own answer
 // to them. Six of those answers is five too many: they drifted, and the bug
 // that came out of the drift (a page that snapped back to the selection on the

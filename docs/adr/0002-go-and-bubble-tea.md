@@ -5,7 +5,7 @@
 
 ## Context
 
-kubeui must run on macOS, Linux and Windows, and it must be usable on a laptop
+Correlux must run on macOS, Linux and Windows, and it must be usable on a laptop
 that is halfway through an incident. That rules out anything requiring a runtime
 to be installed, a container to be pulled or a browser to be opened. It also
 needs a mature Kubernetes client: reimplementing kubeconfig merging, exec
