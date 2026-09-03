@@ -16,6 +16,15 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+
+	// Auth providers register themselves on import, and a provider that is
+	// not compiled in fails the whole context with "no Auth Provider found
+	// for name" — a message that describes the binary rather than the
+	// cluster, and that no amount of fixing the kubeconfig will cure.
+	//
+	// This is the only import in Correlux that exists for its side effect,
+	// and it belongs here because this package is the one that authenticates.
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 // Defaults for client behaviour. They favour a responsive UI over completeness:
