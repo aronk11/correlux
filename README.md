@@ -44,6 +44,17 @@ Or download a binary from the
 [releases page](https://github.com/aronk11/correlux/releases) and put it on your
 `PATH`. Pre-built binaries are static: there is nothing else to install.
 
+Install the cask by its full name, as above, rather than tapping first and
+installing by the bare one. Homebrew 6 ignores a third-party tap until it is
+trusted, and reports everything in it as unavailable rather than as untrusted —
+the full name trusts this one cask as it installs it. If you have already
+tapped, `brew trust --cask aronk11/tap/correlux` says the same thing after the
+fact.
+
+If Homebrew insists the cask does not exist, it is holding a clone of the tap
+from before that cask was published. `brew untap aronk11/tap` and install
+again.
+
 ## Use
 
 ```bash
