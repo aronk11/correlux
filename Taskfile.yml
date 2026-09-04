@@ -20,6 +20,8 @@ vars:
   # kind cluster used by the integration and load tasks.
   KIND_CLUSTER: correlux-test
   KIND_KUBECONFIG: "{{.ROOT_DIR}}/.tools/kind.kubeconfig"
+  # kind, run inside Apple's `container` tool instead of Docker (experimental).
+  APPLE_COMPOSE: "container-compose -f {{.ROOT_DIR}}/test/kind/apple-container-compose.yaml"
   VERSION:
     sh: git describe --tags --dirty 2>/dev/null || echo dev
   COMMIT:
@@ -161,6 +163,34 @@ tasks:
     deps: [kind:up]
     cmds:
       - go run ./test/cmd/seed --kubeconfig {{.KIND_KUBECONFIG}} --clean
+
+  # kind has no native provider for Apple's `container` tool yet
+  # (kubernetes-sigs/kind#3958): these run it inside a systemd-enabled VM that
+  # `container` boots, with Docker installed in it, instead — see
+  # test/kind/apple-container-compose.yaml for what that means and why.
+  # Experimental, and only for contributors on Apple Silicon without Docker
+  # Desktop, OrbStack or Podman; everyone else keeps using kind:up.
+  kind:apple:up:
+    desc: "Create the local kind cluster inside Apple's container tool (experimental, macOS/Apple Silicon)"
+    status:
+      - "{{.APPLE_COMPOSE}} exec kind-host kind get clusters 2>/dev/null | grep -qx {{.KIND_CLUSTER}}"
+    cmds:
+      - "{{.APPLE_COMPOSE}} up -d --build"
+      - |
+        until {{.APPLE_COMPOSE}} exec kind-host docker version >/dev/null 2>&1; do
+          echo "waiting for docker inside the container VM…"
+          sleep 2
+        done
+      - "{{.APPLE_COMPOSE}} exec -w /workspace kind-host kind create cluster --name {{.KIND_CLUSTER}} --config test/kind/cluster.apple-container.yaml --wait 120s"
+      - "{{.APPLE_COMPOSE}} exec -w /workspace kind-host kind export kubeconfig --name {{.KIND_CLUSTER}} --kubeconfig /workspace/.tools/kind.kubeconfig"
+
+  kind:apple:down:
+    desc: Delete the kind cluster and stop the container VM
+    cmds:
+      - cmd: "{{.APPLE_COMPOSE}} exec kind-host kind delete cluster --name {{.KIND_CLUSTER}}"
+        ignore_error: true
+      - "{{.APPLE_COMPOSE}} down"
+      - rm -f {{.KIND_KUBECONFIG}}
 
   # ------------------------------------------------------------------ lint ---
 

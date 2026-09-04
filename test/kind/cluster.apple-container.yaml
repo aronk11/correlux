@@ -1,0 +1,30 @@
+# The same cluster as cluster.yaml, for kind running inside the Apple
+# `container` VM (see apple-container-compose.yaml) rather than directly on
+# Docker Desktop/OrbStack/Podman.
+#
+# kind binds the API server to the docker host's 127.0.0.1 by default, which
+# here is 127.0.0.1 *inside the VM* — unreachable from macOS. Binding it to
+# every interface at a fixed port instead is what apple-container-compose.yaml
+# can then publish out to the host at the same port (SPEC-adjacent: this widens
+# what can reach the API server from "loopback" to "anything that can reach the
+# VM", which is only ever the Mac it runs on — never do this for anything but a
+# disposable local dev cluster).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: correlux-test
+networking:
+  apiServerAddress: "0.0.0.0"
+  apiServerPort: 6443
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          extraArgs:
+            max-requests-inflight: "800"
+            max-mutating-requests-inflight: "400"
+        etcd:
+          local:
+            extraArgs:
+              quota-backend-bytes: "4294967296"
