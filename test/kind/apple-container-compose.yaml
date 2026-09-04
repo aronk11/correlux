@@ -1,0 +1,62 @@
+# An alternative to Docker Desktop/OrbStack/Podman for the local kind cluster,
+# for contributors on Apple Silicon who have Apple's own `container` tool
+# (https://github.com/apple/container) instead.
+#
+# `kind` has no native provider for `container` yet — Apple submitted one
+# upstream, but kind's maintainers asked to hold off while it matures
+# (kubernetes-sigs/kind#3958). This is the workaround the apple/container
+# community has verified in the meantime (apple/container#92): a systemd-
+# enabled Ubuntu VM, run through `container`, with a real Docker Engine
+# installed inside it. `kind` runs inside that VM exactly as it would on any
+# other machine with Docker — it never learns anything unusual is going on.
+#
+# Driven by `task kind:apple:up` / `task kind:apple:down` (see CONTRIBUTING.md).
+# Needs https://github.com/full-chaos/container-compose (`brew install
+# container-compose`) to interpret this file against `container`.
+#
+# Experimental: assembled from the community reports linked above, not
+# something CI can run (Apple's container tool needs macOS on Apple Silicon,
+# and GitHub-hosted runners are Linux). If the API server published below
+# turns out not to be reachable from the host, everything still works run
+# from inside the VM directly: `container-compose -f test/kind/apple-container-compose.yaml exec kind-host bash`.
+services:
+  kind-host:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM ubuntu:jammy
+
+        # kind-linux-arm64 below: Apple's container VMs run Apple Silicon.
+        # v0.33.0 must match Taskfile.yml's KIND_VERSION — bump both together.
+        RUN apt-get update && apt-get install -y --no-install-recommends \
+              systemd-sysv ca-certificates curl gnupg \
+            && install -m 0755 -d /etc/apt/keyrings \
+            && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+            && chmod a+r /etc/apt/keyrings/docker.asc \
+            && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+              > /etc/apt/sources.list.d/docker.list \
+            && apt-get update \
+            && apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io \
+            && curl -fsSLo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-arm64 \
+            && chmod +x /usr/local/bin/kind \
+            && curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl" \
+            && chmod +x /usr/local/bin/kubectl \
+            && rm -rf /var/lib/apt/lists/*
+
+        # systemd as PID 1 is what makes `container` boot this as a real,
+        # if minimal, Linux machine rather than a single-process container —
+        # docker.service starts the same way it would on any Ubuntu box.
+        ENTRYPOINT ["/sbin/init"]
+    # The kind image itself is large, and the control plane wants headroom.
+    cpus: 4
+    mem_limit: 6g
+    # 6443 is pinned (test/kind/cluster.apple-container.yaml sets
+    # apiServerPort/apiServerAddress) so it can be published at a fixed,
+    # predictable address rather than whatever kind would pick at random.
+    ports:
+      - "6443:6443"
+    # The repo, so `kind create cluster --config test/kind/cluster.apple-container.yaml`
+    # and the exported kubeconfig both land where the Taskfile already expects
+    # them — .tools/kind.kubeconfig, on both sides of the mount.
+    volumes:
+      - ../..:/workspace
