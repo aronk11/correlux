@@ -136,6 +136,32 @@ func (o *Object) Controller() (OwnerRef, bool) {
 	return OwnerRef{}, false
 }
 
+// HasPodTemplate reports whether the object carries a pod template, which is
+// what makes a rolling restart mean anything.
+//
+// It is read from the document the server returned rather than from a list of
+// kinds Correlux happens to know, so an operator's custom resource with a pod
+// template in it is answered as accurately as a Deployment. A document shaped
+// unlike anything expected is "no", never a panic.
+func (o *Object) HasPodTemplate() bool {
+	if o == nil || len(o.Raw) == 0 {
+		return false
+	}
+	var doc struct {
+		Spec struct {
+			Template struct {
+				Spec struct {
+					Containers []json.RawMessage `json:"containers"`
+				} `json:"spec"`
+			} `json:"template"`
+		} `json:"spec"`
+	}
+	if err := json.Unmarshal(o.Raw, &doc); err != nil {
+		return false
+	}
+	return len(doc.Spec.Template.Spec.Containers) > 0
+}
+
 // Update replaces an object with an edited document.
 //
 // The document is sent with the resourceVersion it was read at, which is what
