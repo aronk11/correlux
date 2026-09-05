@@ -19,10 +19,11 @@ produce: **<https://aronk11.github.io/correlux/>**
 > applications from the cluster's own ownership, labels and selectors and sorts
 > them worst first; cluster and namespace switching; the command palette; an
 > optional timed refresh; the deterministic WHY engine that explains an
-> unhealthy application from the cluster's own evidence; and a resource browser
-> that lists **every** kind the cluster serves — custom resources included —
-> with the API server's own columns; and cordoning a node so the scheduler
-> places nothing new on it. Logs and exec are next. See
+> unhealthy application from the cluster's own evidence; a resource browser that
+> lists **every** kind the cluster serves — custom resources included — with the
+> API server's own columns; and the changes it can make to a cluster — scale,
+> edit, restart, delete and cordon — each behind one confirmation that states
+> the blast radius and names the cluster. See
 > [the roadmap](#roadmap). Nothing in the UI is a mock-up: if Correlux does not
 > know something yet, it says so.
 
@@ -85,6 +86,8 @@ correlux version
 | `b` | Decode the base64 values in it — a Secret's, above all |
 | `e` | Edit the open object in your editor |
 | `S` | Scale the selected workload |
+| `R` | Roll the selected workload: every pod replaced as its rollout allows |
+| `D` | Delete the selected object, and what Kubernetes deletes with it |
 | `C` | Cordon the node in hand so it takes no new pods, or uncordon it |
 | `x` | Open an interactive shell in the pod, or a running pod of the workload |
 | `c` | Copy its namespace/name to the clipboard — YAML, JSON and more are in `Ctrl+P` |
@@ -324,6 +327,14 @@ cluster ([ADR 20](docs/adr/0020-changes-go-through-one-gate.md)). An edit shows
 its diff first, is refused if it renames the object or is not valid YAML, and is
 refused by the server if somebody else changed the object while it sat in the
 editor.
+
+`R` rolls the selected workload: Correlux stamps its pod template the way
+`kubectl rollout restart` does, and the controller replaces the pods at the
+pace its own strategy allows. It is offered where the object itself carries a
+pod template, an operator's custom resource included, and refused with the
+reason where it does not. `D` deletes the object in hand, in the foreground,
+pinned to the object Correlux read — so a delete decided a minute ago cannot
+land on a namesake a controller has recreated since.
 
 `C` cordons the node in hand — the one open in the inspector, or the row under
 the cursor in a table of nodes — so the scheduler stops placing new pods on it.
@@ -569,8 +580,7 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | — | Resource usage per namespace, application and node, metrics API optional | **done** |
 | — | Exec and clipboard | next |
 | 5 | Safe mutating actions: scale and edit | **done** |
-| — | Further safe actions: delete, restart | planned |
-| — | Cordon and uncordon a node, through the same gate | **done** |
+| — | Further safe actions: delete, restart, cordon | **done** |
 | 6 | Large-cluster performance work, guided by the benchmarks | planned |
 | 7 | Platform polish across macOS, Linux and Windows | planned |
 

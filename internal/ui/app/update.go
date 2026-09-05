@@ -152,6 +152,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case cordonedMsg:
 		return m, m.applyCordoned(msg)
+	case deletedMsg:
+		return m, m.applyDeleted(msg)
+
+	case restartProbedMsg:
+		return m, m.applyRestartProbe(msg)
+
+	case restartedMsg:
+		return m, m.applyRestarted(msg)
 
 	case execEndedMsg:
 		return m, m.applyExecEnded(msg)
@@ -902,6 +910,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.scaleTarget()
 	case ActionCordon:
 		return m.cordonTarget()
+	case ActionDelete:
+		return m.deleteTarget()
+	case ActionRestart:
+		return m.restartTarget()
 	case ActionEdit:
 		if m.view == viewObject {
 			return m.editObject(m.objectTarget)

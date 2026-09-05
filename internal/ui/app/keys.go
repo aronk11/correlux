@@ -34,6 +34,8 @@ const (
 	ActionDecode          = "object.decode"
 	ActionScale           = "scale"
 	ActionCordon          = "node.cordon"
+	ActionDelete          = "delete"
+	ActionRestart         = "workload.restart"
 	ActionEdit            = "edit"
 	ActionExec            = "exec"
 	ActionCopy            = "copy"
@@ -79,6 +81,8 @@ var DefaultBindings = map[string]string{
 	ActionDecode:          "b",
 	ActionScale:           "S",
 	ActionCordon:          "C",
+	ActionDelete:          "D",
+	ActionRestart:         "R",
 	ActionEdit:            "e",
 	ActionExec:            "x",
 	ActionCopy:            "c",

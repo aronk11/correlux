@@ -99,3 +99,38 @@ func TestGetOfAClusterScopedObjectOmitsTheNamespace(t *testing.T) {
 		t.Errorf("requested %q, want %q", s.lastURL, want)
 	}
 }
+
+func TestAPodTemplateIsReadFromTheDocumentRatherThanTheKind(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{
+			"deployment",
+			`{"kind":"Deployment","spec":{"replicas":3,"template":{"spec":{"containers":[{"name":"payments"}]}}}}`,
+			true,
+		},
+		{
+			// Nothing here knows the kind; a custom resource that carries a pod
+			// template is rolled by exactly the code a Deployment is.
+			"custom resource",
+			`{"kind":"Widget","spec":{"template":{"spec":{"containers":[{"name":"spinner"}]}}}}`,
+			true,
+		},
+		{"config map", `{"kind":"ConfigMap","data":{"key":"value"}}`, false},
+		{"pod", podObject, false},
+		{"a template with no containers", `{"kind":"Widget","spec":{"template":{"spec":{}}}}`, false},
+		{"a spec of another shape entirely", `{"kind":"Widget","spec":"managed elsewhere"}`, false},
+		{"not a document at all", `not json`, false},
+		{"empty", ``, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := &Object{Raw: []byte(tc.raw)}
+			if got := obj.HasPodTemplate(); got != tc.want {
+				t.Errorf("HasPodTemplate() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
