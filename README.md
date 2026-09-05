@@ -21,7 +21,8 @@ produce: **<https://aronk11.github.io/correlux/>**
 > optional timed refresh; the deterministic WHY engine that explains an
 > unhealthy application from the cluster's own evidence; and a resource browser
 > that lists **every** kind the cluster serves — custom resources included —
-> with the API server's own columns. Logs and exec are next. See
+> with the API server's own columns; and cordoning a node so the scheduler
+> places nothing new on it. Logs and exec are next. See
 > [the roadmap](#roadmap). Nothing in the UI is a mock-up: if Correlux does not
 > know something yet, it says so.
 
@@ -84,6 +85,7 @@ correlux version
 | `b` | Decode the base64 values in it — a Secret's, above all |
 | `e` | Edit the open object in your editor |
 | `S` | Scale the selected workload |
+| `C` | Cordon the node in hand so it takes no new pods, or uncordon it |
 | `x` | Open an interactive shell in the pod, or a running pod of the workload |
 | `c` | Copy its namespace/name to the clipboard — YAML, JSON and more are in `Ctrl+P` |
 | `l` | Read the logs of the pod, workload or application in hand |
@@ -323,6 +325,12 @@ its diff first, is refused if it renames the object or is not valid YAML, and is
 refused by the server if somebody else changed the object while it sat in the
 editor.
 
+`C` cordons the node in hand — the one open in the inspector, or the row under
+the cursor in a table of nodes — so the scheduler stops placing new pods on it.
+The pods already running there keep running: this is not a drain. On a node that
+is already cordoned the same key uncordons it, and the confirmation says which
+of the two it is about to do.
+
 ### Several clusters at once
 
 `F` opens the fleet: every cluster you chose, read in parallel, with what is
@@ -561,7 +569,8 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | — | Resource usage per namespace, application and node, metrics API optional | **done** |
 | — | Exec and clipboard | next |
 | 5 | Safe mutating actions: scale and edit | **done** |
-| — | Further safe actions: delete, restart, cordon | planned |
+| — | Further safe actions: delete, restart | planned |
+| — | Cordon and uncordon a node, through the same gate | **done** |
 | 6 | Large-cluster performance work, guided by the benchmarks | planned |
 | 7 | Platform polish across macOS, Linux and Windows | planned |
 

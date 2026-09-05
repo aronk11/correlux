@@ -34,6 +34,7 @@ const (
 	paletteToggleYAML       palette.ActionID = "object.yaml"
 	paletteToggleDecode     palette.ActionID = "object.decode"
 	paletteScale            palette.ActionID = "scale"
+	paletteCordon           palette.ActionID = "node.cordon"
 	paletteEdit             palette.ActionID = "edit"
 	paletteExec             palette.ActionID = "exec"
 	paletteCopy             palette.ActionID = "copy"
@@ -311,6 +312,33 @@ func (m *Model) rebuildCommands() {
 			Weight:   84,
 			Enabled:  true,
 		})
+	}
+
+	// Offered wherever an object is in hand, and disabled with a reason when
+	// that object is not a node: the answer to "why can I not cordon this?" is
+	// worth a line, and everywhere else the entry would be noise.
+	if ref, ok := m.cordonSubject(); ok {
+		entry := palette.Command{
+			ID:       "cmd.cordon",
+			Action:   paletteCordon,
+			Category: "Change",
+			Keywords: []string{
+				"cordon", "uncordon", "drain", "schedulable", "unschedulable",
+				"node", "maintenance", "quarantine",
+			},
+			Shortcut: m.keys.Key(ActionCordon),
+			Weight:   81,
+		}
+		if node, isNodeRef := m.nodeTarget(); isNodeRef {
+			entry.Title = m.cordonTitle(node)
+			entry.Subtitle = m.cordonSubtitle(node)
+			entry.Enabled = true
+		} else {
+			entry.Title = "Cordon a node"
+			entry.Subtitle = ref.label()
+			entry.DisabledReason = "only a node can be cordoned"
+		}
+		cmds = append(cmds, entry)
 	}
 
 	if m.view == viewFleet && len(m.fleetContexts()) < len(m.kubeconfig.Contexts) {
@@ -857,6 +885,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return nil
 	case paletteScale:
 		return m.scaleTarget()
+	case paletteCordon:
+		return m.cordonTarget()
 	case paletteEdit:
 		return m.editObject(m.objectTarget)
 	case paletteExec:
