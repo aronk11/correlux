@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"time"
 
 	"github.com/aronk11/correlux/internal/kube/discovery"
 	"github.com/aronk11/correlux/internal/kube/resources"
@@ -52,6 +53,38 @@ func (f *Factory) CordonNode(
 	}
 	target := resources.Target{GVR: res.GVR, Namespaced: res.Namespaced}
 	return resources.Cordon(ctx, cs.Discovery().RESTClient(), target, name, unschedulable)
+}
+
+// DeleteObject removes one object of any kind.
+func (f *Factory) DeleteObject(
+	ctx context.Context,
+	contextName string,
+	res discovery.Resource,
+	namespace, name string,
+	opts resources.DeleteOptions,
+) error {
+	cs, err := f.Clientset(contextName)
+	if err != nil {
+		return err
+	}
+	target := resources.Target{GVR: res.GVR, Namespaced: res.Namespaced}
+	return resources.Delete(ctx, cs.Discovery().RESTClient(), target, namespace, name, opts)
+}
+
+// RestartWorkload rolls a workload by stamping its pod template.
+func (f *Factory) RestartWorkload(
+	ctx context.Context,
+	contextName string,
+	res discovery.Resource,
+	namespace, name string,
+	at time.Time,
+) error {
+	cs, err := f.Clientset(contextName)
+	if err != nil {
+		return err
+	}
+	target := resources.Target{GVR: res.GVR, Namespaced: res.Namespaced}
+	return resources.Restart(ctx, cs.Discovery().RESTClient(), target, namespace, name, at)
 }
 
 // UpdateObject replaces an object with an edited document.
