@@ -10,6 +10,9 @@ It is inspired by how useful K9s is, and it is deliberately not a K9s clone: the
 first screen is your **applications and their health**, not a list of resource
 types.
 
+The site walks through the screens with the terminal output they actually
+produce: **<https://aronk11.github.io/correlux/>**
+
 > **Status: early.** Implemented so far: the application dashboard, which infers
 > applications from the cluster's own ownership, labels and selectors and sorts
 > them worst first; cluster and namespace switching; the command palette; an
