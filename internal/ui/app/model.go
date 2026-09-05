@@ -276,6 +276,11 @@ type Model struct {
 	// confirmation.
 	promptAccept func(*Model, string) tea.Cmd
 
+	// restartGen retires the answer to a restart's look-up. The document is
+	// read before the confirmation is offered, and one that arrives for an
+	// object nobody is pointing at any more must not open a gate.
+	restartGen uint64
+
 	// The document handed to the user's editor, and what it looked like before
 	// they touched it.
 	editPath     string
