@@ -33,6 +33,7 @@ const (
 	ActionYAML            = "object.yaml"
 	ActionDecode          = "object.decode"
 	ActionScale           = "scale"
+	ActionCordon          = "node.cordon"
 	ActionEdit            = "edit"
 	ActionExec            = "exec"
 	ActionCopy            = "copy"
@@ -77,6 +78,7 @@ var DefaultBindings = map[string]string{
 	ActionYAML:            "y",
 	ActionDecode:          "b",
 	ActionScale:           "S",
+	ActionCordon:          "C",
 	ActionEdit:            "e",
 	ActionExec:            "x",
 	ActionCopy:            "c",

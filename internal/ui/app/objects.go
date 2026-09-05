@@ -60,25 +60,36 @@ func (m *Model) openObject(ref objectRef) tea.Cmd {
 // the same inspector the application view opens, reached from the other side:
 // a custom resource is opened by exactly the code that opens a Pod.
 func (m *Model) openSelectedRow() tea.Cmd {
+	ref, ok := m.selectedRowRef()
+	if !ok {
+		return nil
+	}
+	return m.openObject(ref)
+}
+
+// selectedRowRef addresses the row under the cursor in a resource table. It is
+// what any action reached from a table acts on, so opening a row and changing
+// it can never disagree about which object that is.
+func (m *Model) selectedRowRef() (objectRef, bool) {
 	rows := m.visibleRows()
 	if m.tablePort.Cursor < 0 || m.tablePort.Cursor >= len(rows) {
-		return nil
+		return objectRef{}, false
 	}
 	row := rows[m.tablePort.Cursor]
 	if row.Name == "" {
-		return nil
+		return objectRef{}, false
 	}
 	namespace := row.Namespace
 	if namespace == "" && m.resource.Namespaced && !m.allNamespaces {
 		// A table scoped to one namespace need not repeat it in every row.
 		namespace = m.namespace
 	}
-	return m.openObject(objectRef{
+	return objectRef{
 		Kind:      m.resource.Kind(),
 		Name:      row.Name,
 		Namespace: namespace,
 		Resource:  m.resource.FullName(),
-	})
+	}, true
 }
 
 // showObject switches to an object without touching the trail.

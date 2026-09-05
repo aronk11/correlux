@@ -38,6 +38,22 @@ func (f *Factory) Scale(
 	return resources.Scale(ctx, cs.Discovery().RESTClient(), target, namespace, name, replicas)
 }
 
+// CordonNode marks a node schedulable or unschedulable.
+func (f *Factory) CordonNode(
+	ctx context.Context,
+	contextName string,
+	res discovery.Resource,
+	name string,
+	unschedulable bool,
+) error {
+	cs, err := f.Clientset(contextName)
+	if err != nil {
+		return err
+	}
+	target := resources.Target{GVR: res.GVR, Namespaced: res.Namespaced}
+	return resources.Cordon(ctx, cs.Discovery().RESTClient(), target, name, unschedulable)
+}
+
 // UpdateObject replaces an object with an edited document.
 func (f *Factory) UpdateObject(
 	ctx context.Context,
