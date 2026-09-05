@@ -282,6 +282,11 @@ func (m *Model) statusData() components.StatusData {
 				Group: components.HintView, Key: m.keys.Key(ActionExec), Desc: "Shell", Priority: 78,
 			})
 		}
+		if ref, ok := m.nodeTarget(); ok {
+			table = append(table, components.KeyHint{
+				Group: components.HintView, Key: m.keys.Key(ActionCordon), Desc: m.cordonHint(ref), Priority: 77,
+			})
+		}
 		hints = append(table, hints...)
 	case viewApplications:
 		hints = append([]components.KeyHint{
@@ -396,6 +401,11 @@ func (m *Model) statusData() components.StatusData {
 		if _, _, ok := m.execTarget(); ok {
 			object = append(object, components.KeyHint{
 				Group: components.HintView, Key: m.keys.Key(ActionExec), Desc: "Shell", Priority: 81,
+			})
+		}
+		if ref, ok := m.nodeTarget(); ok {
+			object = append(object, components.KeyHint{
+				Group: components.HintView, Key: m.keys.Key(ActionCordon), Desc: m.cordonHint(ref), Priority: 80,
 			})
 		}
 		if _, _, ok := m.copyTarget(); ok {
@@ -938,6 +948,7 @@ func (m *Model) renderHelp(width, height int) string {
 			{m.keys.Key(ActionYAML), "Show the document the server holds, and back"},
 			{m.keys.Key(ActionDecode), "Decode the base64 values in it — a Secret's, above all"},
 			{m.keys.Key(ActionScale), "Scale the selected workload, after confirming the blast radius"},
+			{m.keys.Key(ActionCordon), "Stop the node in hand taking new pods, or let it take them again"},
 			{m.keys.Key(ActionEdit), "Edit the open object in $EDITOR, then review what changed"},
 			{m.keys.Key(ActionExec), "Open an interactive shell in the pod, or a running pod of the workload"},
 			{m.keys.Key(ActionCopy), "Copy its namespace/name to the clipboard"},
