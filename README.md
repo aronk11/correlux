@@ -2,6 +2,8 @@
 
 **Don't show me Kubernetes. Show me what matters.**
 
+**Site:** <https://aronk11.github.io/correlux/>
+
 Correlux is a terminal-native Kubernetes operations UI for macOS, Linux and
 Windows. It runs against your existing kubeconfig — no server, no agent, no CRD,
 no container, no browser.
