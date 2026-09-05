@@ -1,0 +1,434 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>User guide — Correlux docs</title><meta name="description" content="User guide for Correlux, the application-first Kubernetes terminal UI."><meta name="theme-color" content="#f4f1e9"><link rel="canonical" href="https://aronk11.github.io/correlux/docs/guide.html"><link rel="icon" href="/correlux/assets/logo.svg" type="image/svg+xml"><meta property="og:title" content="User guide — Correlux docs"><meta property="og:description" content="User guide for Correlux, the application-first Kubernetes terminal UI."><meta property="og:type" content="website"><meta property="og:url" content="https://aronk11.github.io/correlux/docs/guide.html"><meta property="og:image" content="https://aronk11.github.io/correlux/assets/social.png"><meta name="twitter:card" content="summary_large_image"><link rel="stylesheet" href="/correlux/assets/style.css"></head><body><div id="root"><link rel="preload" as="image" href="/correlux/assets/logo.svg"/><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><a class="brand" href="/correlux/" aria-label="Correlux home"><img src="/correlux/assets/logo.svg" width="34" height="34" alt=""/>correlux<span class="brand-dot">_</span></a><nav aria-label="Main navigation"><a href="/correlux/#features">The good stuff</a><a href="/correlux/docs/">Docs</a><a class="github-link" href="https://github.com/aronk11/correlux">GitHub <span aria-hidden="true">↗</span></a></nav><a class="button button-small" href="/correlux/#install">Get Correlux <span aria-hidden="true">↗</span></a></header><div class="docs-layout"><aside class="docs-sidebar" aria-label="Documentation navigation"><button class="docs-search">Search docs <kbd>⌘ / Ctrl K</kbd></button><dialog class="search-dialog" aria-labelledby="search-label"><div class="search-top"><label id="search-label" class="sr-only" for="docs-query">Search documentation</label><input id="docs-query" type="search" placeholder="Search documentation…" autoComplete="off" value=""/><button class="search-close" aria-label="Close search">ESC</button></div><div class="search-results"></div><div class="search-foot search-count" role="status" aria-live="polite">Search the guides, architecture and design decisions.</div></dialog><div class="sidebar-links"><div><div class="sidebar-label">GET STARTED</div><a href="/correlux/docs/index.html">Documentation</a><a href="/correlux/docs/getting-started.html">Getting started</a></div><div><div class="sidebar-label">USING CORRELUX</div><a href="/correlux/docs/guide.html" aria-current="page">User guide</a></div><div><div class="sidebar-label">UNDER THE HOOD</div><a href="/correlux/docs/architecture.html">Architecture</a><a href="/correlux/docs/decisions.html">Design decisions</a><a href="/correlux/docs/specification.html">Product specification</a></div><div><div class="sidebar-label">COMMUNITY</div><a href="/correlux/docs/contributing.html">Contributing</a><a href="/correlux/docs/code-of-conduct.html">Code of conduct</a><a href="/correlux/docs/security.html">Security</a></div><details><summary>ALL 20 DESIGN DECISIONS</summary><a href="/correlux/docs/0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="/correlux/docs/0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="/correlux/docs/0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="/correlux/docs/0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="/correlux/docs/0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="/correlux/docs/0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="/correlux/docs/0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="/correlux/docs/0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="/correlux/docs/0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="/correlux/docs/0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="/correlux/docs/0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="/correlux/docs/0012-task-instead-of-make.html">12. Task instead of Make</a><a href="/correlux/docs/0013-server-side-tables.html">13. Resources are rendered from the API server&#x27;s own tables</a><a href="/correlux/docs/0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="/correlux/docs/0015-signed-commits.html">15. Every commit is signed</a><a href="/correlux/docs/0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="/correlux/docs/0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="/correlux/docs/0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="/correlux/docs/0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="/correlux/docs/0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a></details></div><details class="docs-mobile-nav"><summary>Browse documentation</summary><div class="sidebar-links"><div><div class="sidebar-label">GET STARTED</div><a href="/correlux/docs/index.html">Documentation</a><a href="/correlux/docs/getting-started.html">Getting started</a></div><div><div class="sidebar-label">USING CORRELUX</div><a href="/correlux/docs/guide.html" aria-current="page">User guide</a></div><div><div class="sidebar-label">UNDER THE HOOD</div><a href="/correlux/docs/architecture.html">Architecture</a><a href="/correlux/docs/decisions.html">Design decisions</a><a href="/correlux/docs/specification.html">Product specification</a></div><div><div class="sidebar-label">COMMUNITY</div><a href="/correlux/docs/contributing.html">Contributing</a><a href="/correlux/docs/code-of-conduct.html">Code of conduct</a><a href="/correlux/docs/security.html">Security</a></div><details><summary>ALL 20 DESIGN DECISIONS</summary><a href="/correlux/docs/0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="/correlux/docs/0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="/correlux/docs/0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="/correlux/docs/0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="/correlux/docs/0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="/correlux/docs/0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="/correlux/docs/0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="/correlux/docs/0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="/correlux/docs/0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="/correlux/docs/0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="/correlux/docs/0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="/correlux/docs/0012-task-instead-of-make.html">12. Task instead of Make</a><a href="/correlux/docs/0013-server-side-tables.html">13. Resources are rendered from the API server&#x27;s own tables</a><a href="/correlux/docs/0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="/correlux/docs/0015-signed-commits.html">15. Every commit is signed</a><a href="/correlux/docs/0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="/correlux/docs/0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="/correlux/docs/0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="/correlux/docs/0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="/correlux/docs/0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a></details></div></details></aside><main class="doc-article" id="main"><div class="doc-breadcrumb"><a href="/correlux/docs/">DOCS</a> / <!-- -->USER GUIDE</div><article class="prose"><h1 id="correlux">Correlux</h1>
+<p><strong>Don&#x27;t show me Kubernetes. Show me what matters.</strong></p>
+<p><a href="https://aronk11.github.io/correlux/">Website</a> ·
+<a href="https://aronk11.github.io/correlux/docs/">Documentation</a> ·
+<a href="https://aronk11.github.io/correlux/docs/getting-started.html">Getting started</a></p>
+<p>Correlux is a terminal-native Kubernetes operations UI for macOS, Linux and
+Windows. It runs against your existing kubeconfig — no server, no agent, no CRD,
+no container, no browser.</p>
+<p>It is inspired by how useful K9s is, and it is deliberately not a K9s clone: the
+first screen is your <strong>applications and their health</strong>, not a list of resource
+types.</p>
+<blockquote>
+<p><strong>Status: early.</strong> Implemented so far: the application dashboard, which infers
+applications from the cluster&#x27;s own ownership, labels and selectors and sorts
+them worst first; cluster and namespace switching; the command palette; an
+optional timed refresh; the deterministic WHY engine that explains an
+unhealthy application from the cluster&#x27;s own evidence; and a resource browser
+that lists <strong>every</strong> kind the cluster serves — custom resources included —
+with the API server&#x27;s own columns. Logs, exec, clipboard, fleet groups, resource
+usage, scale and edit are also implemented. See <a href="#roadmap">the roadmap</a>.
+Nothing in the UI is a mock-up: if Correlux does not
+know something yet, it says so.</p>
+</blockquote>
+<h2 id="why">Why</h2>
+<p>During an incident you do not want to run <code>kubectl get</code>, <code>describe</code>, <code>logs</code>,
+<code>get events</code>, <code>get endpoints</code> and <code>rollout status</code> in sequence and hold the join
+in your head. You want one screen that answers:</p>
+<ul>
+<li>What is broken?</li>
+<li><strong>Why</strong> is it broken?</li>
+<li>What can I safely do about it?</li>
+</ul>
+<p>That last question is the one Correlux optimises for. The primary metric is the
+time from <em>&quot;something is wrong&quot;</em> to <em>&quot;I know why&quot;</em>.</p>
+<h2 id="install">Install</h2>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code class="language-bash">brew install aronk11/tap/correlux                      # macOS
+go install github.com/aronk11/correlux/cmd/correlux@latest
+</code></pre>
+<p>Or download a binary from the
+<a href="https://github.com/aronk11/correlux/releases">releases page</a> and put it on your
+<code>PATH</code>. Pre-built binaries are static: there is nothing else to install.</p>
+<h2 id="use">Use</h2>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code class="language-bash">correlux                              # start in your current context
+correlux --context prod-eu            # start somewhere specific
+correlux -n payments                  # start in a namespace
+correlux -A                           # start scoped to all namespaces
+correlux doctor                       # why doesn&#x27;t it work here?
+correlux version
+</code></pre>
+<h3 id="keys">Keys</h3>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable reference table"><table><thead><tr><th>Key</th><th>Action</th></tr></thead><tbody><tr><td><code>Ctrl+P</code></td><td>Command palette — every action, searchable by name</td></tr><tr><td><code>Ctrl+A</code></td><td>Back to the application dashboard</td></tr><tr><td><code>F</code></td><td>The fleet: every configured cluster at once</td></tr><tr><td><code>Enter</code></td><td>Open the application under the cursor</td></tr><tr><td><code>Ctrl+W</code></td><td>Why is this unhealthy?</td></tr><tr><td><code>y</code></td><td>Show the document the server holds, and back</td></tr><tr><td><code>b</code></td><td>Decode the base64 values in it — a Secret&#x27;s, above all</td></tr><tr><td><code>e</code></td><td>Edit the open object in your editor</td></tr><tr><td><code>S</code></td><td>Scale the selected workload</td></tr><tr><td><code>x</code></td><td>Open an interactive shell in the pod, or a running pod of the workload</td></tr><tr><td><code>c</code></td><td>Copy its namespace/name to the clipboard — YAML, JSON and more are in <code>Ctrl+P</code></td></tr><tr><td><code>l</code></td><td>Read the logs of the pod, workload or application in hand</td></tr><tr><td><code>u</code></td><td>Where the pods are, and what they use against what they asked for</td></tr><tr><td><code>E</code></td><td>Recent Kubernetes Events in the active scope, newest first</td></tr><tr><td><code>Ctrl+B</code></td><td>Browse resource kinds, custom resources included</td></tr><tr><td><code>Enter</code></td><td>Open the object under the cursor</td></tr><tr><td><code>Ctrl+K</code></td><td>Switch cluster</td></tr><tr><td><code>Ctrl+O</code></td><td>Switch namespace</td></tr><tr><td><code>/</code></td><td>Filter the list on screen</td></tr><tr><td><code>Ctrl+R</code></td><td>Refresh</td></tr><tr><td><code>Ctrl+F</code></td><td>Refresh on a timer, until you turn it off (<code>auto 2s</code> appears in the header)</td></tr><tr><td><code>w</code></td><td>Toggle the wide columns in a resource table</td></tr><tr><td><code>?</code></td><td>Help</td></tr><tr><td><code>Esc</code></td><td>Back / close overlay</td></tr><tr><td><code>Ctrl+C</code> / <code>q</code></td><td>Quit</td></tr></tbody></table>
+</div><p>You are not expected to memorise those. Press <code>Ctrl+P</code> and type what you want.</p>
+<h3 id="applications-not-resource-types">Applications, not resource types</h3>
+<p>The first screen is what is deployed in the current scope, worst first:</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code>STATUS      APPLICATION  PODS   AGE    DETAIL
+✖ down      payments     0/3    1h30m  0 of 3 pods ready
+⚠ degraded  worker       7/8    4d2h   1 CrashLoopBackOff
+✓ healthy   api          12/12  9d
+✓ healthy   frontend     6/6    9d
+</code></pre>
+<p>Kubernetes has no application object, so Correlux infers one: pods are walked up
+their owner references to the controller that owns them, workloads sharing an
+<code>app.kubernetes.io/instance</code> label are one release, services join by selector
+and ingresses through the service they route to. Nothing has to be installed,
+labelled or configured first, and <code>Enter</code> opens an application to show the
+workloads, pods and network it is actually made of
+(<a href="0016-application-inference.html">ADR 16</a>).</p>
+<p>Health starts with what the cluster reports in replica counts and pod states.
+After evidence has been loaded, delivery failures such as a Service with no
+ready endpoints are folded into the displayed health as well. <em>Why</em> something
+is broken is the next section&#x27;s question.</p>
+<p>The command palette action <strong>Show cluster problems and session details</strong> opens
+a bounded triage overview. It combines unhealthy applications, standalone node
+conditions and recent problem events in the active scope. This also catches
+operator and custom-resource failures generically—for example cert-manager&#x27;s
+<code>IssuerNotFound</code> event—even when a controller labels such an event <code>Normal</code>.
+The scan is capped, respects RBAC, and never attempts to list every custom
+resource installed in the cluster.</p>
+<h3 id="why-is-it-broken">Why is it broken?</h3>
+<p><code>Ctrl+W</code> explains the selected application, deterministically and without a
+model anywhere near it:</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code>✖ 3 pods restart in a loop
+  Deployment/payments → Pods → CrashLoopBackOff → OOMKilled
+  WHY
+    the container is killed for exceeding its memory limit (exit 137)
+  EVIDENCE
+    Pod/payments-7d8f-0
+      container payments was killed for exceeding its memory limit, restarted 12 times
+    Event/payments-7d8f-0  1m ago
+      BackOff: Back-off restarting failed container payments (x41)
+  WHAT TO CHECK
+    • Read the logs of the run that failed, not of the one waiting to start
+      kubectl logs -n shop payments-7d8f-0 -c payments --previous
+  confidence: high
+</code></pre>
+<p>Thirteen rules cover crash loops, image pulls, missing config, OOM kills,
+unschedulable pods, failing probes, missing replicas, services without
+endpoints, ingresses without a backend, unhealthy nodes and unbound volumes.
+Each one reads what the cluster reported and stops there: where the cluster did
+not say why, Correlux says so and lowers its confidence rather than inventing a
+plausible cause. Every finding carries the evidence it rests on, attributed to
+the object that stated it.</p>
+<p>The evidence — events, endpoints, node conditions, volume claims — is fetched
+when you open an application, ask the question, or explicitly open the cluster
+problem overview; never on the dashboard&#x27;s timer
+(<a href="0018-evidence-on-demand.html">ADR 18</a>).</p>
+<h3 id="from-an-application-to-the-object-and-back">From an application to the object, and back</h3>
+<p><code>Enter</code> on an application opens what it is made of; <code>Enter</code> again opens the
+object under the cursor. The same key does the same thing in the resource
+browser, custom resources included. From there, its relations lead up to the controller
+that made it and down to the objects it made, so Deployment to ReplicaSet to Pod
+is three keystrokes in either direction, and <code>Esc</code> retraces the path it came in
+by.</p>
+<p>Each object is described from the document it came as — a pod by its containers,
+their images, states, restarts and limits; a workload by its replicas and pod
+template — and <code>y</code> shows that document unabridged. A kind Correlux has never
+heard of is described from its own status and conditions, which is where a
+custom controller reports itself anyway.</p>
+<p>References in that document are navigable too. A Pod leads directly to the
+PersistentVolumeClaims, ConfigMaps, Secrets and ServiceAccount it actually
+names; a claim leads on to its bound PersistentVolume and StorageClass. These
+links are explicit references from the server&#x27;s document, never guesses based
+on a similar name. <code>Enter</code> follows one and <code>Esc</code> walks back.</p>
+<p><code>E</code> opens recent activity for the current scope: Kubernetes Events ordered
+newest first, with namespace, reason, affected object, occurrence count and the
+cluster&#x27;s own message. <code>Enter</code> opens the affected object. Events are operational
+breadcrumbs with cluster-defined retention, not an audit log; Correlux says so
+on screen and does not claim they identify every change or actor.</p>
+<p><code>b</code> decodes the base64 in that document, which is what makes a Secret readable
+without copying a blob out to <code>base64 -d</code>:</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code>Secret/database  shop
+v1   age 9d   3 values decoded from base64
+
+data:
+  keystore.jks: &lt;binary, 2048 bytes&gt;
+  password: hunter2
+  tls.crt: |
+    -----BEGIN CERTIFICATE-----
+</code></pre>
+<p>The scope comes from the document rather than from a list of kinds: <code>data</code> and
+<code>binaryData</code> are decoded, a value that is not base64 stays exactly as it was,
+and one that decodes to bytes nobody can read is shown as its size instead of
+being dumped into the terminal. The subtitle says which of the two you are
+reading, and the toggle changes only that: <code>e</code> still hands your editor — and the
+cluster — the document the server holds.</p>
+<h3 id="logs">Logs</h3>
+<p><code>l</code> reads the logs of whatever is in hand: a pod, or every pod of a workload or
+an application at once, each line attributed to the container it came from. It
+opens following; <code>f</code> pauses so you can read what is there, <code>p</code> switches to the
+previous run of a container that restarted — the only log that explains a crash
+loop — <code>t</code> adds the server&#x27;s timestamps and <code>w</code> wraps long lines.</p>
+<p>A container that cannot be read yet says so on its own line instead of silencing
+the others, the oldest lines are dropped once the buffer is full and the header
+admits it, and leaving the view closes every connection it opened.</p>
+<h3 id="where-the-pods-are-and-what-they-use">Where the pods are, and what they use</h3>
+<p><code>u</code> answers the two questions a full cluster raises: which machine everything
+landed on, and how much of what it reserved each application is actually using.
+Cluster-wide it opens on the namespaces, largest reservation first, because a
+flat list of every application in the cluster is a scrolling problem rather than
+an answer:</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code>Resource usage in all namespaces
+2 nodes   8 pods of 220 slots   live usage measured 30s ago over 30s
+
+NAMESPACES
+  NAMESPACE  APPLICATIONS  PODS  NODES  CPU USED/REQ/LIMIT    MEMORY USED/REQ/LIMIT
+  payments   2             5     2      620m / 1000m / 2000m  1Gi / 2Gi / 4Gi
+  jobs       1             3     1      180m / 500m / 1000m   512Mi / 1Gi / 2Gi
+</code></pre>
+<p>A namespace is shown in absolute numbers rather than as a percentage: without a
+ResourceQuota there is nothing it is a percentage <em>of</em>, and a node&#x27;s capacity is
+shared by every namespace on it.</p>
+<p><code>↑</code>/<code>↓</code> selects a namespace and <code>Enter</code> narrows the scope to it — the
+applications, the machines they landed on, and what each is using against what
+it asked for. <code>Esc</code> widens the scope back out, and leaves the screen for anyone
+who opened it in a namespace to begin with:</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code>Resource usage in payments
+
+NODES
+  NODE    STATE    PODS   CPU USED    CPU REQUESTED  MEM USED    MEM REQUESTED
+  node-1  ✓ Ready  2/110  ████░░ 65%  ░░░░░░ 6%      ████░░ 63%  ░░░░░░ 6%
+  node-2  ✓ Ready  1/110  no sample   ░░░░░░ 6%      no sample   ░░░░░░ 6%
+
+APPLICATIONS
+  APPLICATION  PODS  NODES  CPU USED/REQ/LIMIT  MEMORY USED/REQ/LIMIT
+  api          2     2      — / 500m / 1000m    — / 1Gi / 2Gi
+  batch        1     1      — / — / —           — / — / —
+</code></pre>
+<p>The live column comes from the metrics API, which is optional. Without Metrics
+Server the column is not there at all and the rest of the screen still answers
+from the pod specs and the machines themselves — requests, limits, allocatable
+and how full each node is. A node the metrics API said nothing about reads <code>no sample</code>, a pod that reserved nothing reads <code>none set</code>, and neither is ever drawn
+as a zero: an unsized pod is placed anywhere and throttled by nothing, which is
+the opposite of idle.</p>
+<p>Pods that no node has taken get their own section with the scheduler&#x27;s own
+verdict, because &quot;where are the pods&quot; is not answered by the ones that are
+somewhere. <code>Ctrl+R</code> measures again.</p>
+<h3 id="finding-something">Finding something</h3>
+<p><code>/</code> narrows whatever list is on screen — a resource table, the dashboard, or one
+kind across the whole fleet. The match is fuzzy and covers the whole row, so
+typing <code>crashloop</code> finds the pods that are in it and <code>pay</code> finds <code>payments</code>
+wherever the name sits.</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code>/pay  2 of 4213 loaded rows   Ctrl+P Commands   Ctrl+K Cluster   ? Help
+</code></pre>
+<p>It is a filter, not a query: Correlux narrows the rows it has rather than asking
+the server a different question, and the bar says how much it is showing — with
+<code>loaded</code> when the table is paged and rows below have not been fetched. The order
+never changes; a filtered list is the same list with fewer rows.</p>
+<h3 id="changing-something">Changing something</h3>
+<p><code>S</code> scales the selected workload, <code>e</code> opens the object in <code>$EDITOR</code>. Both end at
+the same screen, which states what the change does before it happens:</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code>Scale Deployment/payments
+This removes 2 replicas.
+Deployment/payments in shop
+3 replicas → 1 replica
+
+Cluster   ⬤ PROD prod-eu   shop
+
+This context is production. Type prod-eu to confirm.
+❯
+</code></pre>
+<p>The consequence, the object, and the cluster — because the mistake worth
+guarding against is not a mistyped number, it is a correct action on the wrong
+cluster (<a href="0020-changes-go-through-one-gate.html">ADR 20</a>). An edit shows
+its diff first, is refused if it renames the object or is not valid YAML, and is
+refused by the server if somebody else changed the object while it sat in the
+editor.</p>
+<h3 id="several-clusters-at-once">Several clusters at once</h3>
+<p><code>F</code> opens the fleet: every cluster you chose, read in parallel, with what is
+broken in each of them.</p>
+<p>You choose them on screen. <code>e</code> in the fleet lists every context in your
+kubeconfig with a box beside it — <code>Tab</code> picks one, <code>Ctrl+T</code> takes all of them
+or gives them all back, <code>Enter</code> saves:</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code>╭──────────────────────────────────────────────────────────────────────╮
+│ Clusters in the fleet                                                │
+│ ❯ Filter clusters…                                                   │
+│   [x] PROD prod-eu  https://api.prod-eu.example.com                  │
+│ ▸ [x] PROD prod-us  https://api.prod-us.example.com                  │
+│   [ ] staging  https://api.staging.example.com                active │
+│                                                                      │
+│ Tab pick   Ctrl+T all   Enter save   Esc cancel   • 2 of 3 chosen    │
+╰──────────────────────────────────────────────────────────────────────╯
+</code></pre>
+<p>Saving writes the choice to your configuration file so it is still there
+tomorrow, and only the fleet keys in it are touched: everything else you wrote,
+in the order you wrote it and with the comments explaining it, comes back
+exactly as it was. Nothing is contacted until you open the fleet.</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code>Fleet
+3 clusters   1 unreachable   5 applications across 2 of 3   3 not healthy   1 of 7 nodes not ready, 1 cordoned
+
+CLUSTERS
+  CLUSTER        STATE        APPLICATIONS  DETAIL
+  staging        connected    2             1 degraded, 1 cordoned
+  prod-eu  PROD  connected    3             1 down, 1 of 4 nodes not ready
+  sandbox        unreachable  —             connection refused
+
+NODES
+  CLUSTER        NODE     STATE      DETAIL
+  prod-eu  PROD  node-2   not ready  Kubelet stopped posting node status.
+  staging        node-7   cordoned   no new pods will be placed here
+
+WHAT IS BROKEN
+  APPLICATION  CLUSTER        NAMESPACE  HEALTH    PODS  DETAIL
+  payments     prod-eu  PROD  shop       down      0/3   3 CrashLoopBackOff
+  payments     staging        shop       degraded  2/3   1 ImagePullBackOff
+</code></pre>
+<p>Everything unusual is on that one screen, not only what has failed: a node that
+is merely cordoned is named too, because it is the reason a rollout will not
+land there, and a kind Correlux was not allowed to read is counted rather than
+passed over in silence.</p>
+<p>It covers the contexts of the selected fleet group and nothing else — Correlux
+never discovers on its own that opening it authenticated against every
+production cluster you hold credentials for. Adding all of them is a command you
+run, for one session.</p>
+<p>Groups are named sets of contexts, which is how production, staging, a region or
+a team stay apart without authenticating against anything outside the one you
+opened. <code>New fleet group…</code> in the command palette asks for a name and then for
+its clusters; <code>Delete fleet group …</code> removes the grouping and leaves the
+clusters alone. What that writes is plain enough to edit by hand if you would
+rather:</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code class="language-yaml">fleetGroups:
+  - name: production
+    contexts: [prod-eu, prod-us]
+  - name: non-prod
+    contexts: [staging, dev]
+</code></pre>
+<p><code>Open fleet group …</code> in the command palette switches between them. Switching
+cancels the reads in flight and never carries a session-only addition into the
+next group, so a cluster you added by hand to one group cannot appear in
+another.</p>
+<p>A plain <code>fleet:</code> list still works, and is offered as the group named <code>default</code>:
+a configuration written before groups existed opens on exactly the clusters it
+always did, and stays reachable from the palette when named groups sit beside
+it.</p>
+<p>From the overview, <code>Ctrl+B</code> browses <strong>one resource kind across every cluster</strong> —
+pods, deployments, or a custom resource — as one table:</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code>Fleet → Deployment → 69 deployments   from 3 of 4 clusters   not listed in prod-ap: connection refused
+CLUSTER             NAMESPACE          NAME     READY  UP-TO-DATE  AVAILABLE  AGE
+kind-correlux-test  kube-system        coredns  2/2    2           2          3h59m
+kind-correlux-test  correlux-load-000  app-00   0/3    3           0          3h18m
+</code></pre>
+<p>The columns are the API server&#x27;s own, merged by name: a cluster running an older
+version of a CRD contributes what it has and leaves the rest empty, and no cell
+ever lands under the wrong heading. A cluster that does not serve the kind is
+named with the reason. <code>Enter</code> opens that object, in its cluster.</p>
+<p>The overview is <strong>read-only</strong>. Enter leaves it for the cluster the row is about,
+which is what keeps every action unambiguous: either you are looking at the
+fleet, or you are inside one cluster acting on it
+(<a href="0019-fleet-overview.html">ADR 19</a>). Totals never cover a cluster that
+did not answer, and the timer does not refresh this screen — <code>Ctrl+R</code> does, when
+you decide the cost is worth paying.</p>
+<h3 id="helm-flux-and-argo-cd">Helm, Flux and Argo CD</h3>
+<p>Correlux recognises their handwriting. Nothing is installed and nothing is asked
+of them: the workloads those tools create carry labels and annotations saying
+so, and an application reads them.</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code>DELIVERED BY
+  TOOL  OBJECT                NAMESPACE
+  Flux  HelmRelease/payments  flux-system
+</code></pre>
+<p><code>Enter</code> on that row opens the HelmRelease, Kustomization or Argo application
+itself — with its reconciliation conditions, like any other object. Flux is
+recognised ahead of the Helm it deploys through, because the object worth
+looking at is the one that drives the release. An application nothing claims
+says so, which on a cluster run by Flux is itself worth noticing.</p>
+<h3 id="keeping-up-with-a-rollout">Keeping up with a rollout</h3>
+<p><code>Ctrl+F</code> reloads the current screen on a timer until you turn it off, and the
+header says <code>auto 2s</code> while it does. It is off by default, refetches only what
+is on screen, never stacks requests, idles while a menu is open and backs off
+when the cluster is unreachable — because polling somebody&#x27;s production API
+server is the user&#x27;s decision, not a default
+(<a href="0017-timed-refresh-not-watches.html">ADR 17</a>).</p>
+<p>While a reload is actually in flight the header says <code>⟳ refreshing</code>, and stops
+saying it the moment the answer lands. A reload the timer starts says nothing
+at all unless it runs longer than a moment: an indicator that blinks on every
+tick, or that stays up after the work is done, reports the wrong thing about
+how long the cluster took.</p>
+<h3 id="custom-resources-are-not-second-class">Custom resources are not second-class</h3>
+<p>Correlux asks the API server to render every resource table, using the same
+<code>Table</code> content type <code>kubectl get</code> uses. A CustomResourceDefinition that
+declares <code>additionalPrinterColumns</code> shows exactly those columns — with the same
+<code>-o wide</code> behaviour — and Correlux contains no code for it
+(<a href="0013-server-side-tables.html">ADR 13</a>).</p>
+<p>The same applies when a cluster is half broken: if an aggregated API server is
+down, discovery degrades to &quot;sixty kinds, one group unavailable&quot; instead of
+showing nothing.</p>
+<h3 id="switching-context-is-session-local">Switching context is session-local</h3>
+<p>Correlux <strong>never writes to your kubeconfig</strong>. Changing cluster or namespace
+inside Correlux affects Correlux only; the <code>kubectl</code> in your other terminal
+keeps pointing exactly where you left it
+(<a href="0007-session-local-context-switching.html">ADR 7</a>).</p>
+<p>Because of that, the active context is always on screen, and production contexts
+carry a <code>PROD</code> badge — in text, not only in colour.</p>
+<h2 id="configuration">Configuration</h2>
+<p>Optional. Correlux runs correctly with no config file.</p>
+<ul>
+<li>Linux/macOS: <code>~/.config/correlux/config.yaml</code> (<code>$XDG_CONFIG_HOME</code> is honoured)</li>
+<li>Windows: <code>%APPDATA%\correlux\config.yaml</code></li>
+</ul>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code class="language-yaml">theme: auto # auto | dark | light
+
+startup:
+  context: &quot;&quot;
+  namespace: &quot;&quot;
+
+# The clusters the fleet overview (F) covers. Empty means no fleet.
+fleet: []
+
+refresh:
+  auto: false # start with the timed reload running
+  every: 2s   # floored at 2s
+
+dangerousActions:
+  productionConfirmation: true
+  # Matched case-insensitively against context name, cluster name and server URL.
+  productionPatterns:
+    - &#x27;(^|[-_./])(prod|prd|production|live)([-_./]|$)&#x27;
+  productionContexts: []
+
+keybindings:
+  palette: ctrl+p
+  applications: ctrl+a
+  fleet: F
+  search: &quot;/&quot;
+  why: ctrl+w
+  object.yaml: &quot;y&quot;
+  object.decode: b
+  edit: e
+  scale: S
+  exec: x
+  copy: c
+  logs: l
+  logs.follow: f
+  logs.previous: p
+  logs.timestamps: t
+  context.picker: ctrl+k
+  namespace.picker: ctrl+o
+  resource.picker: ctrl+b
+  refresh: ctrl+r
+  refresh.auto: ctrl+f
+  help: &quot;?&quot;
+  quit: ctrl+c
+</code></pre>
+<h2 id="accessibility">Accessibility</h2>
+<p>Information is never carried by colour alone: every state is a glyph <em>and</em> a
+word (<code>✓ healthy</code>, <code>⚠ degraded</code>, <code>✖ down</code>). <code>NO_COLOR</code>, <code>CLICOLOR=0</code> and
+<code>TERM=dumb</code> are honoured, the glyph set falls back to ASCII when the terminal
+cannot do better (or when <code>CORRELUX_ASCII=1</code> is set), everything is keyboard
+reachable, and key bindings are configurable.
+See <a href="0009-accessibility-and-terminal-capabilities.html">ADR 9</a>.</p>
+<h2 id="roadmap">Roadmap</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable reference table"><table><thead><tr><th>Phase</th><th>Scope</th><th>State</th></tr></thead><tbody><tr><td>1</td><td>TUI shell, kubeconfig, cluster/namespace switching, command palette</td><td><strong>done</strong></td></tr><tr><td>—</td><td>Resource browser for every kind, native and custom</td><td><strong>done</strong></td></tr><tr><td>—</td><td>kind-based integration and load testing harness</td><td><strong>done</strong></td></tr><tr><td>2</td><td>Application discovery and the application-first dashboard</td><td><strong>done</strong></td></tr><tr><td>—</td><td>Timed refresh, mouse-wheel scrolling</td><td><strong>done</strong></td></tr><tr><td>3</td><td>Deterministic WHY diagnosis engine</td><td><strong>done</strong></td></tr><tr><td>4</td><td>Object detail, describe and navigation between objects</td><td><strong>done</strong></td></tr><tr><td>—</td><td>Logs at pod, workload and application level</td><td><strong>done</strong></td></tr><tr><td>—</td><td>Fleet overview across several clusters, read-only</td><td><strong>done</strong></td></tr><tr><td>—</td><td>Helm, Flux and Argo CD recognised from what they write</td><td><strong>done</strong></td></tr><tr><td>—</td><td>Resource usage per namespace, application and node, metrics API optional</td><td><strong>done</strong></td></tr><tr><td>—</td><td>Exec and clipboard</td><td><strong>done</strong></td></tr><tr><td>5</td><td>Safe mutating actions: scale and edit</td><td><strong>done</strong></td></tr><tr><td>—</td><td>Further safe actions: delete, restart, cordon</td><td>planned</td></tr><tr><td>6</td><td>Large-cluster performance work, guided by the benchmarks</td><td>planned</td></tr><tr><td>7</td><td>Platform polish across macOS, Linux and Windows</td><td>planned</td></tr></tbody></table>
+</div><p>The full product specification is in <a href="specification.html">SPEC.md</a>.</p>
+<h2 id="non-goals">Non-goals</h2>
+<p>Correlux is a terminal operations interface. It is not a web dashboard, a hosted
+service, an operator, a <code>kubectl</code> replacement, a Helm replacement, a GitOps
+system, a monitoring backend, or an AI-first product. AI, when it arrives, is an
+optional explanation layer over a deterministic engine
+(<a href="0010-deterministic-diagnosis-before-ai.html">ADR 10</a>).</p>
+<h2 id="contributing">Contributing</h2>
+<p>See <a href="contributing.html">CONTRIBUTING.md</a>. In short:</p>
+<pre><button type="button" class="copy-button" aria-label="Copy code">⧉</button><code class="language-bash">go install github.com/go-task/task/v3/cmd/task@latest
+task check           # vet, lint, race tests — everything CI runs
+task kind:up
+task kind:seed       # a local cluster with realistic, deliberately broken load
+task run:kind
+</code></pre>
+<p>The load generator can fill a local cluster with thousands of pods, deployments,
+services and custom resources without starting a single container, which is how
+Correlux&#x27;s large-cluster claims are measured rather than asserted
+(<a href="0014-load-testing-with-kind.html">ADR 14</a>).</p>
+<p>Architecture and the reasoning behind it: <a href="architecture.html">docs/architecture.md</a>
+and <a href="decisions.html">docs/adr</a>.</p>
+<h2 id="licence">Licence</h2>
+<p>Apache 2.0 — see <a href="https://github.com/aronk11/correlux/blob/main/LICENSE">LICENSE</a>.</p>
+</article><a class="doc-edit" href="https://github.com/aronk11/correlux-site/edit/main/content/README.md">Improve this page on GitHub ↗</a></main><nav class="docs-toc" aria-label="On this page"><span>ON THIS PAGE</span><a href="#why">Why</a><a href="#install">Install</a><a href="#use">Use</a><a href="#configuration">Configuration</a><a href="#accessibility">Accessibility</a><a href="#roadmap">Roadmap</a><a href="#non-goals">Non-goals</a><a href="#contributing">Contributing</a><a href="#licence">Licence</a></nav></div><footer class="site-footer section-wrap"><a class="brand" href="/correlux/" aria-label="Correlux home"><img src="/correlux/assets/logo.svg" width="34" height="34" alt=""/>correlux<span class="brand-dot">_</span></a><span>Less cluster. More clarity.</span><nav aria-label="Footer"><a href="/correlux/docs/contributing.html">Contribute</a><a href="https://github.com/aronk11/correlux/issues">Issues</a><a href="https://github.com/aronk11/correlux/blob/main/LICENSE">Apache 2.0</a></nav><span class="footer-note">Made for your terminal. And your sanity.</span></footer><div class="toast" role="status" aria-live="polite"></div></div><script id="page-data" type="application/json">{"page":{"source":"README.md","output":"guide.html","title":"User guide","group":"USING CORRELUX","body":"\u003ch1 id=\"correlux\">Correlux\u003c/h1>\n\u003cp>\u003cstrong>Don&#39;t show me Kubernetes. Show me what matters.\u003c/strong>\u003c/p>\n\u003cp>\u003ca href=\"https://aronk11.github.io/correlux/\">Website\u003c/a> ·\n\u003ca href=\"https://aronk11.github.io/correlux/docs/\">Documentation\u003c/a> ·\n\u003ca href=\"https://aronk11.github.io/correlux/docs/getting-started.html\">Getting started\u003c/a>\u003c/p>\n\u003cp>Correlux is a terminal-native Kubernetes operations UI for macOS, Linux and\nWindows. It runs against your existing kubeconfig — no server, no agent, no CRD,\nno container, no browser.\u003c/p>\n\u003cp>It is inspired by how useful K9s is, and it is deliberately not a K9s clone: the\nfirst screen is your \u003cstrong>applications and their health\u003c/strong>, not a list of resource\ntypes.\u003c/p>\n\u003cblockquote>\n\u003cp>\u003cstrong>Status: early.\u003c/strong> Implemented so far: the application dashboard, which infers\napplications from the cluster&#39;s own ownership, labels and selectors and sorts\nthem worst first; cluster and namespace switching; the command palette; an\noptional timed refresh; the deterministic WHY engine that explains an\nunhealthy application from the cluster&#39;s own evidence; and a resource browser\nthat lists \u003cstrong>every\u003c/strong> kind the cluster serves — custom resources included —\nwith the API server&#39;s own columns. Logs, exec, clipboard, fleet groups, resource\nusage, scale and edit are also implemented. See \u003ca href=\"#roadmap\">the roadmap\u003c/a>.\nNothing in the UI is a mock-up: if Correlux does not\nknow something yet, it says so.\u003c/p>\n\u003c/blockquote>\n\u003ch2 id=\"why\">Why\u003c/h2>\n\u003cp>During an incident you do not want to run \u003ccode>kubectl get\u003c/code>, \u003ccode>describe\u003c/code>, \u003ccode>logs\u003c/code>,\n\u003ccode>get events\u003c/code>, \u003ccode>get endpoints\u003c/code> and \u003ccode>rollout status\u003c/code> in sequence and hold the join\nin your head. You want one screen that answers:\u003c/p>\n\u003cul>\n\u003cli>What is broken?\u003c/li>\n\u003cli>\u003cstrong>Why\u003c/strong> is it broken?\u003c/li>\n\u003cli>What can I safely do about it?\u003c/li>\n\u003c/ul>\n\u003cp>That last question is the one Correlux optimises for. The primary metric is the\ntime from \u003cem>&quot;something is wrong&quot;\u003c/em> to \u003cem>&quot;I know why&quot;\u003c/em>.\u003c/p>\n\u003ch2 id=\"install\">Install\u003c/h2>\n\u003cpre>\u003ccode class=\"language-bash\">brew install aronk11/tap/correlux                      # macOS\ngo install github.com/aronk11/correlux/cmd/correlux@latest\n\u003c/code>\u003c/pre>\n\u003cp>Or download a binary from the\n\u003ca href=\"https://github.com/aronk11/correlux/releases\">releases page\u003c/a> and put it on your\n\u003ccode>PATH\u003c/code>. Pre-built binaries are static: there is nothing else to install.\u003c/p>\n\u003ch2 id=\"use\">Use\u003c/h2>\n\u003cpre>\u003ccode class=\"language-bash\">correlux                              # start in your current context\ncorrelux --context prod-eu            # start somewhere specific\ncorrelux -n payments                  # start in a namespace\ncorrelux -A                           # start scoped to all namespaces\ncorrelux doctor                       # why doesn&#39;t it work here?\ncorrelux version\n\u003c/code>\u003c/pre>\n\u003ch3 id=\"keys\">Keys\u003c/h3>\n\u003cdiv class=\"table-scroll\" tabindex=\"0\" role=\"region\" aria-label=\"Scrollable reference table\">\u003ctable>\n\u003cthead>\n\u003ctr>\n\u003cth>Key\u003c/th>\n\u003cth>Action\u003c/th>\n\u003c/tr>\n\u003c/thead>\n\u003ctbody>\u003ctr>\n\u003ctd>\u003ccode>Ctrl+P\u003c/code>\u003c/td>\n\u003ctd>Command palette — every action, searchable by name\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>Ctrl+A\u003c/code>\u003c/td>\n\u003ctd>Back to the application dashboard\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>F\u003c/code>\u003c/td>\n\u003ctd>The fleet: every configured cluster at once\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>Enter\u003c/code>\u003c/td>\n\u003ctd>Open the application under the cursor\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>Ctrl+W\u003c/code>\u003c/td>\n\u003ctd>Why is this unhealthy?\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>y\u003c/code>\u003c/td>\n\u003ctd>Show the document the server holds, and back\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>b\u003c/code>\u003c/td>\n\u003ctd>Decode the base64 values in it — a Secret&#39;s, above all\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>e\u003c/code>\u003c/td>\n\u003ctd>Edit the open object in your editor\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>S\u003c/code>\u003c/td>\n\u003ctd>Scale the selected workload\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>x\u003c/code>\u003c/td>\n\u003ctd>Open an interactive shell in the pod, or a running pod of the workload\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>c\u003c/code>\u003c/td>\n\u003ctd>Copy its namespace/name to the clipboard — YAML, JSON and more are in \u003ccode>Ctrl+P\u003c/code>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>l\u003c/code>\u003c/td>\n\u003ctd>Read the logs of the pod, workload or application in hand\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>u\u003c/code>\u003c/td>\n\u003ctd>Where the pods are, and what they use against what they asked for\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>E\u003c/code>\u003c/td>\n\u003ctd>Recent Kubernetes Events in the active scope, newest first\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>Ctrl+B\u003c/code>\u003c/td>\n\u003ctd>Browse resource kinds, custom resources included\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>Enter\u003c/code>\u003c/td>\n\u003ctd>Open the object under the cursor\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>Ctrl+K\u003c/code>\u003c/td>\n\u003ctd>Switch cluster\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>Ctrl+O\u003c/code>\u003c/td>\n\u003ctd>Switch namespace\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>/\u003c/code>\u003c/td>\n\u003ctd>Filter the list on screen\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>Ctrl+R\u003c/code>\u003c/td>\n\u003ctd>Refresh\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>Ctrl+F\u003c/code>\u003c/td>\n\u003ctd>Refresh on a timer, until you turn it off (\u003ccode>auto 2s\u003c/code> appears in the header)\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>w\u003c/code>\u003c/td>\n\u003ctd>Toggle the wide columns in a resource table\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>?\u003c/code>\u003c/td>\n\u003ctd>Help\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>Esc\u003c/code>\u003c/td>\n\u003ctd>Back / close overlay\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>\u003ccode>Ctrl+C\u003c/code> / \u003ccode>q\u003c/code>\u003c/td>\n\u003ctd>Quit\u003c/td>\n\u003c/tr>\n\u003c/tbody>\u003c/table>\n\u003c/div>\u003cp>You are not expected to memorise those. Press \u003ccode>Ctrl+P\u003c/code> and type what you want.\u003c/p>\n\u003ch3 id=\"applications-not-resource-types\">Applications, not resource types\u003c/h3>\n\u003cp>The first screen is what is deployed in the current scope, worst first:\u003c/p>\n\u003cpre>\u003ccode>STATUS      APPLICATION  PODS   AGE    DETAIL\n✖ down      payments     0/3    1h30m  0 of 3 pods ready\n⚠ degraded  worker       7/8    4d2h   1 CrashLoopBackOff\n✓ healthy   api          12/12  9d\n✓ healthy   frontend     6/6    9d\n\u003c/code>\u003c/pre>\n\u003cp>Kubernetes has no application object, so Correlux infers one: pods are walked up\ntheir owner references to the controller that owns them, workloads sharing an\n\u003ccode>app.kubernetes.io/instance\u003c/code> label are one release, services join by selector\nand ingresses through the service they route to. Nothing has to be installed,\nlabelled or configured first, and \u003ccode>Enter\u003c/code> opens an application to show the\nworkloads, pods and network it is actually made of\n(\u003ca href=\"0016-application-inference.html\">ADR 16\u003c/a>).\u003c/p>\n\u003cp>Health starts with what the cluster reports in replica counts and pod states.\nAfter evidence has been loaded, delivery failures such as a Service with no\nready endpoints are folded into the displayed health as well. \u003cem>Why\u003c/em> something\nis broken is the next section&#39;s question.\u003c/p>\n\u003cp>The command palette action \u003cstrong>Show cluster problems and session details\u003c/strong> opens\na bounded triage overview. It combines unhealthy applications, standalone node\nconditions and recent problem events in the active scope. This also catches\noperator and custom-resource failures generically—for example cert-manager&#39;s\n\u003ccode>IssuerNotFound\u003c/code> event—even when a controller labels such an event \u003ccode>Normal\u003c/code>.\nThe scan is capped, respects RBAC, and never attempts to list every custom\nresource installed in the cluster.\u003c/p>\n\u003ch3 id=\"why-is-it-broken\">Why is it broken?\u003c/h3>\n\u003cp>\u003ccode>Ctrl+W\u003c/code> explains the selected application, deterministically and without a\nmodel anywhere near it:\u003c/p>\n\u003cpre>\u003ccode>✖ 3 pods restart in a loop\n  Deployment/payments → Pods → CrashLoopBackOff → OOMKilled\n  WHY\n    the container is killed for exceeding its memory limit (exit 137)\n  EVIDENCE\n    Pod/payments-7d8f-0\n      container payments was killed for exceeding its memory limit, restarted 12 times\n    Event/payments-7d8f-0  1m ago\n      BackOff: Back-off restarting failed container payments (x41)\n  WHAT TO CHECK\n    • Read the logs of the run that failed, not of the one waiting to start\n      kubectl logs -n shop payments-7d8f-0 -c payments --previous\n  confidence: high\n\u003c/code>\u003c/pre>\n\u003cp>Thirteen rules cover crash loops, image pulls, missing config, OOM kills,\nunschedulable pods, failing probes, missing replicas, services without\nendpoints, ingresses without a backend, unhealthy nodes and unbound volumes.\nEach one reads what the cluster reported and stops there: where the cluster did\nnot say why, Correlux says so and lowers its confidence rather than inventing a\nplausible cause. Every finding carries the evidence it rests on, attributed to\nthe object that stated it.\u003c/p>\n\u003cp>The evidence — events, endpoints, node conditions, volume claims — is fetched\nwhen you open an application, ask the question, or explicitly open the cluster\nproblem overview; never on the dashboard&#39;s timer\n(\u003ca href=\"0018-evidence-on-demand.html\">ADR 18\u003c/a>).\u003c/p>\n\u003ch3 id=\"from-an-application-to-the-object-and-back\">From an application to the object, and back\u003c/h3>\n\u003cp>\u003ccode>Enter\u003c/code> on an application opens what it is made of; \u003ccode>Enter\u003c/code> again opens the\nobject under the cursor. The same key does the same thing in the resource\nbrowser, custom resources included. From there, its relations lead up to the controller\nthat made it and down to the objects it made, so Deployment to ReplicaSet to Pod\nis three keystrokes in either direction, and \u003ccode>Esc\u003c/code> retraces the path it came in\nby.\u003c/p>\n\u003cp>Each object is described from the document it came as — a pod by its containers,\ntheir images, states, restarts and limits; a workload by its replicas and pod\ntemplate — and \u003ccode>y\u003c/code> shows that document unabridged. A kind Correlux has never\nheard of is described from its own status and conditions, which is where a\ncustom controller reports itself anyway.\u003c/p>\n\u003cp>References in that document are navigable too. A Pod leads directly to the\nPersistentVolumeClaims, ConfigMaps, Secrets and ServiceAccount it actually\nnames; a claim leads on to its bound PersistentVolume and StorageClass. These\nlinks are explicit references from the server&#39;s document, never guesses based\non a similar name. \u003ccode>Enter\u003c/code> follows one and \u003ccode>Esc\u003c/code> walks back.\u003c/p>\n\u003cp>\u003ccode>E\u003c/code> opens recent activity for the current scope: Kubernetes Events ordered\nnewest first, with namespace, reason, affected object, occurrence count and the\ncluster&#39;s own message. \u003ccode>Enter\u003c/code> opens the affected object. Events are operational\nbreadcrumbs with cluster-defined retention, not an audit log; Correlux says so\non screen and does not claim they identify every change or actor.\u003c/p>\n\u003cp>\u003ccode>b\u003c/code> decodes the base64 in that document, which is what makes a Secret readable\nwithout copying a blob out to \u003ccode>base64 -d\u003c/code>:\u003c/p>\n\u003cpre>\u003ccode>Secret/database  shop\nv1   age 9d   3 values decoded from base64\n\ndata:\n  keystore.jks: &lt;binary, 2048 bytes&gt;\n  password: hunter2\n  tls.crt: |\n    -----BEGIN CERTIFICATE-----\n\u003c/code>\u003c/pre>\n\u003cp>The scope comes from the document rather than from a list of kinds: \u003ccode>data\u003c/code> and\n\u003ccode>binaryData\u003c/code> are decoded, a value that is not base64 stays exactly as it was,\nand one that decodes to bytes nobody can read is shown as its size instead of\nbeing dumped into the terminal. The subtitle says which of the two you are\nreading, and the toggle changes only that: \u003ccode>e\u003c/code> still hands your editor — and the\ncluster — the document the server holds.\u003c/p>\n\u003ch3 id=\"logs\">Logs\u003c/h3>\n\u003cp>\u003ccode>l\u003c/code> reads the logs of whatever is in hand: a pod, or every pod of a workload or\nan application at once, each line attributed to the container it came from. It\nopens following; \u003ccode>f\u003c/code> pauses so you can read what is there, \u003ccode>p\u003c/code> switches to the\nprevious run of a container that restarted — the only log that explains a crash\nloop — \u003ccode>t\u003c/code> adds the server&#39;s timestamps and \u003ccode>w\u003c/code> wraps long lines.\u003c/p>\n\u003cp>A container that cannot be read yet says so on its own line instead of silencing\nthe others, the oldest lines are dropped once the buffer is full and the header\nadmits it, and leaving the view closes every connection it opened.\u003c/p>\n\u003ch3 id=\"where-the-pods-are-and-what-they-use\">Where the pods are, and what they use\u003c/h3>\n\u003cp>\u003ccode>u\u003c/code> answers the two questions a full cluster raises: which machine everything\nlanded on, and how much of what it reserved each application is actually using.\nCluster-wide it opens on the namespaces, largest reservation first, because a\nflat list of every application in the cluster is a scrolling problem rather than\nan answer:\u003c/p>\n\u003cpre>\u003ccode>Resource usage in all namespaces\n2 nodes   8 pods of 220 slots   live usage measured 30s ago over 30s\n\nNAMESPACES\n  NAMESPACE  APPLICATIONS  PODS  NODES  CPU USED/REQ/LIMIT    MEMORY USED/REQ/LIMIT\n  payments   2             5     2      620m / 1000m / 2000m  1Gi / 2Gi / 4Gi\n  jobs       1             3     1      180m / 500m / 1000m   512Mi / 1Gi / 2Gi\n\u003c/code>\u003c/pre>\n\u003cp>A namespace is shown in absolute numbers rather than as a percentage: without a\nResourceQuota there is nothing it is a percentage \u003cem>of\u003c/em>, and a node&#39;s capacity is\nshared by every namespace on it.\u003c/p>\n\u003cp>\u003ccode>↑\u003c/code>/\u003ccode>↓\u003c/code> selects a namespace and \u003ccode>Enter\u003c/code> narrows the scope to it — the\napplications, the machines they landed on, and what each is using against what\nit asked for. \u003ccode>Esc\u003c/code> widens the scope back out, and leaves the screen for anyone\nwho opened it in a namespace to begin with:\u003c/p>\n\u003cpre>\u003ccode>Resource usage in payments\n\nNODES\n  NODE    STATE    PODS   CPU USED    CPU REQUESTED  MEM USED    MEM REQUESTED\n  node-1  ✓ Ready  2/110  ████░░ 65%  ░░░░░░ 6%      ████░░ 63%  ░░░░░░ 6%\n  node-2  ✓ Ready  1/110  no sample   ░░░░░░ 6%      no sample   ░░░░░░ 6%\n\nAPPLICATIONS\n  APPLICATION  PODS  NODES  CPU USED/REQ/LIMIT  MEMORY USED/REQ/LIMIT\n  api          2     2      — / 500m / 1000m    — / 1Gi / 2Gi\n  batch        1     1      — / — / —           — / — / —\n\u003c/code>\u003c/pre>\n\u003cp>The live column comes from the metrics API, which is optional. Without Metrics\nServer the column is not there at all and the rest of the screen still answers\nfrom the pod specs and the machines themselves — requests, limits, allocatable\nand how full each node is. A node the metrics API said nothing about reads \u003ccode>no sample\u003c/code>, a pod that reserved nothing reads \u003ccode>none set\u003c/code>, and neither is ever drawn\nas a zero: an unsized pod is placed anywhere and throttled by nothing, which is\nthe opposite of idle.\u003c/p>\n\u003cp>Pods that no node has taken get their own section with the scheduler&#39;s own\nverdict, because &quot;where are the pods&quot; is not answered by the ones that are\nsomewhere. \u003ccode>Ctrl+R\u003c/code> measures again.\u003c/p>\n\u003ch3 id=\"finding-something\">Finding something\u003c/h3>\n\u003cp>\u003ccode>/\u003c/code> narrows whatever list is on screen — a resource table, the dashboard, or one\nkind across the whole fleet. The match is fuzzy and covers the whole row, so\ntyping \u003ccode>crashloop\u003c/code> finds the pods that are in it and \u003ccode>pay\u003c/code> finds \u003ccode>payments\u003c/code>\nwherever the name sits.\u003c/p>\n\u003cpre>\u003ccode>/pay  2 of 4213 loaded rows   Ctrl+P Commands   Ctrl+K Cluster   ? Help\n\u003c/code>\u003c/pre>\n\u003cp>It is a filter, not a query: Correlux narrows the rows it has rather than asking\nthe server a different question, and the bar says how much it is showing — with\n\u003ccode>loaded\u003c/code> when the table is paged and rows below have not been fetched. The order\nnever changes; a filtered list is the same list with fewer rows.\u003c/p>\n\u003ch3 id=\"changing-something\">Changing something\u003c/h3>\n\u003cp>\u003ccode>S\u003c/code> scales the selected workload, \u003ccode>e\u003c/code> opens the object in \u003ccode>$EDITOR\u003c/code>. Both end at\nthe same screen, which states what the change does before it happens:\u003c/p>\n\u003cpre>\u003ccode>Scale Deployment/payments\nThis removes 2 replicas.\nDeployment/payments in shop\n3 replicas → 1 replica\n\nCluster   ⬤ PROD prod-eu   shop\n\nThis context is production. Type prod-eu to confirm.\n❯\n\u003c/code>\u003c/pre>\n\u003cp>The consequence, the object, and the cluster — because the mistake worth\nguarding against is not a mistyped number, it is a correct action on the wrong\ncluster (\u003ca href=\"0020-changes-go-through-one-gate.html\">ADR 20\u003c/a>). An edit shows\nits diff first, is refused if it renames the object or is not valid YAML, and is\nrefused by the server if somebody else changed the object while it sat in the\neditor.\u003c/p>\n\u003ch3 id=\"several-clusters-at-once\">Several clusters at once\u003c/h3>\n\u003cp>\u003ccode>F\u003c/code> opens the fleet: every cluster you chose, read in parallel, with what is\nbroken in each of them.\u003c/p>\n\u003cp>You choose them on screen. \u003ccode>e\u003c/code> in the fleet lists every context in your\nkubeconfig with a box beside it — \u003ccode>Tab\u003c/code> picks one, \u003ccode>Ctrl+T\u003c/code> takes all of them\nor gives them all back, \u003ccode>Enter\u003c/code> saves:\u003c/p>\n\u003cpre>\u003ccode>╭──────────────────────────────────────────────────────────────────────╮\n│ Clusters in the fleet                                                │\n│ ❯ Filter clusters…                                                   │\n│   [x] PROD prod-eu  https://api.prod-eu.example.com                  │\n│ ▸ [x] PROD prod-us  https://api.prod-us.example.com                  │\n│   [ ] staging  https://api.staging.example.com                active │\n│                                                                      │\n│ Tab pick   Ctrl+T all   Enter save   Esc cancel   • 2 of 3 chosen    │\n╰──────────────────────────────────────────────────────────────────────╯\n\u003c/code>\u003c/pre>\n\u003cp>Saving writes the choice to your configuration file so it is still there\ntomorrow, and only the fleet keys in it are touched: everything else you wrote,\nin the order you wrote it and with the comments explaining it, comes back\nexactly as it was. Nothing is contacted until you open the fleet.\u003c/p>\n\u003cpre>\u003ccode>Fleet\n3 clusters   1 unreachable   5 applications across 2 of 3   3 not healthy   1 of 7 nodes not ready, 1 cordoned\n\nCLUSTERS\n  CLUSTER        STATE        APPLICATIONS  DETAIL\n  staging        connected    2             1 degraded, 1 cordoned\n  prod-eu  PROD  connected    3             1 down, 1 of 4 nodes not ready\n  sandbox        unreachable  —             connection refused\n\nNODES\n  CLUSTER        NODE     STATE      DETAIL\n  prod-eu  PROD  node-2   not ready  Kubelet stopped posting node status.\n  staging        node-7   cordoned   no new pods will be placed here\n\nWHAT IS BROKEN\n  APPLICATION  CLUSTER        NAMESPACE  HEALTH    PODS  DETAIL\n  payments     prod-eu  PROD  shop       down      0/3   3 CrashLoopBackOff\n  payments     staging        shop       degraded  2/3   1 ImagePullBackOff\n\u003c/code>\u003c/pre>\n\u003cp>Everything unusual is on that one screen, not only what has failed: a node that\nis merely cordoned is named too, because it is the reason a rollout will not\nland there, and a kind Correlux was not allowed to read is counted rather than\npassed over in silence.\u003c/p>\n\u003cp>It covers the contexts of the selected fleet group and nothing else — Correlux\nnever discovers on its own that opening it authenticated against every\nproduction cluster you hold credentials for. Adding all of them is a command you\nrun, for one session.\u003c/p>\n\u003cp>Groups are named sets of contexts, which is how production, staging, a region or\na team stay apart without authenticating against anything outside the one you\nopened. \u003ccode>New fleet group…\u003c/code> in the command palette asks for a name and then for\nits clusters; \u003ccode>Delete fleet group …\u003c/code> removes the grouping and leaves the\nclusters alone. What that writes is plain enough to edit by hand if you would\nrather:\u003c/p>\n\u003cpre>\u003ccode class=\"language-yaml\">fleetGroups:\n  - name: production\n    contexts: [prod-eu, prod-us]\n  - name: non-prod\n    contexts: [staging, dev]\n\u003c/code>\u003c/pre>\n\u003cp>\u003ccode>Open fleet group …\u003c/code> in the command palette switches between them. Switching\ncancels the reads in flight and never carries a session-only addition into the\nnext group, so a cluster you added by hand to one group cannot appear in\nanother.\u003c/p>\n\u003cp>A plain \u003ccode>fleet:\u003c/code> list still works, and is offered as the group named \u003ccode>default\u003c/code>:\na configuration written before groups existed opens on exactly the clusters it\nalways did, and stays reachable from the palette when named groups sit beside\nit.\u003c/p>\n\u003cp>From the overview, \u003ccode>Ctrl+B\u003c/code> browses \u003cstrong>one resource kind across every cluster\u003c/strong> —\npods, deployments, or a custom resource — as one table:\u003c/p>\n\u003cpre>\u003ccode>Fleet → Deployment → 69 deployments   from 3 of 4 clusters   not listed in prod-ap: connection refused\nCLUSTER             NAMESPACE          NAME     READY  UP-TO-DATE  AVAILABLE  AGE\nkind-correlux-test  kube-system        coredns  2/2    2           2          3h59m\nkind-correlux-test  correlux-load-000  app-00   0/3    3           0          3h18m\n\u003c/code>\u003c/pre>\n\u003cp>The columns are the API server&#39;s own, merged by name: a cluster running an older\nversion of a CRD contributes what it has and leaves the rest empty, and no cell\never lands under the wrong heading. A cluster that does not serve the kind is\nnamed with the reason. \u003ccode>Enter\u003c/code> opens that object, in its cluster.\u003c/p>\n\u003cp>The overview is \u003cstrong>read-only\u003c/strong>. Enter leaves it for the cluster the row is about,\nwhich is what keeps every action unambiguous: either you are looking at the\nfleet, or you are inside one cluster acting on it\n(\u003ca href=\"0019-fleet-overview.html\">ADR 19\u003c/a>). Totals never cover a cluster that\ndid not answer, and the timer does not refresh this screen — \u003ccode>Ctrl+R\u003c/code> does, when\nyou decide the cost is worth paying.\u003c/p>\n\u003ch3 id=\"helm-flux-and-argo-cd\">Helm, Flux and Argo CD\u003c/h3>\n\u003cp>Correlux recognises their handwriting. Nothing is installed and nothing is asked\nof them: the workloads those tools create carry labels and annotations saying\nso, and an application reads them.\u003c/p>\n\u003cpre>\u003ccode>DELIVERED BY\n  TOOL  OBJECT                NAMESPACE\n  Flux  HelmRelease/payments  flux-system\n\u003c/code>\u003c/pre>\n\u003cp>\u003ccode>Enter\u003c/code> on that row opens the HelmRelease, Kustomization or Argo application\nitself — with its reconciliation conditions, like any other object. Flux is\nrecognised ahead of the Helm it deploys through, because the object worth\nlooking at is the one that drives the release. An application nothing claims\nsays so, which on a cluster run by Flux is itself worth noticing.\u003c/p>\n\u003ch3 id=\"keeping-up-with-a-rollout\">Keeping up with a rollout\u003c/h3>\n\u003cp>\u003ccode>Ctrl+F\u003c/code> reloads the current screen on a timer until you turn it off, and the\nheader says \u003ccode>auto 2s\u003c/code> while it does. It is off by default, refetches only what\nis on screen, never stacks requests, idles while a menu is open and backs off\nwhen the cluster is unreachable — because polling somebody&#39;s production API\nserver is the user&#39;s decision, not a default\n(\u003ca href=\"0017-timed-refresh-not-watches.html\">ADR 17\u003c/a>).\u003c/p>\n\u003cp>While a reload is actually in flight the header says \u003ccode>⟳ refreshing\u003c/code>, and stops\nsaying it the moment the answer lands. A reload the timer starts says nothing\nat all unless it runs longer than a moment: an indicator that blinks on every\ntick, or that stays up after the work is done, reports the wrong thing about\nhow long the cluster took.\u003c/p>\n\u003ch3 id=\"custom-resources-are-not-second-class\">Custom resources are not second-class\u003c/h3>\n\u003cp>Correlux asks the API server to render every resource table, using the same\n\u003ccode>Table\u003c/code> content type \u003ccode>kubectl get\u003c/code> uses. A CustomResourceDefinition that\ndeclares \u003ccode>additionalPrinterColumns\u003c/code> shows exactly those columns — with the same\n\u003ccode>-o wide\u003c/code> behaviour — and Correlux contains no code for it\n(\u003ca href=\"0013-server-side-tables.html\">ADR 13\u003c/a>).\u003c/p>\n\u003cp>The same applies when a cluster is half broken: if an aggregated API server is\ndown, discovery degrades to &quot;sixty kinds, one group unavailable&quot; instead of\nshowing nothing.\u003c/p>\n\u003ch3 id=\"switching-context-is-session-local\">Switching context is session-local\u003c/h3>\n\u003cp>Correlux \u003cstrong>never writes to your kubeconfig\u003c/strong>. Changing cluster or namespace\ninside Correlux affects Correlux only; the \u003ccode>kubectl\u003c/code> in your other terminal\nkeeps pointing exactly where you left it\n(\u003ca href=\"0007-session-local-context-switching.html\">ADR 7\u003c/a>).\u003c/p>\n\u003cp>Because of that, the active context is always on screen, and production contexts\ncarry a \u003ccode>PROD\u003c/code> badge — in text, not only in colour.\u003c/p>\n\u003ch2 id=\"configuration\">Configuration\u003c/h2>\n\u003cp>Optional. Correlux runs correctly with no config file.\u003c/p>\n\u003cul>\n\u003cli>Linux/macOS: \u003ccode>~/.config/correlux/config.yaml\u003c/code> (\u003ccode>$XDG_CONFIG_HOME\u003c/code> is honoured)\u003c/li>\n\u003cli>Windows: \u003ccode>%APPDATA%\\correlux\\config.yaml\u003c/code>\u003c/li>\n\u003c/ul>\n\u003cpre>\u003ccode class=\"language-yaml\">theme: auto # auto | dark | light\n\nstartup:\n  context: &quot;&quot;\n  namespace: &quot;&quot;\n\n# The clusters the fleet overview (F) covers. Empty means no fleet.\nfleet: []\n\nrefresh:\n  auto: false # start with the timed reload running\n  every: 2s   # floored at 2s\n\ndangerousActions:\n  productionConfirmation: true\n  # Matched case-insensitively against context name, cluster name and server URL.\n  productionPatterns:\n    - &#39;(^|[-_./])(prod|prd|production|live)([-_./]|$)&#39;\n  productionContexts: []\n\nkeybindings:\n  palette: ctrl+p\n  applications: ctrl+a\n  fleet: F\n  search: &quot;/&quot;\n  why: ctrl+w\n  object.yaml: &quot;y&quot;\n  object.decode: b\n  edit: e\n  scale: S\n  exec: x\n  copy: c\n  logs: l\n  logs.follow: f\n  logs.previous: p\n  logs.timestamps: t\n  context.picker: ctrl+k\n  namespace.picker: ctrl+o\n  resource.picker: ctrl+b\n  refresh: ctrl+r\n  refresh.auto: ctrl+f\n  help: &quot;?&quot;\n  quit: ctrl+c\n\u003c/code>\u003c/pre>\n\u003ch2 id=\"accessibility\">Accessibility\u003c/h2>\n\u003cp>Information is never carried by colour alone: every state is a glyph \u003cem>and\u003c/em> a\nword (\u003ccode>✓ healthy\u003c/code>, \u003ccode>⚠ degraded\u003c/code>, \u003ccode>✖ down\u003c/code>). \u003ccode>NO_COLOR\u003c/code>, \u003ccode>CLICOLOR=0\u003c/code> and\n\u003ccode>TERM=dumb\u003c/code> are honoured, the glyph set falls back to ASCII when the terminal\ncannot do better (or when \u003ccode>CORRELUX_ASCII=1\u003c/code> is set), everything is keyboard\nreachable, and key bindings are configurable.\nSee \u003ca href=\"0009-accessibility-and-terminal-capabilities.html\">ADR 9\u003c/a>.\u003c/p>\n\u003ch2 id=\"roadmap\">Roadmap\u003c/h2>\n\u003cdiv class=\"table-scroll\" tabindex=\"0\" role=\"region\" aria-label=\"Scrollable reference table\">\u003ctable>\n\u003cthead>\n\u003ctr>\n\u003cth>Phase\u003c/th>\n\u003cth>Scope\u003c/th>\n\u003cth>State\u003c/th>\n\u003c/tr>\n\u003c/thead>\n\u003ctbody>\u003ctr>\n\u003ctd>1\u003c/td>\n\u003ctd>TUI shell, kubeconfig, cluster/namespace switching, command palette\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>—\u003c/td>\n\u003ctd>Resource browser for every kind, native and custom\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>—\u003c/td>\n\u003ctd>kind-based integration and load testing harness\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>2\u003c/td>\n\u003ctd>Application discovery and the application-first dashboard\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>—\u003c/td>\n\u003ctd>Timed refresh, mouse-wheel scrolling\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>3\u003c/td>\n\u003ctd>Deterministic WHY diagnosis engine\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>4\u003c/td>\n\u003ctd>Object detail, describe and navigation between objects\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>—\u003c/td>\n\u003ctd>Logs at pod, workload and application level\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>—\u003c/td>\n\u003ctd>Fleet overview across several clusters, read-only\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>—\u003c/td>\n\u003ctd>Helm, Flux and Argo CD recognised from what they write\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>—\u003c/td>\n\u003ctd>Resource usage per namespace, application and node, metrics API optional\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>—\u003c/td>\n\u003ctd>Exec and clipboard\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>5\u003c/td>\n\u003ctd>Safe mutating actions: scale and edit\u003c/td>\n\u003ctd>\u003cstrong>done\u003c/strong>\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>—\u003c/td>\n\u003ctd>Further safe actions: delete, restart, cordon\u003c/td>\n\u003ctd>planned\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>6\u003c/td>\n\u003ctd>Large-cluster performance work, guided by the benchmarks\u003c/td>\n\u003ctd>planned\u003c/td>\n\u003c/tr>\n\u003ctr>\n\u003ctd>7\u003c/td>\n\u003ctd>Platform polish across macOS, Linux and Windows\u003c/td>\n\u003ctd>planned\u003c/td>\n\u003c/tr>\n\u003c/tbody>\u003c/table>\n\u003c/div>\u003cp>The full product specification is in \u003ca href=\"specification.html\">SPEC.md\u003c/a>.\u003c/p>\n\u003ch2 id=\"non-goals\">Non-goals\u003c/h2>\n\u003cp>Correlux is a terminal operations interface. It is not a web dashboard, a hosted\nservice, an operator, a \u003ccode>kubectl\u003c/code> replacement, a Helm replacement, a GitOps\nsystem, a monitoring backend, or an AI-first product. AI, when it arrives, is an\noptional explanation layer over a deterministic engine\n(\u003ca href=\"0010-deterministic-diagnosis-before-ai.html\">ADR 10\u003c/a>).\u003c/p>\n\u003ch2 id=\"contributing\">Contributing\u003c/h2>\n\u003cp>See \u003ca href=\"contributing.html\">CONTRIBUTING.md\u003c/a>. In short:\u003c/p>\n\u003cpre>\u003ccode class=\"language-bash\">go install github.com/go-task/task/v3/cmd/task@latest\ntask check           # vet, lint, race tests — everything CI runs\ntask kind:up\ntask kind:seed       # a local cluster with realistic, deliberately broken load\ntask run:kind\n\u003c/code>\u003c/pre>\n\u003cp>The load generator can fill a local cluster with thousands of pods, deployments,\nservices and custom resources without starting a single container, which is how\nCorrelux&#39;s large-cluster claims are measured rather than asserted\n(\u003ca href=\"0014-load-testing-with-kind.html\">ADR 14\u003c/a>).\u003c/p>\n\u003cp>Architecture and the reasoning behind it: \u003ca href=\"architecture.html\">docs/architecture.md\u003c/a>\nand \u003ca href=\"decisions.html\">docs/adr\u003c/a>.\u003c/p>\n\u003ch2 id=\"licence\">Licence\u003c/h2>\n\u003cp>Apache 2.0 — see \u003ca href=\"https://github.com/aronk11/correlux/blob/main/LICENSE\">LICENSE\u003c/a>.\u003c/p>\n","headings":[{"depth":1,"text":"Correlux","id":"correlux"},{"depth":2,"text":"Why","id":"why"},{"depth":2,"text":"Install","id":"install"},{"depth":2,"text":"Use","id":"use"},{"depth":3,"text":"Keys","id":"keys"},{"depth":3,"text":"Applications, not resource types","id":"applications-not-resource-types"},{"depth":3,"text":"Why is it broken?","id":"why-is-it-broken"},{"depth":3,"text":"From an application to the object, and back","id":"from-an-application-to-the-object-and-back"},{"depth":3,"text":"Logs","id":"logs"},{"depth":3,"text":"Where the pods are, and what they use","id":"where-the-pods-are-and-what-they-use"},{"depth":3,"text":"Finding something","id":"finding-something"},{"depth":3,"text":"Changing something","id":"changing-something"},{"depth":3,"text":"Several clusters at once","id":"several-clusters-at-once"},{"depth":3,"text":"Helm, Flux and Argo CD","id":"helm-flux-and-argo-cd"},{"depth":3,"text":"Keeping up with a rollout","id":"keeping-up-with-a-rollout"},{"depth":3,"text":"Custom resources are not second-class","id":"custom-resources-are-not-second-class"},{"depth":3,"text":"Switching context is session-local","id":"switching-context-is-session-local"},{"depth":2,"text":"Configuration","id":"configuration"},{"depth":2,"text":"Accessibility","id":"accessibility"},{"depth":2,"text":"Roadmap","id":"roadmap"},{"depth":2,"text":"Non-goals","id":"non-goals"},{"depth":2,"text":"Contributing","id":"contributing"},{"depth":2,"text":"Licence","id":"licence"}],"type":"docs","docOutput":"guide.html"},"base":"/correlux/","navigation":[{"source":"website/docs-index.md","output":"index.html","title":"Documentation","group":"GET STARTED"},{"source":"website/getting-started.md","output":"getting-started.html","title":"Getting started","group":"GET STARTED"},{"source":"README.md","output":"guide.html","title":"User guide","group":"USING CORRELUX"},{"source":"docs/architecture.md","output":"architecture.html","title":"Architecture","group":"UNDER THE HOOD"},{"source":"docs/adr/README.md","output":"decisions.html","title":"Design decisions","group":"UNDER THE HOOD"},{"source":"SPEC.md","output":"specification.html","title":"Product specification","group":"UNDER THE HOOD"},{"source":"CONTRIBUTING.md","output":"contributing.html","title":"Contributing","group":"COMMUNITY"},{"source":"CODE_OF_CONDUCT.md","output":"code-of-conduct.html","title":"Code of conduct","group":"COMMUNITY"},{"source":"SECURITY.md","output":"security.html","title":"Security","group":"COMMUNITY"},{"source":"docs/adr/0001-record-architecture-decisions.md","output":"0001-record-architecture-decisions.html","title":"1. Record architecture decisions","group":"DECISION RECORDS"},{"source":"docs/adr/0002-go-and-bubble-tea.md","output":"0002-go-and-bubble-tea.html","title":"2. Go and Bubble Tea v2 for a single static binary","group":"DECISION RECORDS"},{"source":"docs/adr/0003-application-first-navigation.md","output":"0003-application-first-navigation.html","title":"3. Applications, not resource types, are the primary navigation model","group":"DECISION RECORDS"},{"source":"docs/adr/0004-layered-architecture.md","output":"0004-layered-architecture.html","title":"4. The domain layer must not know that a terminal exists","group":"DECISION RECORDS"},{"source":"docs/adr/0005-explicit-async-state.md","output":"0005-explicit-async-state.html","title":"5. Remote data carries an explicit lifecycle and a generation counter","group":"DECISION RECORDS"},{"source":"docs/adr/0006-lazy-scoped-loading.md","output":"0006-lazy-scoped-loading.html","title":"6. No global cache at startup: load lazily, within the active scope","group":"DECISION RECORDS"},{"source":"docs/adr/0007-session-local-context-switching.md","output":"0007-session-local-context-switching.html","title":"7. Switching context inside Correlux never writes to the kubeconfig","group":"DECISION RECORDS"},{"source":"docs/adr/0008-production-safety.md","output":"0008-production-safety.html","title":"8. Production contexts are classified heuristically and guarded by default","group":"DECISION RECORDS"},{"source":"docs/adr/0009-accessibility-and-terminal-capabilities.md","output":"0009-accessibility-and-terminal-capabilities.html","title":"9. Never encode meaning in colour alone; degrade to ASCII","group":"DECISION RECORDS"},{"source":"docs/adr/0010-deterministic-diagnosis-before-ai.md","output":"0010-deterministic-diagnosis-before-ai.html","title":"10. The diagnosis engine is deterministic; AI is an optional explanation layer","group":"DECISION RECORDS"},{"source":"docs/adr/0011-development-workflow.md","output":"0011-development-workflow.html","title":"11. Trunk-based development with feature branches and Conventional Commits","group":"DECISION RECORDS"},{"source":"docs/adr/0012-task-instead-of-make.md","output":"0012-task-instead-of-make.html","title":"12. Task instead of Make","group":"DECISION RECORDS"},{"source":"docs/adr/0013-server-side-tables.md","output":"0013-server-side-tables.html","title":"13. Resources are rendered from the API server's own tables","group":"DECISION RECORDS"},{"source":"docs/adr/0014-load-testing-with-kind.md","output":"0014-load-testing-with-kind.html","title":"14. Load is tested on a real API server, with pods that never run","group":"DECISION RECORDS"},{"source":"docs/adr/0015-signed-commits.md","output":"0015-signed-commits.html","title":"15. Every commit is signed","group":"DECISION RECORDS"},{"source":"docs/adr/0016-application-inference.md","output":"0016-application-inference.html","title":"16. Applications are inferred from the cluster, not declared to Correlux","group":"DECISION RECORDS"},{"source":"docs/adr/0017-timed-refresh-not-watches.md","output":"0017-timed-refresh-not-watches.html","title":"17. The screen reloads on a timer the user turns on, not on watches","group":"DECISION RECORDS"},{"source":"docs/adr/0018-evidence-on-demand.md","output":"0018-evidence-on-demand.html","title":"18. A diagnosis is built from evidence fetched on demand, not from a cache","group":"DECISION RECORDS"},{"source":"docs/adr/0019-fleet-overview.md","output":"0019-fleet-overview.html","title":"19. A fleet overview across several kubeconfig contexts, read-only","group":"DECISION RECORDS"},{"source":"docs/adr/0020-changes-go-through-one-gate.md","output":"0020-changes-go-through-one-gate.html","title":"20. Every change goes through one gate, and Correlux never edits for you","group":"DECISION RECORDS"}]}</script><script type="module" src="/correlux/assets/index-wD7_CHUE.js"></script></body></html>

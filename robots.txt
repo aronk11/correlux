@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://aronk11.github.io/correlux/sitemap.xml
