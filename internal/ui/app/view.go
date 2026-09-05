@@ -287,6 +287,7 @@ func (m *Model) statusData() components.StatusData {
 				Group: components.HintView, Key: m.keys.Key(ActionCordon), Desc: m.cordonHint(ref), Priority: 77,
 			})
 		}
+		table = append(table, m.changeHints()...)
 		hints = append(table, hints...)
 	case viewApplications:
 		hints = append([]components.KeyHint{
@@ -337,6 +338,7 @@ func (m *Model) statusData() components.StatusData {
 				Group: components.HintView, Key: m.keys.Key(ActionExec), Desc: "Shell", Priority: 78,
 			})
 		}
+		app = append(app, m.changeHints()...)
 		hints = append(app, hints...)
 	case viewWhy:
 		hints = append([]components.KeyHint{
@@ -413,6 +415,7 @@ func (m *Model) statusData() components.StatusData {
 				Group: components.HintView, Key: m.keys.Key(ActionCopy), Desc: "Copy", Priority: 55,
 			})
 		}
+		object = append(object, m.changeHints()...)
 		hints = append(object, hints...)
 	}
 	switch m.overlay {
@@ -914,6 +917,23 @@ func (m *Model) renderOverlay(rect layout.Rect) string {
 	return m.theme.Overlay.Width(rect.Width).Render(content)
 }
 
+// changeHints are the keys that change the object in hand, advertised only
+// where they would do something to it.
+func (m *Model) changeHints() []components.KeyHint {
+	var out []components.KeyHint
+	if m.knownRestartable() {
+		out = append(out, components.KeyHint{
+			Group: components.HintView, Key: m.keys.Key(ActionRestart), Desc: "Restart", Priority: 80,
+		})
+	}
+	if _, ok := m.deletableTarget(); ok {
+		out = append(out, components.KeyHint{
+			Group: components.HintView, Key: m.keys.Key(ActionDelete), Desc: "Delete", Priority: 52,
+		})
+	}
+	return out
+}
+
 func (m *Model) renderHelp(width, height int) string {
 	sections := []struct {
 		title string
@@ -949,6 +969,8 @@ func (m *Model) renderHelp(width, height int) string {
 			{m.keys.Key(ActionDecode), "Decode the base64 values in it — a Secret's, above all"},
 			{m.keys.Key(ActionScale), "Scale the selected workload, after confirming the blast radius"},
 			{m.keys.Key(ActionCordon), "Stop the node in hand taking new pods, or let it take them again"},
+			{m.keys.Key(ActionRestart), "Roll the selected workload: every pod replaced as the rollout allows"},
+			{m.keys.Key(ActionDelete), "Delete the selected object, and what Kubernetes deletes with it"},
 			{m.keys.Key(ActionEdit), "Edit the open object in $EDITOR, then review what changed"},
 			{m.keys.Key(ActionExec), "Open an interactive shell in the pod, or a running pod of the workload"},
 			{m.keys.Key(ActionCopy), "Copy its namespace/name to the clipboard"},

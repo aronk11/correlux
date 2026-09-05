@@ -35,6 +35,8 @@ const (
 	paletteToggleDecode     palette.ActionID = "object.decode"
 	paletteScale            palette.ActionID = "scale"
 	paletteCordon           palette.ActionID = "node.cordon"
+	paletteRestart          palette.ActionID = "workload.restart"
+	paletteDelete           palette.ActionID = "delete"
 	paletteEdit             palette.ActionID = "edit"
 	paletteExec             palette.ActionID = "exec"
 	paletteCopy             palette.ActionID = "copy"
@@ -339,6 +341,36 @@ func (m *Model) rebuildCommands() {
 			entry.DisabledReason = "only a node can be cordoned"
 		}
 		cmds = append(cmds, entry)
+	}
+
+	if ref, ok := m.restartableTarget(); ok {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.restart",
+			Action:   paletteRestart,
+			Title:    "Restart " + ref.label(),
+			Subtitle: "replaces its pods, as fast as the rollout allows",
+			Category: "Change",
+			Keywords: []string{"restart", "rollout", "roll", "bounce", "recreate", "redeploy"},
+			Shortcut: m.keys.Key(ActionRestart),
+			Weight:   82,
+			Enabled:  true,
+		})
+	}
+
+	// Weighted low on purpose: the one action here that cannot be undone
+	// should not be what a half-typed query lands on.
+	if ref, ok := m.deletableTarget(); ok {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.delete",
+			Action:   paletteDelete,
+			Title:    "Delete " + ref.label(),
+			Subtitle: m.deleteSubtitle(ref),
+			Category: "Change",
+			Keywords: []string{"delete", "remove", "rm", "destroy", "drop"},
+			Shortcut: m.keys.Key(ActionDelete),
+			Weight:   42,
+			Enabled:  true,
+		})
 	}
 
 	if m.view == viewFleet && len(m.fleetContexts()) < len(m.kubeconfig.Contexts) {
@@ -724,6 +756,76 @@ func (m *Model) scalableTarget() (objectRef, bool) {
 	return ref, ok && res.Scalable
 }
 
+// targetRef names the object the current screen points at: the open object,
+// the row under the cursor in an application, or the selected row of a
+// resource table. It is what an action that works on any kind — delete, above
+// all — reads instead of each screen deciding for itself.
+func (m *Model) targetRef() (objectRef, bool) {
+	var ref objectRef
+	switch m.view {
+	case viewObject:
+		ref = m.objectTarget
+	case viewApplication:
+		_, targets := m.applicationView()
+		if m.detailPort.Cursor < 0 || m.detailPort.Cursor >= len(targets) {
+			return objectRef{}, false
+		}
+		ref = targets[m.detailPort.Cursor]
+	case viewTable:
+		rows := m.visibleRows()
+		if m.tablePort.Cursor < 0 || m.tablePort.Cursor >= len(rows) {
+			return objectRef{}, false
+		}
+		row := rows[m.tablePort.Cursor]
+		ref = objectRef{
+			Kind:      m.resource.Kind(),
+			Name:      row.Name,
+			Namespace: rowNamespace(row.Namespace, m.resource.Namespaced, m.namespace, m.allNamespaces),
+			Resource:  m.resource.FullName(),
+		}
+	default:
+		return objectRef{}, false
+	}
+	if ref.empty() {
+		return objectRef{}, false
+	}
+	return ref, true
+}
+
+// ownedPodCount reports how many pods the loaded snapshot shows this object
+// owning.
+//
+// It is what Correlux can see, not a claim about the cluster: a scope that was
+// never loaded, or an object whose pods are found by something other than its
+// selector, has no number, and a confirmation says nothing rather than
+// inventing one.
+func (m *Model) ownedPodCount(ref objectRef) (int, bool) {
+	workload, ok := m.workloadFor(ref)
+	if !ok || len(workload.Selector) == 0 {
+		return 0, false
+	}
+	pods := m.apps.Get().Snapshot.Pods
+	count := 0
+	for i := range pods {
+		if pods[i].Namespace == ref.Namespace && matchesLabels(workload.Selector, pods[i].Labels) {
+			count++
+		}
+	}
+	return count, count > 0
+}
+
+// deleteSubtitle names what would go, so the palette entry carries the
+// consequence rather than only the verb.
+func (m *Model) deleteSubtitle(ref objectRef) string {
+	if ref.Kind == "Namespace" {
+		return "and everything in it"
+	}
+	if pods, known := m.ownedPodCount(ref); known {
+		return "in " + orNone(ref.Namespace) + ", with its " + podCount(pods)
+	}
+	return "in " + orNone(ref.Namespace) + ", with what it owns"
+}
+
 // scaleSubtitle says what the workload has now, so the palette entry carries
 // the number the user is about to change.
 func (m *Model) scaleSubtitle(ref objectRef) string {
@@ -887,6 +989,10 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.scaleTarget()
 	case paletteCordon:
 		return m.cordonTarget()
+	case paletteRestart:
+		return m.restartTarget()
+	case paletteDelete:
+		return m.deleteTarget()
 	case paletteEdit:
 		return m.editObject(m.objectTarget)
 	case paletteExec:
