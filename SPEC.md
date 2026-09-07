@@ -30,6 +30,12 @@ First-class: macOS, Linux, Windows. Distributed as a single native binary.
 Not required: Docker, Node.js, Python, a browser, an operator, CRDs, an
 in-cluster agent. The only external dependency is access to a Kubernetes API.
 
+One qualification, and it is the user's to remove: once a day Correlux asks the
+public release feed whether there is a newer version of itself, sending nothing
+but the version it already prints. `update.check: false` stops it, and the
+session screen says which of the two is happening
+([ADR 21](docs/adr/0021-update-check.md)).
+
 ## 3. Core principles
 
 ### 3.1 Terminal first

@@ -538,6 +538,45 @@ The same applies when a cluster is half broken: if an aggregated API server is
 down, discovery degrades to "sixty kinds, one group unavailable" instead of
 showing nothing.
 
+### Correlux tells you when it is out of date
+
+A new version announces itself once, where the version already is:
+
+```
+ prod-eu   •  scope payments  •  ✓ connected 1.31.4 12ms      v0.10.0 → v0.11.0
+```
+
+The session screen (`Show cluster problems and session details` in the palette)
+says the rest — which version, where to get it, or why there is nothing to
+report:
+
+```
+Environment
+  Correlux    v0.10.0 — v0.11.0 is available
+  github.com/aronk11/correlux/releases/tag/v0.11.0
+```
+
+That is the only thing Correlux ever asks anything but a Kubernetes API server.
+Once a day, one unauthenticated GET to the public release feed, five second
+timeout, the answer cached beside your config. It sends the version
+`correlux version` already prints and nothing else: no identifier, no context
+name, no cluster, no counter. A check that fails — a train, a proxy, an
+air-gapped bastion — is not a banner; it is one line on the session screen
+saying it did not happen, because a check that cannot run must never read as
+"up to date".
+
+One line switches it off, and the same screen then says so:
+
+```yaml
+update:
+  check: false # Correlux contacts nothing but Kubernetes
+```
+
+`Check for a newer Correlux` in the palette asks on the spot, whatever the
+setting says — asking is consent — and `correlux version` prints what the last
+check learned without ever performing one, so it cannot hang in a script.
+([ADR 21](docs/adr/0021-update-check.md))
+
 ### Switching context is session-local
 
 Correlux **never writes to your kubeconfig**. Changing cluster or namespace
@@ -570,6 +609,9 @@ fleetNamespaces: []
 refresh:
   auto: false # start with the timed reload running
   every: 2s   # floored at 2s
+
+update:
+  check: true # ask the public release feed for a newer Correlux, once a day
 
 dangerousActions:
   productionConfirmation: true

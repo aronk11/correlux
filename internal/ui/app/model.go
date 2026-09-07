@@ -22,6 +22,7 @@ import (
 	"github.com/aronk11/correlux/internal/ui/layout"
 	"github.com/aronk11/correlux/internal/ui/palette"
 	"github.com/aronk11/correlux/internal/ui/theme"
+	"github.com/aronk11/correlux/internal/update"
 )
 
 // overlayKind identifies the modal currently on screen.
@@ -124,6 +125,11 @@ type Model struct {
 	// against the same reading.
 	usage     async.Value[usage.Report]
 	usageLive usage.Live
+	// updateCheck is whether there is a newer Correlux than this one. It is the
+	// only remote value in here that is not a cluster's, and it carries the
+	// same explicit lifecycle as the rest: a check that did not happen must
+	// never read as "up to date".
+	updateCheck async.Value[update.Release]
 
 	// One viewport per scrollable screen. The rules they follow live in
 	// layout.Viewport, written once (ADR 4: arithmetic below the UI).
@@ -421,6 +427,11 @@ func (m *Model) Init() tea.Cmd {
 		m.loadCatalog(),
 		m.loadApplications(),
 		expireMessage(m.messageSeq, 8*time.Second),
+	}
+	// Last, and never waited for: whether Correlux itself is out of date is the
+	// least urgent thing on this screen.
+	if cmd := m.checkForUpdate(false); cmd != nil {
+		cmds = append(cmds, cmd)
 	}
 	if m.autoRefresh {
 		cmds = append(cmds, scheduleAutoRefresh(m.refreshSeq, m.refreshEvery))

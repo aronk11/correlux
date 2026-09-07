@@ -61,6 +61,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case autoRefreshTickMsg:
 		return m, m.handleAutoRefreshTick(msg)
 
+	case updateCheckedMsg:
+		return m, m.applyUpdateCheck(msg)
 	case clusterProbedMsg:
 		if m.cluster.Accepts(msg.gen) {
 			m.clusterLoading = false
