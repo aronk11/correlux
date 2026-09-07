@@ -20,6 +20,8 @@ func (m *Model) activeSelector() *components.Selector {
 		return m.resPicker
 	case overlayFleetPicker:
 		return m.fleetPicker
+	case overlayFleetNamespaces:
+		return m.fleetNSPicker
 	default:
 		return nil
 	}
@@ -60,6 +62,15 @@ func (m *Model) openOverlay(kind overlayKind) tea.Cmd {
 		m.fleetPicker.Title = m.fleetPickerTitle()
 		m.fleetPicker.Footer = m.fleetPickerFooter()
 		m.fleetPicker.Reset()
+	case overlayFleetNamespaces:
+		m.fleetNSPicker.Title = m.fleetNamespacePickerTitle()
+		m.fleetNSPicker.Footer = m.fleetNamespacePickerFooter()
+		m.fleetNSPicker.Reset()
+		// The session's own cluster is where most of the offered names come
+		// from; opening the picker is a good moment to try again for them.
+		if !m.namespaces.HasValue() {
+			return m.loadNamespaces()
+		}
 	}
 	return nil
 }
@@ -96,6 +107,17 @@ func (m *Model) handleOverlayKey(keystroke, text string) (tea.Cmd, bool) {
 				m.toggleFleetPick()
 			} else {
 				m.toggleEveryFleetPick()
+			}
+			return nil, true
+		}
+		if m.overlay == overlayFleetNamespaces {
+			// Ctrl+T clears rather than takes all: "every namespace" is what no
+			// ticks already means, and ticking forty of them would mean the
+			// same thing at forty times the cost.
+			if keystroke == "tab" {
+				m.toggleFleetNamespacePick()
+			} else {
+				m.clearFleetNamespacePicks()
 			}
 			return nil, true
 		}
@@ -142,6 +164,17 @@ func (m *Model) confirmSelection() tea.Cmd {
 		m.closeOverlay()
 		return nil
 	}
+	// The multi-select pickers apply their ticks rather than the row under the
+	// cursor. Enter must save them even when the list itself has nothing to
+	// offer — a fleet scoped to nothing is exactly how somebody asks for every
+	// namespace back.
+	switch m.overlay {
+	case overlayFleetPicker:
+		return m.saveFleetPick()
+	case overlayFleetNamespaces:
+		return m.saveFleetNamespaces()
+	}
+
 	item, ok := sel.Selected()
 	if !ok || item.Disabled {
 		return nil
@@ -156,8 +189,6 @@ func (m *Model) confirmSelection() tea.Cmd {
 	case overlayNamespaces:
 		m.closeOverlay()
 		return m.switchNamespace(item.ID)
-	case overlayFleetPicker:
-		return m.saveFleetPick()
 	case overlayResources:
 		m.closeOverlay()
 		// Picked from a fleet screen, the kind is browsed across the fleet
@@ -185,7 +216,7 @@ func (m *Model) overlayRect() layout.Rect {
 			WidthRatio: 0.6, HeightRatio: 0.55,
 			MinWidth: 40, MaxWidth: 84, MinHeight: 8, MaxHeight: 20,
 		})
-	case overlayFleetPicker:
+	case overlayFleetPicker, overlayFleetNamespaces:
 		// Taller than the cluster switcher: this list is read in full rather
 		// than filtered down to one row, and the tick marks only mean
 		// something next to each other.

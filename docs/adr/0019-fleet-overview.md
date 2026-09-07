@@ -121,5 +121,28 @@ columns — and a cell landing under the wrong heading would be worse than a gap
 so a column one cluster lacks is left empty. A cluster that does not serve the
 kind at all is named with the reason rather than quietly left out.
 
+The two-dimensional scope the Context warned about was answered by narrowing the
+second dimension rather than by exposing it in full: a fleet is scoped to a
+**set of namespace names**, applied to every cluster in it, not to a set of
+context/namespace pairs. Namespaces are named the same way across an estate far
+more often than they differ, and the pair-wise version is a configuration
+surface nobody would want to maintain by hand. Empty means every namespace,
+which is what the fleet had always done, so nothing changed for anybody who does
+not ask.
+
+The namespaces are what each cluster is asked for — one bounded pass per
+namespace, sequentially, so a three-namespace scope does not turn one cluster's
+read into a burst of twenty-seven concurrent requests — rather than a
+cluster-wide read filtered on arrival. That costs more round trips and much less
+data, and it is the only version that works for a service account that may not
+read the whole cluster, which is a large share of the people this screen is
+for. A namespace that is denied in one cluster is a gap named on that member,
+not a failure of the cluster: in a fleet, partial permission is normal.
+
+The scope is saved with the group it belongs to, and every count says what it
+covers, down to the empty state: "nothing is broken in payments, checkout" is
+a different sentence from "nothing is broken anywhere", and only one of them is
+true when the overview was told to look at two namespaces out of forty.
+
 The timed refresh deliberately does not touch these screens. `Ctrl+R` reloads
 them, which is the one moment a user has decided the cost is worth paying.

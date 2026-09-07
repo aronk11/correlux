@@ -28,7 +28,7 @@ refresh:
 `
 	write(t, path, original)
 
-	if err := SaveFleet(path, nil, []FleetGroup{
+	if err := SaveFleet(path, nil, nil, []FleetGroup{
 		{Name: "production", Contexts: []string{"prod-eu", "prod-us"}},
 	}); err != nil {
 		t.Fatalf("SaveFleet: %v", err)
@@ -71,7 +71,7 @@ refresh:
 func TestSavingWithNoConfigFileYetWritesOne(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "config.yaml")
 
-	if err := SaveFleet(path, []string{"kind-correlux"}, nil); err != nil {
+	if err := SaveFleet(path, []string{"kind-correlux"}, nil, nil); err != nil {
 		t.Fatalf("SaveFleet: %v", err)
 	}
 
@@ -104,7 +104,7 @@ func TestSavingRefusesAFileItDoesNotUnderstand(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	write(t, path, "- this\n- is\n- a list\n")
 
-	if err := SaveFleet(path, []string{"prod"}, nil); err == nil {
+	if err := SaveFleet(path, []string{"prod"}, nil, nil); err == nil {
 		t.Fatal("a malformed configuration must not be silently replaced")
 	}
 	if got := read(t, path); !strings.Contains(got, "a list") {
