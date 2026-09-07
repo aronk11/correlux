@@ -474,6 +474,13 @@ func (m *Model) filterStatus() (filter, note string) {
 		return filter, ""
 	}
 
+	// A comparison against a column this screen does not have matches nothing,
+	// and an empty list looks exactly like a cluster with nothing in it. Say
+	// which word could not be answered instead.
+	if problems := m.parsedQuery().Problems(m.searchColumns()); len(problems) > 0 {
+		return filter, strings.Join(problems, "; ")
+	}
+
 	switch m.view {
 	case viewTable:
 		table := m.table.Get()
@@ -545,8 +552,7 @@ func (m *Model) tableData() screens.TableData {
 		return d
 	}
 	if rows := m.visibleRows(); len(rows) == 0 && m.filtering() {
-		d.Message = "Nothing matches " + m.query() + " among " +
-			itoa(len(table.Rows)) + " loaded " + m.resource.Plural() + "."
+		d.Message = m.emptyFilterMessage(len(table.Rows), "loaded "+m.resource.Plural())
 		return d
 	}
 	if len(table.Rows) == 0 {
@@ -1000,6 +1006,11 @@ func (m *Model) renderHelp(width, height int) string {
 		{"Filtering", [][2]string{
 			{m.keys.Key(ActionSearch), "Narrow the list on screen; type to filter, Esc to clear"},
 			{"↑ ↓ / Enter", "Leave the filter and act on what is left"},
+			{"payments", "Fuzzy, over the whole row"},
+			{"!kube-system", "Everything the word is not in"},
+			{"restarts>5", "Compare a column: > >= < <= = != =="},
+			{"age<1h", "An age column is a duration; every other one is a number"},
+			{"ns=shop age<1h", "Terms are and-ed; the columns are the ones on screen"},
 		}},
 		{"In a resource table", [][2]string{
 			{"↑ ↓ / j k", "Move; the next page loads as you reach the end"},

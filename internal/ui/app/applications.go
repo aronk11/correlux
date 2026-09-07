@@ -187,8 +187,7 @@ func (m *Model) applicationsData() screens.TableData {
 
 	apps := m.visibleApplications()
 	if len(apps) == 0 && m.filtering() {
-		d.Message = "Nothing matches " + m.query() + " among " +
-			itoa(len(m.applications())) + " applications."
+		d.Message = m.emptyFilterMessage(len(m.applications()), "applications")
 		return d
 	}
 	if len(apps) == 0 {
