@@ -19,6 +19,7 @@ import (
 	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	"github.com/aronk11/correlux/internal/kube/kubeconfig"
 	"github.com/aronk11/correlux/internal/ui/app"
+	"github.com/aronk11/correlux/internal/update"
 )
 
 type globalFlags struct {
@@ -167,6 +168,23 @@ func run(ctx context.Context, flags globalFlags) error {
 	return nil
 }
 
+// knownNewerRelease reports a newer version if the last background check found
+// one. It reads the cache and nothing else.
+func knownNewerRelease(current string) string {
+	dir, err := config.Dir()
+	if err != nil {
+		return ""
+	}
+	release, err := update.Load(update.CachePath(dir))
+	if err != nil || !update.Newer(current, release.Version) {
+		return ""
+	}
+	if release.URL != "" {
+		return release.Version + " is available — " + release.URL
+	}
+	return release.Version + " is available"
+}
+
 func newVersionCommand() *cobra.Command {
 	var short bool
 	cmd := &cobra.Command{
@@ -183,6 +201,12 @@ func newVersionCommand() *cobra.Command {
 			fmt.Fprintln(cmd.OutOrStdout(), "  go:     "+info.GoVersion)
 			if info.Date != "" {
 				fmt.Fprintln(cmd.OutOrStdout(), "  built:  "+info.Date)
+			}
+			// Whatever the last check learned, and never a check of its own:
+			// `correlux version` is run by scripts, and a command that reaches
+			// for the network is a command that hangs behind a firewall.
+			if newer := knownNewerRelease(info.Version); newer != "" {
+				fmt.Fprintln(cmd.OutOrStdout(), "  update: "+newer)
 			}
 			return nil
 		},

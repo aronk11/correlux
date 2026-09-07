@@ -57,6 +57,7 @@ const (
 	paletteRefresh          palette.ActionID = "refresh"
 	paletteAutoRefresh      palette.ActionID = "refresh.auto"
 	paletteReloadConfig     palette.ActionID = "reload.kubeconfig"
+	paletteCheckUpdate      palette.ActionID = "update.check"
 	paletteHelp             palette.ActionID = "help"
 	paletteQuit             palette.ActionID = "quit"
 )
@@ -208,6 +209,16 @@ func (m *Model) rebuildCommands() {
 			Category: "Cluster",
 			Keywords: []string{"kubeconfig", "contexts", "rescan"},
 			Weight:   40,
+			Enabled:  true,
+		},
+		{
+			ID:       "cmd.update",
+			Action:   paletteCheckUpdate,
+			Title:    "Check for a newer Correlux",
+			Subtitle: m.updateSubtitleForPalette(),
+			Category: "Help",
+			Keywords: []string{"update", "upgrade", "version", "release", "newer", "latest"},
+			Weight:   25,
 			Enabled:  true,
 		},
 		{
@@ -1061,6 +1072,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.refresh()
 	case paletteAutoRefresh:
 		return m.toggleAutoRefresh()
+	case paletteCheckUpdate:
+		return m.checkUpdateNow()
 	case paletteReloadConfig:
 		m.notice("Reloading kubeconfig…", theme.StatusUnknown)
 		return m.reloadKubeconfig()
