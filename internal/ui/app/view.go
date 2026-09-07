@@ -76,6 +76,7 @@ func (m *Model) headerData() components.HeaderData {
 		Production: kctx.Production,
 		Scope:      m.scopeLabel(),
 		Version:    m.version(),
+		Update:     m.updateHeaderLabel(),
 		Breadcrumb: m.breadcrumb(),
 		Auto:       m.autoRefreshLabel(),
 		Busy:       m.busyLabel(),
@@ -663,12 +664,15 @@ func (m *Model) overviewData() screens.OverviewData {
 	session.Note = "Switching context here does not change your kubectl context."
 
 	environment := screens.Panel{Title: "Environment"}
+	correlux, correluxStatus := m.updateSummary()
 	environment.Fields = []screens.Field{
+		{Label: "Correlux", Value: correlux, Status: correluxStatus},
 		{Label: "Kubeconfig", Value: orNone(strings.Join(m.kubeconfig.Sources, ", "))},
 		{Label: "Config", Value: configLabel(m.cfg.SourcePath, m.configPath)},
 		{Label: "Theme", Value: themeLabel(m.cfg.Theme, m.caps)},
 		{Label: "Terminal", Value: terminalLabel(m.caps, m.screen)},
 	}
+	environment.Note = m.updateNote()
 
 	session.Fields = append(session.Fields, screens.Field{
 		Label: "Applications", Value: m.applicationsLabel(),

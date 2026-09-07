@@ -22,6 +22,11 @@ type HeaderData struct {
 	ConnDetail string
 	Breadcrumb []string
 	Version    string
+	// Update names a newer Correlux when there is one, and is empty otherwise.
+	// It sits beside the version because that is the only place the number it
+	// is newer *than* is on screen; a header that also reported "up to date"
+	// would spend a permanent line on the answer nobody needed.
+	Update string
 	// Auto names the timed reload when it is running ("auto 2s"). It is on the
 	// header rather than in a menu because a screen that changes on its own has
 	// to say so.
@@ -63,6 +68,9 @@ func RenderHeader(t *theme.Theme, d HeaderData, width int) string {
 	right := t.Muted.Render(d.Version)
 	if d.Auto != "" {
 		right = t.Info.Render(d.Auto) + t.Muted.Render("  "+d.Version)
+	}
+	if d.Update != "" {
+		right += t.Style(theme.StatusWarning).Render(" " + d.Update)
 	}
 	if d.Busy != "" {
 		right = t.Muted.Render(t.Glyphs.Busy+" "+d.Busy+"  ") + right

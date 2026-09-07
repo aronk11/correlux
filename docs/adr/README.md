@@ -26,6 +26,7 @@ Michael Nygard's: context, decision, consequences.
 | [18](0018-evidence-on-demand.md) | A diagnosis is built from evidence fetched on demand, not from a cache | accepted |
 | [19](0019-fleet-overview.md) | A fleet overview across several kubeconfig contexts, read-only | accepted |
 | [20](0020-changes-go-through-one-gate.md) | Every change goes through one gate, and Correlux never edits for you | accepted |
+| [21](0021-update-check.md) | Correlux says when it is out of date, and that is the only thing it asks | accepted |
 
 ## Adding one
 

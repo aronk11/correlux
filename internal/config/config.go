@@ -41,6 +41,9 @@ type Config struct {
 	// Refresh controls the timed reload of whatever is on screen.
 	Refresh Refresh `json:"refresh"`
 
+	// Update controls the check for a newer Correlux.
+	Update Update `json:"update"`
+
 	// Fleet lists the contexts the fleet overview covers, by name.
 	//
 	// It is empty by default and stays that way until somebody fills it in:
@@ -76,6 +79,19 @@ type FleetGroup struct {
 	// Namespaces scopes the group to a few namespaces across every one of its
 	// clusters. Empty means every namespace.
 	Namespaces []string `json:"namespaces"`
+}
+
+// Update controls Correlux's only outbound request that is not to a Kubernetes
+// API server: asking the public release feed whether there is a newer version.
+//
+// It is on, at most once a day, and its answer is a version number and a link.
+// Nothing about the user, their clusters or their session leaves the machine.
+// Somewhere that forbids the request outright switches it off with one line,
+// and the session view says which of the two is happening.
+type Update struct {
+	// Check enables the once-a-day check. It defaults to true; `check: false`
+	// stops Correlux contacting anything but Kubernetes, ever.
+	Check bool `json:"check"`
 }
 
 // Startup pins the initial context and namespace.
@@ -162,6 +178,10 @@ func Default() Config {
 			ProductionConfirmation: true,
 			ProductionPatterns:     append([]string(nil), DefaultProductionPatterns...),
 		},
+		// Absent keys keep the defaults: Load starts from this value and
+		// unmarshals the file over it, so `update: {check: false}` is the only
+		// way the check is off.
+		Update:      Update{Check: true},
 		Keybindings: map[string]string{},
 	}
 }
