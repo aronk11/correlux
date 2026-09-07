@@ -300,6 +300,33 @@ wherever the name sits.
 /pay  2 of 4213 loaded rows   Ctrl+P Commands   Ctrl+K Cluster   ? Help
 ```
 
+A word that names a **column** is a comparison instead, which is what the
+questions during an incident actually are:
+
+```
+/restarts>5          the ones that keep dying
+/age<1h              what appeared since this started
+/health=down         everything that is not running
+/ns=shop age<1h      terms are and-ed
+/!kube-system        everything the word is not in
+/pay restarts>5      text and comparison compose
+```
+
+The operators are `>` `>=` `<` `<=` `=` `!=` `==`, and `=` is *contains*,
+because somebody typing `status=crash` means "has crash in it". The columns are
+the ones on screen, so what you can read is what you can filter on — including a
+custom resource's own columns, straight from the API server, with no code that
+knows what it is. An age column is compared as a duration and every other one as
+a number, `500m` included: that rule is worth stating, because 500m is five
+hundred minutes in one column and half a CPU in another.
+
+A column this screen does not have is said out loud rather than answered with an
+empty list — an empty list looks exactly like a cluster with nothing in it:
+
+```
+no cpu column here. The columns here are Status, Application, Namespace, Pods…
+```
+
 It is a filter, not a query: Correlux narrows the rows it has rather than asking
 the server a different question, and the bar says how much it is showing — with
 `loaded` when the table is paged and rows below have not been fetched. The order
