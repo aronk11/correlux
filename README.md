@@ -80,6 +80,7 @@ correlux version
 | `Ctrl+P` | Command palette — every action, searchable by name |
 | `Ctrl+A` | Back to the application dashboard |
 | `F` | The fleet: every configured cluster at once |
+| `Ctrl+O` | Switch namespace — in the fleet, scope every cluster to a few |
 | `Enter` | Open the application under the cursor |
 | `Ctrl+W` | Why is this unhealthy? |
 | `y` | Show the document the server holds, and back |
@@ -419,6 +420,52 @@ cancels the reads in flight and never carries a session-only addition into the
 next group, so a cluster you added by hand to one group cannot appear in
 another.
 
+`Ctrl+O` in the fleet scopes it to a few namespaces, **in every cluster at
+once** — the same key that switches namespace inside one cluster, asked of many:
+
+```
+╭──────────────────────────────────────────────────────────────────────╮
+│ Namespaces in production                                             │
+│ ❯ Filter namespaces…                                                 │
+│ ▸ [x] payments                                                       │
+│   [x] checkout                                                       │
+│   [ ] kube-system                                                    │
+│                                                                      │
+│ Tab pick   Ctrl+T clear   Enter save   Esc cancel   • 2 namespaces   │
+╰──────────────────────────────────────────────────────────────────────╯
+```
+
+No ticks means every namespace, which is what the fleet does until you say
+otherwise, and `Ctrl+T` is the way back to it. The list offers the namespaces
+the fleet has already answered with and the ones your own cluster knows about —
+nothing is listed behind your back — and a namespace nobody has mentioned yet
+can be typed in.
+
+Those namespaces are what each cluster is **asked** for, one request per
+namespace, rather than a cluster-wide read filtered afterwards. It is less to
+fetch, and it is the only version that works at all for an account that may not
+read the whole cluster: a team scoped to two namespaces in twelve clusters gets
+an overview instead of twelve refusals. A cluster that denies one of them says
+so and still reports the others.
+
+Every number then says what it covers — `3 clusters   in payments, checkout   5
+applications` — and an empty screen reads `nothing is broken in payments,
+checkout` rather than claiming nothing is broken anywhere. The scope belongs to
+the group and is saved with it, so it is still there tomorrow:
+
+```yaml
+fleetNamespaces: [payments, checkout] # the plain `fleet:` list
+
+fleetGroups:
+  - name: production
+    contexts: [prod-eu, prod-us]
+    namespaces: [payments, checkout]
+```
+
+`Ctrl+B` honours it too: a kind browsed across the fleet is listed in those
+namespaces, and a cluster-scoped kind — nodes, say — is still read whole,
+because there is no namespace for it to be narrowed to.
+
 A plain `fleet:` list still works, and is offered as the group named `default`:
 a configuration written before groups existed opens on exactly the clusters it
 always did, and stays reachable from the palette when named groups sit beside
@@ -517,6 +564,8 @@ startup:
 
 # The clusters the fleet overview (F) covers. Empty means no fleet.
 fleet: []
+# The namespaces it covers, in every one of them. Empty means all of them.
+fleetNamespaces: []
 
 refresh:
   auto: false # start with the timed reload running

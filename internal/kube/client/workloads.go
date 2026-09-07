@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/aronk11/correlux/internal/domain/application"
 	"github.com/aronk11/correlux/internal/domain/usage"
 	"github.com/aronk11/correlux/internal/kube/metrics"
@@ -29,6 +31,77 @@ func (f *Factory) Applications(
 		return nil, application.Snapshot{}, err
 	}
 	return application.Group(snapshot), snapshot, nil
+}
+
+// ApplicationsIn reads a few named namespaces of one cluster and groups them as
+// one answer.
+//
+// The namespaces are read one after another rather than all at once: each pass
+// is already nine concurrent list calls, and a fleet of thirty clusters must
+// not turn a three-namespace scope into a burst of requests nobody asked for
+// (ADR 19). No namespaces means the whole cluster, which is what the fleet has
+// always done.
+//
+// A namespace that cannot be read is recorded as a gap rather than failing the
+// cluster: in a fleet, one cluster denying one namespace is normal, and the
+// other namespaces still have something to say. Only a cluster where nothing
+// at all could be read is an error.
+func (f *Factory) ApplicationsIn(
+	ctx context.Context,
+	contextName string,
+	namespaces []string,
+	opts workloads.Options,
+) ([]application.Application, application.Snapshot, error) {
+	if len(namespaces) == 0 {
+		return f.Applications(ctx, contextName, opts)
+	}
+	cs, err := f.Clientset(contextName)
+	if err != nil {
+		return nil, application.Snapshot{}, err
+	}
+	return applicationsIn(ctx, cs, namespaces, opts)
+}
+
+func applicationsIn(
+	ctx context.Context,
+	cs kubernetes.Interface,
+	namespaces []string,
+	opts workloads.Options,
+) ([]application.Application, application.Snapshot, error) {
+	snapshots := make([]application.Snapshot, 0, len(namespaces))
+	var (
+		denied   []application.Gap
+		firstErr error
+	)
+	for _, namespace := range namespaces {
+		scoped := opts
+		scoped.Namespace = namespace
+		snapshot, err := workloads.Collect(ctx, cs, scoped)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			denied = append(denied, application.Gap{
+				Kind:   application.WholeScopeKind,
+				Reason: workloads.GapReason(err),
+				Scope:  namespace,
+			})
+			continue
+		}
+		// Which namespace a kind was denied in is the whole of the fact when
+		// several were read at once.
+		for i := range snapshot.Gaps {
+			snapshot.Gaps[i].Scope = namespace
+		}
+		snapshots = append(snapshots, snapshot)
+	}
+	if len(snapshots) == 0 {
+		return nil, application.Snapshot{}, firstErr
+	}
+
+	merged := application.MergeSnapshots(snapshots...)
+	merged.Gaps = append(merged.Gaps, denied...)
+	return application.Group(merged), merged, nil
 }
 
 // Nodes reads a cluster's nodes, which is what the fleet overview needs to say

@@ -64,6 +64,39 @@ func (m *Model) openFleetResourceByName(name string) tea.Cmd {
 	return m.openFleetResource(res)
 }
 
+// fleetRead is one list call: one kind, in one cluster, in one scope.
+//
+// A fleet scoped to namespaces asks each cluster once per namespace rather than
+// once for everything, which is both less to read and the only version an
+// account that may not read the whole cluster can make at all.
+type fleetRead struct {
+	context   string
+	namespace string
+}
+
+// fleetReads is the work the table is built from, in the order it is handed
+// out: every cluster, and within it every namespace of the fleet's scope.
+func (m *Model) fleetReads(contexts []string, res kubediscovery.Resource) []fleetRead {
+	namespaces := m.fleetNamespaces()
+	if !res.Namespaced || len(namespaces) == 0 {
+		// A cluster-scoped kind has no namespace to be narrowed to, and saying
+		// nothing about the nodes of a namespace-scoped fleet would be worse
+		// than reading them.
+		reads := make([]fleetRead, 0, len(contexts))
+		for _, name := range contexts {
+			reads = append(reads, fleetRead{context: name})
+		}
+		return reads
+	}
+	reads := make([]fleetRead, 0, len(contexts)*len(namespaces))
+	for _, name := range contexts {
+		for _, namespace := range namespaces {
+			reads = append(reads, fleetRead{context: name, namespace: namespace})
+		}
+	}
+	return reads
+}
+
 // startFleetResource reads the kind from every member, four at a time.
 func (m *Model) startFleetResource(contexts []string, res kubediscovery.Resource) tea.Cmd {
 	if m.cancelFleet != nil {
@@ -71,40 +104,44 @@ func (m *Model) startFleetResource(contexts []string, res kubediscovery.Resource
 	}
 	gen := m.fleetGeneration + 1
 	m.fleetGeneration = gen
-	m.fleetPending = len(contexts)
+
+	reads := m.fleetReads(contexts, res)
+	m.fleetPending = len(reads)
+	m.fleetClusters = len(contexts)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancelFleet = cancel
 
 	factory := m.factory
-	parts := make(chan resources.Part, len(contexts))
+	parts := make(chan resources.Part, len(reads))
 
 	return func() tea.Msg {
 		go func() {
 			defer close(parts)
 
-			work := make(chan string)
+			work := make(chan fleetRead)
 			var wg sync.WaitGroup
-			for i := 0; i < min(fleetConcurrency, len(contexts)); i++ {
+			for i := 0; i < min(fleetConcurrency, len(reads)); i++ {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					for name := range work {
+					for read := range work {
 						readCtx, readCancel := context.WithTimeout(ctx, factory.Timeout())
-						table, err := factory.ListTable(readCtx, name, res, resources.ListOptions{})
+						table, err := factory.ListTable(readCtx, read.context, res,
+							resources.ListOptions{Namespace: read.namespace})
 						readCancel()
 
 						select {
-						case parts <- resources.Part{Source: name, Table: table, Err: err}:
+						case parts <- resources.Part{Source: read.context, Table: table, Err: err}:
 						case <-ctx.Done():
 							return
 						}
 					}
 				}()
 			}
-			for _, name := range contexts {
+			for _, read := range reads {
 				select {
-				case work <- name:
+				case work <- read:
 				case <-ctx.Done():
 					close(work)
 					wg.Wait()
@@ -163,8 +200,9 @@ func (m *Model) fleetResourceData() screens.TableData {
 	if len(rows) == 0 {
 		switch {
 		case m.fleetPending > 0:
+			waiting := m.fleetClustersPending()
 			d.Message = "Reading " + m.fleetResource.Plural() + " from " +
-				itoa(m.fleetPending) + " " + clusterWord(m.fleetPending) + "…"
+				itoa(waiting) + " " + clusterWord(waiting) + "…"
 		case len(m.fleetTable.Failures) > 0:
 			d.Message = "No " + m.fleetResource.Plural() + " anywhere. " + m.fleetFailureNote()
 			d.MessageStatus = theme.StatusWarning
@@ -192,13 +230,45 @@ func (m *Model) fleetResourceData() screens.TableData {
 	return d
 }
 
+// fleetClustersPending is how many clusters have said nothing yet, which is not
+// the same as how many requests are out once the fleet is scoped to namespaces.
+func (m *Model) fleetClustersPending() int {
+	answered := map[string]bool{}
+	for _, part := range m.fleetParts {
+		answered[part.Source] = true
+	}
+	return max(m.fleetClusters-len(answered), 0)
+}
+
 // fleetResourceLabel says what is on screen and what it does not cover.
 func (m *Model) fleetResourceLabel() string {
 	parts := []string{itoa(len(m.fleetTable.Rows)) + " " + m.fleetResource.Plural()}
-	answered := len(m.fleetParts) - len(m.fleetTable.Failures)
-	total := answered + len(m.fleetTable.Failures) + m.fleetPending
-	if m.fleetPending > 0 || len(m.fleetTable.Failures) > 0 {
-		parts = append(parts, "from "+itoa(answered)+" of "+itoa(total)+" "+clusterWord(total))
+	if namespaces := m.fleetNamespaces(); len(namespaces) > 0 && m.fleetResource.Namespaced {
+		parts = append(parts, "in "+strings.Join(namespaces, ", "))
+	}
+
+	// Clusters, counted as clusters: with a scope of three namespaces a cluster
+	// contributes three parts, and printing those as clusters would invent
+	// members the fleet does not have. A cluster that answered for one
+	// namespace and was refused for another has answered — the refusal is named
+	// in the failure note rather than counted as a silent member.
+	answered, failed := map[string]bool{}, map[string]bool{}
+	for _, part := range m.fleetParts {
+		if part.Err != nil {
+			failed[part.Source] = true
+			continue
+		}
+		answered[part.Source] = true
+	}
+	for name := range answered {
+		delete(failed, name)
+	}
+	// Never fewer clusters than have already spoken: a stale counter must not
+	// produce "from 2 of 0".
+	total := max(m.fleetClusters, len(answered)+len(failed))
+	if m.fleetPending > 0 || len(failed) > 0 {
+		parts = append(parts,
+			"from "+itoa(len(answered))+" of "+itoa(total)+" "+clusterWord(total))
 	}
 	if m.fleetPending > 0 {
 		parts = append(parts, itoa(m.fleetPending)+" still reading")
@@ -219,7 +289,14 @@ func (m *Model) fleetFailureNote() string {
 		return ""
 	}
 	names := make([]string, 0, len(m.fleetTable.Failures))
+	seen := map[string]bool{}
 	for _, failure := range m.fleetTable.Failures {
+		// One cluster refusing three of the fleet's namespaces is one cluster
+		// to name, not three.
+		if seen[failure.Source] {
+			continue
+		}
+		seen[failure.Source] = true
 		names = append(names, failure.Source)
 	}
 	return "not listed in " + strings.Join(names, ", ") + ": " +

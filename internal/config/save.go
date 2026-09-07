@@ -12,7 +12,7 @@ import (
 
 // SaveFleet writes the fleet selection back to the configuration file.
 //
-// Only the two fleet keys are touched. The file is edited as a YAML node tree
+// Only the fleet keys are touched. The file is edited as a YAML node tree
 // rather than re-marshalled from the Config struct, so every other setting,
 // the order they were written in, and the comments explaining them survive
 // exactly as the user left them. A tool that quietly reformats the file it was
@@ -21,7 +21,7 @@ import (
 // A missing file is created, along with the directory it belongs in: choosing
 // clusters is often the first thing somebody does, and it should not require
 // having written a config file first.
-func SaveFleet(path string, fleet []string, groups []FleetGroup) error {
+func SaveFleet(path string, fleet, namespaces []string, groups []FleetGroup) error {
 	if path == "" {
 		return errors.New("no configuration file to write to")
 	}
@@ -36,6 +36,9 @@ func SaveFleet(path string, fleet []string, groups []FleetGroup) error {
 	// The two mean the same thing to Correlux, and the absent one does not
 	// leave the file asserting something the user did not say.
 	if err := setKey(root, "fleet", fleet, len(fleet) > 0); err != nil {
+		return err
+	}
+	if err := setKey(root, "fleetNamespaces", namespaces, len(namespaces) > 0); err != nil {
 		return err
 	}
 	if err := setKey(root, "fleetGroups", groups, len(groups) > 0); err != nil {

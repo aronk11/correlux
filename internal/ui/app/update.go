@@ -843,6 +843,12 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case ActionContextPicker:
 		return m.openOverlay(overlayContexts)
 	case ActionNamespacePicker:
+		// The same question, asked of whatever is on screen: in one cluster a
+		// scope is a namespace, and in the fleet it is a few of them, in every
+		// cluster at once.
+		if m.view == viewFleet || m.view == viewFleetResource {
+			return m.openFleetNamespacePicker()
+		}
 		return m.openOverlay(overlayNamespaces)
 	case ActionResourcePicker:
 		return m.openOverlay(overlayResources)

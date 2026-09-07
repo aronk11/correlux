@@ -110,6 +110,47 @@ func (m *Model) configuredFleetContexts() []string {
 	return m.cfg.Fleet
 }
 
+// fleetNamespaces are the namespaces the overview is scoped to, for every
+// cluster in it. Empty means every namespace, which is what the fleet does
+// until somebody says otherwise.
+func (m *Model) fleetNamespaces() []string { return m.groupNamespaces(m.activeFleetGroup) }
+
+// groupNamespaces is the saved scope of one group.
+func (m *Model) groupNamespaces(group string) []string {
+	if group == "" || group == defaultFleetGroup {
+		if !m.hasNamedDefaultGroup() {
+			return m.cfg.FleetNamespaces
+		}
+	}
+	for _, g := range m.cfg.FleetGroups {
+		if g.Name == group {
+			return g.Namespaces
+		}
+	}
+	return m.cfg.FleetNamespaces
+}
+
+// hasNamedDefaultGroup reports whether a group actually called "default" exists,
+// in which case the word belongs to it rather than to the top-level list.
+func (m *Model) hasNamedDefaultGroup() bool {
+	for _, g := range m.cfg.FleetGroups {
+		if g.Name == defaultFleetGroup {
+			return true
+		}
+	}
+	return false
+}
+
+// fleetScopeLabel names what the overview covers, in the same words the header
+// uses for a single cluster.
+func (m *Model) fleetScopeLabel() string {
+	namespaces := m.fleetNamespaces()
+	if len(namespaces) == 0 {
+		return "all namespaces"
+	}
+	return strings.Join(namespaces, ", ")
+}
+
 func (m *Model) fleetGroupLabel() string {
 	if m.activeFleetGroup != "" {
 		return m.activeFleetGroup
@@ -153,13 +194,16 @@ func (m *Model) startFleet(contexts []string) tea.Cmd {
 	gen := m.fleetGeneration + 1
 	m.fleetGeneration = gen
 
+	scope := m.fleetScopeLabel()
+	namespaces := append([]string(nil), m.fleetNamespaces()...)
+
 	m.fleetMembers = make([]fleet.Member, 0, len(contexts))
 	for _, name := range contexts {
 		kctx, _ := m.kubeconfig.Context(name)
 		m.fleetMembers = append(m.fleetMembers, fleet.Member{
 			Context:    name,
 			Production: kctx.Production,
-			Scope:      "all namespaces",
+			Scope:      scope,
 			State:      fleet.Loading,
 		})
 	}
@@ -186,13 +230,14 @@ func (m *Model) startFleet(contexts []string) tea.Cmd {
 						member := fleet.Member{
 							Context:    name,
 							Production: kctx.Production,
-							Scope:      "all namespaces",
+							Scope:      scope,
 						}
 
 						// Each cluster gets its own timeout: one that hangs
 						// must not hold up the rest of the fleet.
 						readCtx, readCancel := context.WithTimeout(ctx, factory.Timeout())
-						apps, snapshot, err := factory.Applications(readCtx, name, workloads.Options{})
+						apps, snapshot, err := factory.ApplicationsIn(
+							readCtx, name, namespaces, workloads.Options{})
 						// The machines are read in the same breath: a broken
 						// node belongs to no application, and a fleet that
 						// counts only applications would never mention it.
@@ -272,6 +317,7 @@ func (m *Model) stopFleet() {
 	m.fleetResults = nil
 	m.fleetPartsChan = nil
 	m.fleetPending = 0
+	m.fleetClusters = 0
 }
 
 // enterFleetRow acts on the row under the cursor, and there is only one thing
@@ -372,7 +418,7 @@ func (m *Model) fleetData() screens.FleetData {
 
 	summary := fleet.Summarise(m.fleetMembers)
 	d.Title = "Fleet / " + m.fleetGroupLabel()
-	d.Subtitle = fleetSubtitle(summary)
+	d.Subtitle = fleetSubtitle(summary, m.fleetNamespaces())
 
 	clusters := screens.DetailSection{
 		Title:   "Clusters",
@@ -420,7 +466,7 @@ func (m *Model) fleetData() screens.FleetData {
 		// namespaces of one cluster is five different things, and without this
 		// column they render as five identical lines.
 		Columns: []string{"Application", "Cluster", "Namespace", "Health", "Pods", "Detail"},
-		Empty:   fleetEmpty(summary),
+		Empty:   fleetEmpty(summary, m.fleetNamespaces()),
 	}
 	for _, row := range m.fleetRows() {
 		for _, instance := range row.Instances {
@@ -448,9 +494,14 @@ func (m *Model) fleetData() screens.FleetData {
 }
 
 // fleetSubtitle says what the numbers cover, and never implies they cover a
-// cluster that did not answer.
-func fleetSubtitle(s fleet.Summary) string {
+// cluster that did not answer — or a namespace nobody asked about.
+func fleetSubtitle(s fleet.Summary, namespaces []string) string {
 	parts := []string{itoa(s.Clusters) + " " + clusterWord(s.Clusters)}
+	if len(namespaces) > 0 {
+		// The scope belongs next to the cluster count, not at the end: every
+		// number after it is a number about those namespaces only.
+		parts = append(parts, "in "+strings.Join(namespaces, ", "))
+	}
 	if s.Pending > 0 {
 		parts = append(parts, itoa(s.Pending)+" still connecting")
 	}
@@ -488,12 +539,20 @@ func nodeSummary(s fleet.Summary) string {
 	return strings.Join(parts, ", ")
 }
 
-func fleetEmpty(s fleet.Summary) string {
+func fleetEmpty(s fleet.Summary, namespaces []string) string {
+	// "nothing is broken anywhere" is a lie when the overview was told to look
+	// at two namespaces out of forty.
+	scope := ""
+	if len(namespaces) > 0 {
+		scope = " in " + strings.Join(namespaces, ", ")
+	}
 	switch {
 	case s.Answered == 0:
 		return "no cluster has answered yet"
 	case !s.Complete():
-		return "nothing broken in the clusters that answered"
+		return "nothing broken" + scope + " among the clusters that answered"
+	case scope != "":
+		return "nothing is broken" + scope
 	default:
 		return "nothing is broken anywhere"
 	}
@@ -558,13 +617,32 @@ func memberDetail(m fleet.Member) string {
 		parts = append(parts, itoa(trouble.Cordoned)+" cordoned")
 	}
 
-	if len(m.Gaps) > 0 {
-		parts = append(parts, itoa(len(m.Gaps))+" kind(s) unreadable")
+	// A whole namespace nobody may read is named; a kind is counted. Counting
+	// the first as "1 kind(s) unreadable" would report a fraction of it.
+	scopes, kinds := unreadable(m.Gaps)
+	if len(scopes) > 0 {
+		parts = append(parts, strings.Join(scopes, ", ")+" not readable")
+	}
+	if kinds > 0 {
+		parts = append(parts, itoa(kinds)+" kind(s) unreadable")
 	}
 	if len(parts) == 0 {
 		return "nothing broken"
 	}
 	return strings.Join(parts, ", ")
+}
+
+// unreadable splits a member's gaps into the namespaces nothing could be read
+// in, and the number of kinds that were denied within the ones that could.
+func unreadable(gaps []application.Gap) (scopes []string, kinds int) {
+	for _, gap := range gaps {
+		if gap.Kind == application.WholeScopeKind && gap.Scope != "" {
+			scopes = append(scopes, gap.Scope)
+			continue
+		}
+		kinds++
+	}
+	return scopes, kinds
 }
 
 // nodeState names what is wrong with a machine, in the order it matters.

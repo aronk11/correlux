@@ -175,10 +175,19 @@ func (m *Model) saveFleetPick() tea.Cmd {
 	if group == "" {
 		fleet = chosen
 	} else {
-		groups = withGroup(groups, config.FleetGroup{Name: group, Contexts: chosen})
+		// The group's scope is not what is being edited here; a picker for the
+		// clusters must not silently widen the namespaces.
+		edited := config.FleetGroup{Name: group, Contexts: chosen}
+		for _, g := range groups {
+			if g.Name == group {
+				edited.Namespaces = g.Namespaces
+				break
+			}
+		}
+		groups = withGroup(groups, edited)
 	}
 
-	if err := m.writeFleet(fleet, groups); err != nil {
+	if err := m.writeFleet(fleet, m.cfg.FleetNamespaces, groups); err != nil {
 		m.notice("Could not save the fleet: "+err.Error(), theme.StatusCritical)
 		return m.expireNotice()
 	}
@@ -235,7 +244,7 @@ func (m *Model) deleteFleetGroup(name string) tea.Cmd {
 	}
 	groups := withGroup(append([]config.FleetGroup(nil), m.cfg.FleetGroups...),
 		config.FleetGroup{Name: name})
-	if err := m.writeFleet(m.cfg.Fleet, groups); err != nil {
+	if err := m.writeFleet(m.cfg.Fleet, m.cfg.FleetNamespaces, groups); err != nil {
 		m.notice("Could not save the fleet: "+err.Error(), theme.StatusCritical)
 		return m.expireNotice()
 	}
@@ -255,7 +264,7 @@ func (m *Model) deleteFleetGroup(name string) tea.Cmd {
 
 // writeFleet persists the fleet, remembering where the configuration lives for
 // a session that started without a file.
-func (m *Model) writeFleet(fleet []string, groups []config.FleetGroup) error {
+func (m *Model) writeFleet(fleet, namespaces []string, groups []config.FleetGroup) error {
 	path := m.cfg.SourcePath
 	if path == "" {
 		var err error
@@ -263,7 +272,7 @@ func (m *Model) writeFleet(fleet []string, groups []config.FleetGroup) error {
 			return err
 		}
 	}
-	if err := config.SaveFleet(path, fleet, groups); err != nil {
+	if err := config.SaveFleet(path, fleet, namespaces, groups); err != nil {
 		return err
 	}
 	m.cfg.SourcePath = path

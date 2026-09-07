@@ -600,7 +600,14 @@ func readyLabel(ready bool) string {
 func gapSummary(gaps []application.Gap) string {
 	parts := make([]string, 0, len(gaps))
 	for _, g := range gaps {
-		parts = append(parts, g.Kind+"s "+g.Reason)
+		part := g.Kind + "s " + g.Reason
+		if g.Scope != "" {
+			// Which namespace is the whole of the fact when several were read
+			// at once, and noise when only one was — which is why it is only
+			// ever set in the first case.
+			part += " in " + g.Scope
+		}
+		parts = append(parts, part)
 	}
 	return "Not shown: " + strings.Join(parts, "; ") + "."
 }

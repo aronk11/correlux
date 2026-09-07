@@ -118,6 +118,13 @@ A scope is more powerful than a single namespace: it may be one namespace, or a
 named set (`payments`, `payments-staging`, `payments-dev`). The active scope is
 always obvious.
 
+In the fleet the same question is asked of many clusters at once: a fleet scope
+is a set of namespace names applied to every cluster in it, saved with the fleet
+group, and empty means every namespace. Each cluster is asked for those
+namespaces rather than read whole and filtered, so the overview also works for
+an account that may not read a whole cluster
+([ADR 19](docs/adr/0019-fleet-overview.md)).
+
 ## 9. Search
 
 `/` searches the current scope across applications, pods, deployments, services,

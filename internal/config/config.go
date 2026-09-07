@@ -48,6 +48,14 @@ type Config struct {
 	// against every production cluster the user has credentials for.
 	Fleet []string `json:"fleet"`
 
+	// FleetNamespaces scopes the top-level fleet list to a few namespaces.
+	//
+	// Empty means every namespace, which is what the fleet has always done. A
+	// team that owns two namespaces in twelve clusters names them here and the
+	// overview stops being mostly somebody else's software — and stops asking
+	// for cluster-wide reads a namespace-scoped account is not allowed to make.
+	FleetNamespaces []string `json:"fleetNamespaces"`
+
 	// FleetGroups are named, independent views over kubeconfig contexts. They
 	// let operators keep production, staging, regions or teams separate without
 	// authenticating against clusters outside the selected group. The legacy
@@ -65,6 +73,9 @@ type Config struct {
 type FleetGroup struct {
 	Name     string   `json:"name"`
 	Contexts []string `json:"contexts"`
+	// Namespaces scopes the group to a few namespaces across every one of its
+	// clusters. Empty means every namespace.
+	Namespaces []string `json:"namespaces"`
 }
 
 // Startup pins the initial context and namespace.
