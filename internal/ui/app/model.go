@@ -42,6 +42,9 @@ const (
 	// overlayFleetPicker chooses which clusters are in a fleet group, so the
 	// fleet can be assembled on screen instead of in a text editor.
 	overlayFleetPicker
+	// overlayFleetNamespaces scopes the fleet to a few namespaces, across every
+	// cluster in it.
+	overlayFleetNamespaces
 )
 
 // viewKind identifies the full-window view behind any overlay.
@@ -140,6 +143,9 @@ type Model struct {
 	// keystroke: a tick stored in a row would not survive somebody typing.
 	fleetDraft      map[string]bool
 	fleetDraftGroup string
+	// fleetNSDraft is the namespace scope being edited, held here for the same
+	// reason: the rows are rebuilt from the filter on every keystroke.
+	fleetNSDraft map[string]bool
 
 	// usageDrilledIn records that the active namespace was entered from the
 	// cluster-wide usage screen, which is what Esc walks back out of there. A
@@ -205,7 +211,12 @@ type Model struct {
 	fleetParts     []resources.Part
 	fleetPartsChan <-chan resources.Part
 	fleetTable     resources.Merged
-	fleetPending   int
+	// fleetPending counts the list calls still out, and fleetClusters the
+	// clusters they cover. A fleet scoped to namespaces makes several calls per
+	// cluster, and a count of requests must never be printed as a count of
+	// clusters.
+	fleetPending  int
+	fleetClusters int
 	// findings are the diagnoses per application key, computed once per load
 	// rather than on every frame: View must stay a cheap pure function.
 	findings map[string][]diagnosis.Diagnosis
@@ -283,12 +294,13 @@ type Model struct {
 
 	// The document handed to the user's editor, and what it looked like before
 	// they touched it.
-	editPath     string
-	editOriginal string
-	ctxPicker    *components.Selector
-	fleetPicker  *components.Selector
-	nsPicker     *components.Selector
-	resPicker    *components.Selector
+	editPath      string
+	editOriginal  string
+	ctxPicker     *components.Selector
+	fleetPicker   *components.Selector
+	fleetNSPicker *components.Selector
+	nsPicker      *components.Selector
+	resPicker     *components.Selector
 
 	// The filter over whatever list is on screen.
 	search    components.Input
@@ -373,6 +385,11 @@ func New(opts Options) *Model {
 	m.fleetPicker = components.NewSelector("Clusters in the fleet", "Filter clusters…", m.filterFleetPicker)
 	m.fleetPicker.EmptyMessage = "No context matches."
 	m.fleetPicker.Multi = true
+
+	m.fleetNSPicker = components.NewSelector(
+		"Namespaces in the fleet", "Filter namespaces…", m.filterFleetNamespaces)
+	m.fleetNSPicker.EmptyMessage = "No namespace matches."
+	m.fleetNSPicker.Multi = true
 
 	m.nsPicker = components.NewSelector("Namespaces", "Filter namespaces…", m.filterNamespaces)
 	m.nsPicker.Footer = "Enter switch   Esc cancel"
@@ -467,6 +484,12 @@ func (m *Model) PressForTest(keystroke string) tea.Cmd {
 func (m *Model) OpenFleetForTest(contexts ...string) tea.Cmd {
 	m.cfg.Fleet = contexts
 	return m.openFleet()
+}
+
+// ScopeFleetForTest narrows the fleet to a few namespaces, the way the picker
+// does, so an integration test can check what the clusters are actually asked.
+func (m *Model) ScopeFleetForTest(namespaces ...string) {
+	m.cfg.FleetNamespaces = namespaces
 }
 
 // BrowseAcrossFleetForTest lists one kind across every cluster in the fleet.

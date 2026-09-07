@@ -15,6 +15,7 @@ package application
 
 import (
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -351,7 +352,17 @@ func (c Context) EventsAbout(uid, name string) []Event {
 type Gap struct {
 	Kind   string
 	Reason string
+	// Scope is the namespace the kind could not be read in. It is empty when
+	// the read covered one scope the reader already knows about, and set when
+	// several were read at once — a fleet scoped to a few namespaces — where
+	// "Ingresses not permitted" without a namespace names no fact at all.
+	Scope string
 }
+
+// WholeScopeKind is the Gap kind used when nothing at all could be read in a
+// scope, rather than one kind of it. It is a word rather than a kind because
+// that is what it is: not the Deployments, everything.
+const WholeScopeKind = "object"
 
 // Snapshot is one bounded, point-in-time read of a scope.
 type Snapshot struct {
@@ -370,6 +381,47 @@ type Snapshot struct {
 	// derived from it are a subset rather than the whole scope.
 	Truncated bool
 	FetchedAt time.Time
+}
+
+// MergeSnapshots joins several scoped reads into one.
+//
+// It exists because a scope can be a handful of namespaces rather than one:
+// the API server is asked for each of them separately, and what comes back is
+// one snapshot, because namespaces are disjoint and an application never
+// straddles two of them.
+//
+// The result is only as fresh as its oldest part, and says so: FetchedAt is
+// the earliest of them, never the most flattering.
+func MergeSnapshots(snaps ...Snapshot) Snapshot {
+	out := Snapshot{}
+	scopes := make([]string, 0, len(snaps))
+	seenGap := map[string]bool{}
+	for _, s := range snaps {
+		if s.Scope != "" {
+			scopes = append(scopes, s.Scope)
+		}
+		out.Workloads = append(out.Workloads, s.Workloads...)
+		out.Owners = append(out.Owners, s.Owners...)
+		out.Pods = append(out.Pods, s.Pods...)
+		out.Services = append(out.Services, s.Services...)
+		out.Ingresses = append(out.Ingresses, s.Ingresses...)
+		for _, gap := range s.Gaps {
+			// The same kind denied in three namespaces is one fact about the
+			// cluster, not three.
+			key := gap.Kind + "\x00" + gap.Reason + "\x00" + gap.Scope
+			if seenGap[key] {
+				continue
+			}
+			seenGap[key] = true
+			out.Gaps = append(out.Gaps, gap)
+		}
+		out.Truncated = out.Truncated || s.Truncated
+		if out.FetchedAt.IsZero() || (!s.FetchedAt.IsZero() && s.FetchedAt.Before(out.FetchedAt)) {
+			out.FetchedAt = s.FetchedAt
+		}
+	}
+	out.Scope = strings.Join(scopes, ", ")
+	return out
 }
 
 // Manager is what put an application in the cluster: a Helm release, a Flux

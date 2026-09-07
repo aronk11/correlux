@@ -215,10 +215,10 @@ func containerReason(statuses []corev1.ContainerStatus) string {
 	return ""
 }
 
-// gapReason turns a failed listing into the shortest true sentence about it.
+// GapReason turns a failed listing into the shortest true sentence about it.
 // A user who may not list ingresses needs to read exactly that, not a stack of
 // wrapped client-go errors.
-func gapReason(err error) string {
+func GapReason(err error) string {
 	switch {
 	case err == nil:
 		return ""

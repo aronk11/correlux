@@ -104,3 +104,36 @@ func TestAKindNoClusterServesIsReportedPerCluster(t *testing.T) {
 		t.Errorf("a kind nothing serves must be named as unknown:\n%s", out)
 	}
 }
+
+// TestTheFleetReadsOnlyTheNamespacesItWasScopedTo checks the scope where it
+// matters: in what the cluster is asked, not in what the screen filters out.
+func TestTheFleetReadsOnlyTheNamespacesItWasScopedTo(t *testing.T) {
+	m := newModelFor(t)
+	drain(t, m, m.Init())
+
+	m.ScopeFleetForTest(seededNamespace)
+	drainFleet(t, m, m.OpenFleetForTest(shared.context))
+
+	out := frame(m)
+	if !strings.Contains(out, "in "+seededNamespace) {
+		t.Errorf("a scoped fleet must say which namespaces it covers:\n%s", out)
+	}
+	if !strings.Contains(out, "connected") {
+		t.Fatalf("the cluster must have answered for the scope:\n%s", out)
+	}
+
+	// And a namespace that does not exist is an empty answer from a reachable
+	// cluster, never a cluster reported as unreachable.
+	m = newModelFor(t)
+	drain(t, m, m.Init())
+	m.ScopeFleetForTest("correlux-no-such-namespace")
+	drainFleet(t, m, m.OpenFleetForTest(shared.context))
+
+	out = frame(m)
+	if !strings.Contains(out, "connected") {
+		t.Errorf("an empty scope is not an unreachable cluster:\n%s", out)
+	}
+	if !strings.Contains(out, "nothing is broken in correlux-no-such-namespace") {
+		t.Errorf("an empty scope must say what it looked at:\n%s", out)
+	}
+}

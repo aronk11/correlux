@@ -38,7 +38,7 @@ func (g *group) run(kind string, list func() (bool, error)) {
 		g.mu.Lock()
 		defer g.mu.Unlock()
 		if err != nil {
-			g.gaps = append(g.gaps, application.Gap{Kind: kind, Reason: gapReason(err)})
+			g.gaps = append(g.gaps, application.Gap{Kind: kind, Reason: GapReason(err)})
 			if g.firstErr == nil {
 				g.firstErr = err
 			}

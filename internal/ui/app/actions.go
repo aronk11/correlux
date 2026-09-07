@@ -26,6 +26,8 @@ const (
 	paletteFleetEverything  palette.ActionID = "fleet.everything"
 	paletteSwitchFleetGroup palette.ActionID = "fleet.group"
 	paletteChooseFleet      palette.ActionID = "fleet.choose"
+	paletteFleetNamespaces  palette.ActionID = "fleet.namespaces"
+	paletteFleetAllNS       palette.ActionID = "fleet.namespaces.clear"
 	paletteNewFleetGroup    palette.ActionID = "fleet.group.new"
 	paletteDeleteFleetGroup palette.ActionID = "fleet.group.delete"
 	paletteOpenApp          palette.ActionID = "open.application"
@@ -400,6 +402,19 @@ func (m *Model) rebuildCommands() {
 		Weight:   93,
 		Enabled:  len(m.kubeconfig.Contexts) > 0,
 	}, palette.Command{
+		ID:       "cmd.fleet.namespaces",
+		Action:   paletteFleetNamespaces,
+		Title:    "Scope the fleet to namespaces…",
+		Subtitle: m.fleetScopeSubtitle(),
+		Category: "Navigate",
+		Keywords: []string{
+			"fleet", "namespace", "namespaces", "scope", "filter", "team",
+			"tenant", "only", "narrow",
+		},
+		Shortcut: m.keys.Key(ActionNamespacePicker),
+		Weight:   92,
+		Enabled:  len(m.kubeconfig.Contexts) > 0,
+	}, palette.Command{
 		ID:       "cmd.fleet.group.new",
 		Action:   paletteNewFleetGroup,
 		Title:    "New fleet group…",
@@ -409,6 +424,19 @@ func (m *Model) rebuildCommands() {
 		Weight:   48,
 		Enabled:  len(m.kubeconfig.Contexts) > 0,
 	})
+	if len(m.fleetNamespaces()) > 0 {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.fleet.namespaces.clear",
+			Action:   paletteFleetAllNS,
+			Title:    "Show every namespace in the fleet",
+			Subtitle: "drops the scope of " + strings.Join(m.fleetNamespaces(), ", "),
+			Category: "Navigate",
+			Keywords: []string{"fleet", "namespace", "all", "every", "clear", "reset", "scope"},
+			Weight:   49,
+			Enabled:  true,
+		})
+	}
+
 	for _, group := range m.cfg.FleetGroups {
 		cmds = append(cmds, palette.Command{
 			ID:       "fleet.group.delete." + group.Name,
@@ -956,6 +984,12 @@ func (m *Model) runCommand(id string) tea.Cmd {
 	case paletteChooseFleet:
 		m.closeOverlay()
 		return m.openFleetPicker(m.activeFleetGroup)
+	case paletteFleetNamespaces:
+		m.closeOverlay()
+		return m.openFleetNamespacePicker()
+	case paletteFleetAllNS:
+		m.closeOverlay()
+		return m.clearFleetNamespaces()
 	case paletteNewFleetGroup:
 		return m.promptNewFleetGroup()
 	case paletteDeleteFleetGroup:
