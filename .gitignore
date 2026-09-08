@@ -17,9 +17,3 @@ coverage.*
 .DS_Store
 /.tools/
 /.frames/
-
-# GitHub Pages website
-/website/node_modules/
-/website/dist/
-/website/test-results/
-/website/playwright-report/
