@@ -184,6 +184,7 @@ type Model struct {
 
 	// The log view. The stream lives as long as the view does; leaving it
 	// cancels the context and the connections go with it.
+	logFrom       viewKind // return to the investigation that opened logs
 	logTitle      string
 	logTargets    []logs.Source
 	logLines      []logs.Line

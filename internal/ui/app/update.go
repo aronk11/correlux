@@ -712,7 +712,7 @@ func (m *Model) scrollObject(delta int) {
 
 // handleWhyKey scrolls the explanation. Nothing here needs to fetch anything:
 // the explanation is already in the model.
-func (m *Model) handleWhyKey(keystroke string) bool {
+func (m *Model) handleWhyKey(keystroke string) (tea.Cmd, bool) {
 	page := max(m.screen.Body.Height-1, 1)
 	switch keystroke {
 	case "up", "k":
@@ -728,14 +728,14 @@ func (m *Model) handleWhyKey(keystroke string) bool {
 	case "end", "G":
 		m.scrollWhy(m.whyLines())
 	case "left", "h", "enter":
-		// Enter goes to the objects the explanation is about.
-		m.view = viewApplication
-		m.detailPort.Offset = 0
-		m.rebuildCommands()
+		// The objects the explanation is about are one step back, so Enter and
+		// Esc land in the same place here: the explanation is a page about an
+		// application, not a screen you can go deeper from.
+		return m.goBack(), true
 	default:
-		return false
+		return nil, false
 	}
-	return true
+	return nil, true
 }
 
 // detailLines is how many lines the open application renders to, which is what
@@ -800,8 +800,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 				return cmd
 			}
 		case viewWhy:
-			if m.handleWhyKey(keystroke) {
-				return nil
+			if cmd, handled := m.handleWhyKey(keystroke); handled {
+				return cmd
 			}
 		case viewObject:
 			if cmd, handled := m.handleObjectKey(keystroke); handled {
@@ -889,7 +889,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.clearSearch()
 			return nil
 		}
-		return m.backToApplications()
+		return m.goBack()
 	case ActionApplications:
 		return m.backToApplications()
 	case ActionSearch:
@@ -1020,15 +1020,21 @@ func (m *Model) scrollApplications(delta int) {
 }
 
 func (m *Model) handleClick(msg tea.MouseClickMsg) tea.Cmd {
+	if msg.Mouse().Button != tea.MouseLeft || m.screen.TooSmall {
+		return nil
+	}
+	if m.overlay == overlayNone && msg.Mouse().Y == m.screen.Nav.Y {
+		return m.clickNavigation(msg.Mouse().X)
+	}
 	sel := m.activeSelector()
-	if sel == nil || msg.Mouse().Button != tea.MouseLeft {
+	if sel == nil {
 		return nil
 	}
 	rect := m.overlayRect()
 	// The list starts after the border, the title and the input line.
 	listTop := rect.Y + 1 + 2
 	row := msg.Mouse().Y - listTop
-	if row < 0 || msg.Mouse().X < rect.X || msg.Mouse().X >= rect.X+rect.Width {
+	if row < 0 || msg.Mouse().Y >= rect.Y+rect.Height-2 || msg.Mouse().X < rect.X+2 || msg.Mouse().X >= rect.X+rect.Width-2 {
 		return nil
 	}
 	if sel.ClickRow(row) {

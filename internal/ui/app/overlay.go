@@ -35,6 +35,7 @@ func (m *Model) openOverlay(kind overlayKind) tea.Cmd {
 	case overlayPalette:
 		m.rebuildCommands()
 		m.cmdPal.Reset()
+		m.cmdPal.Title = "Commands · " + m.commandSubject()
 	case overlayContexts:
 		m.ctxPicker.Reset()
 		m.ctxPicker.SelectID(m.contextName)
@@ -207,10 +208,13 @@ func (m *Model) confirmSelection() tea.Cmd {
 func (m *Model) overlayRect() layout.Rect {
 	switch m.overlay {
 	case overlayPalette:
-		return layout.Overlay(m.screen, layout.OverlayOptions{
-			WidthRatio: 0.7, HeightRatio: 0.6,
-			MinWidth: 44, MaxWidth: 96, MinHeight: 8, MaxHeight: 22,
+		rect := layout.Overlay(m.screen, layout.OverlayOptions{
+			WidthRatio: 0.9, HeightRatio: 0.45,
+			MinWidth: 44, MaxWidth: 110, MinHeight: 8, MaxHeight: 18,
 		})
+		rect.Height = min(rect.Height, m.screen.Body.Height)
+		rect.Y = m.screen.Status.Y - rect.Height
+		return rect
 	case overlayContexts, overlayNamespaces:
 		return layout.Overlay(m.screen, layout.OverlayOptions{
 			WidthRatio: 0.6, HeightRatio: 0.55,

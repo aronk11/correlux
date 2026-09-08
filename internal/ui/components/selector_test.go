@@ -233,3 +233,14 @@ func stripSGR(s string) string {
 		s = s[start+end+1:]
 	}
 }
+
+func TestSelectorIgnoresInvisibleRows(t *testing.T) {
+	s := NewSelector("Commands", "", prefixFilter(items("a", "b", "c", "d", "e")))
+	s.Footer = "Enter run"
+	s.Render(testTheme(), 40, 5)
+	for _, y := range []int{-1, 2, 3, 4} {
+		if s.ClickRow(y) {
+			t.Fatalf("click at %d selected a row outside the viewport", y)
+		}
+	}
+}

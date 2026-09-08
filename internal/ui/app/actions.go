@@ -160,15 +160,16 @@ func (m *Model) rebuildCommands() {
 			Enabled:  true,
 		},
 		{
-			ID:       "cmd.why",
-			Action:   paletteExplain,
-			Title:    "Explain why this is unhealthy",
-			Subtitle: m.whySubtitle(),
-			Category: "Diagnose",
-			Keywords: []string{"why", "diagnose", "explain", "root cause", "incident", "broken"},
-			Shortcut: m.keys.Key(ActionWhy),
-			Weight:   97,
-			Enabled:  true,
+			ID:             "cmd.why",
+			Action:         paletteExplain,
+			Title:          "Explain why this is unhealthy",
+			Subtitle:       m.whySubtitle(),
+			Category:       "Diagnose",
+			Keywords:       []string{"why", "diagnose", "explain", "root cause", "incident", "broken"},
+			Shortcut:       m.keys.Key(ActionWhy),
+			Weight:         97,
+			Enabled:        m.hasExplanationTarget(),
+			DisabledReason: "select an application first",
 		},
 		{
 			ID:       "cmd.session",
@@ -710,20 +711,48 @@ func (m *Model) rebuildCommands() {
 		}
 	}
 
+	for i := range cmds {
+		switch cmds[i].ID {
+		case "cmd.why", "cmd.logs", "cmd.yaml", "cmd.copy":
+			if cmds[i].Enabled {
+				cmds[i].Weight += 120
+			}
+		}
+	}
 	m.registry.Set(cmds)
 	m.cmdPal.Refresh()
 }
 
 // whySubtitle names what the explanation would be about.
 func (m *Model) whySubtitle() string {
-	if app, ok := m.currentApplication(); ok && m.view != viewApplications {
-		return app.Name + " — " + app.Health.String()
-	}
-	apps := m.applications()
-	if m.appPort.Cursor >= 0 && m.appPort.Cursor < len(apps) {
-		return apps[m.appPort.Cursor].Name + " — " + apps[m.appPort.Cursor].Health.String()
+	if a, ok := m.explanationTarget(); ok {
+		return a.Name + " — " + a.Health.String()
 	}
 	return "select an application first"
+}
+
+// explanationTarget uses the visible selection, never an index into unfiltered
+// data or an application left over from another workflow.
+func (m *Model) explanationTarget() (application.Application, bool) {
+	switch m.view {
+	case viewApplications:
+		apps := m.visibleApplications()
+		if m.appPort.Cursor >= 0 && m.appPort.Cursor < len(apps) {
+			return apps[m.appPort.Cursor], true
+		}
+	case viewApplication, viewWhy:
+		return m.currentApplication()
+	case viewObject:
+		if m.objectFrom == viewApplication || m.objectFrom == viewWhy {
+			return m.currentApplication()
+		}
+	}
+	return application.Application{}, false
+}
+
+func (m *Model) hasExplanationTarget() bool {
+	_, ok := m.explanationTarget()
+	return ok
 }
 
 // fleetSubtitleForPalette says what the fleet covers, or that it covers nothing

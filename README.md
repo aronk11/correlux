@@ -104,8 +104,14 @@ correlux version
 | `Ctrl+F` | Refresh on a timer, until you turn it off (`auto 2s` appears in the header) |
 | `w` | Toggle the wide columns in a resource table |
 | `?` | Help |
-| `Esc` | Back / close overlay |
+| `Esc` | Back one step: the screen you came from, or the overlay you opened |
+| `Ctrl+A` | Home: the application dashboard, from anywhere |
 | `Ctrl+C` / `q` | Quit |
+
+`Esc` always goes back exactly one step and never further — from an
+explanation to the application it is about, from that application to the
+dashboard — and the bottom row names the screen it will land on. Getting out
+in one keystroke is `Ctrl+A`.
 
 You are not expected to memorise those. Press `Ctrl+P` and type what you want.
 

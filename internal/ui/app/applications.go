@@ -110,6 +110,8 @@ func (m *Model) backToApplications() tea.Cmd {
 		m.cancelTable()
 		m.table.Reset()
 	}
+	m.stopLogs()
+	m.stopFleet()
 	m.view = viewApplications
 	m.detailPort.Offset = 0
 	m.rebuildCommands()

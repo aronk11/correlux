@@ -67,14 +67,12 @@ func diagnosedHealth(base application.Health, findings []diagnosis.Diagnosis) ap
 // explain opens the WHY view for the application in hand: the one that is open,
 // or the one the dashboard cursor is on.
 func (m *Model) explain() tea.Cmd {
-	if m.selectedApp == "" || m.view == viewApplications {
-		apps := m.applications()
-		if m.appPort.Cursor < 0 || m.appPort.Cursor >= len(apps) {
-			m.notice("Select an application first", theme.StatusWarning)
-			return m.expireNotice()
-		}
-		m.selectedApp = apps[m.appPort.Cursor].Key()
+	a, ok := m.explanationTarget()
+	if !ok {
+		m.notice("Select an application first", theme.StatusWarning)
+		return m.expireNotice()
 	}
+	m.selectedApp = a.Key()
 	m.view = viewWhy
 	m.whyPort.Offset = 0
 	m.rebuildCommands()

@@ -21,7 +21,13 @@ type HeaderData struct {
 	ConnLabel  string
 	ConnDetail string
 	Breadcrumb []string
-	Version    string
+	// Note counts what the breadcrumb points at: "4 total, 1 down", "500 of
+	// 4213". It is rendered at the end of the breadcrumb line rather than
+	// inside the last crumb, because a count is not a place you can navigate
+	// to and reading it as one is what made that line look like a sentence
+	// that ran on.
+	Note    string
+	Version string
 	// Update names a newer Correlux when there is one, and is empty otherwise.
 	// It sits beside the version because that is the only place the number it
 	// is newer *than* is on screen; a header that also reported "up to date"
@@ -86,10 +92,13 @@ func RenderHeader(t *theme.Theme, d HeaderData, width int) string {
 		}
 		crumbs = append(crumbs, t.Muted.Render(c))
 	}
-	line2 := strings.Join(crumbs, t.Muted.Render(" "+t.Glyphs.Arrow+" "))
-	line2 = truncate(line2, width)
+	line2 := joinEnds(
+		truncate(strings.Join(crumbs, t.Muted.Render(" "+t.Glyphs.Arrow+" ")), width),
+		t.Muted.Render(d.Note),
+		width,
+	)
 
-	return line1 + "\n" + pad(line2, width)
+	return line1 + "\n" + line2
 }
 
 // joinEnds places left and right on one line of the given width, dropping the

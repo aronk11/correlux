@@ -76,3 +76,15 @@ func abs(v int) int {
 	}
 	return v
 }
+
+func TestNavigationRowSitsInsideTheHeaderBlock(t *testing.T) {
+	s := Compute(120, 40)
+	// The rule is the header's last row, so the navigation cannot be: a click
+	// on the line under the tabs must not open one.
+	if s.Nav.Y < 0 || s.Nav.Y >= s.Header.Height-1 {
+		t.Errorf("navigation must sit inside the header, above its closing rule: %+v", s)
+	}
+	if s.Nav.Width != s.Width || s.Nav.Height != 1 {
+		t.Errorf("navigation is one full row: %+v", s.Nav)
+	}
+}

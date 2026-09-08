@@ -28,18 +28,27 @@ type Screen struct {
 	// TooSmall is true when the terminal cannot host the full frame.
 	TooSmall bool
 
+	// Header is the whole chrome block at the top: context, breadcrumb,
+	// navigation and the rule that closes it.
 	Header Rect
+	// Nav is the navigation row inside the header, kept separately because it
+	// is the only part of the chrome a click can land on.
+	Nav    Rect
 	Body   Rect
 	Status Rect
 }
 
 const (
-	headerHeight = 2
+	// The chrome block: context, breadcrumb, navigation — and one rule to
+	// close it. The rule costs a row and earns it: without a line between the
+	// chrome and the content, a table header reads as a fourth header row.
+	headerHeight = 3
+	ruleHeight   = 1
 	statusHeight = 1
 )
 
-// Compute lays out the main frame: a two-line header, a single-line status bar,
-// and everything in between for the body.
+// Compute lays out the main frame: the header block and its closing rule, a
+// single-line status bar, and everything in between for the body.
 func Compute(width, height int) Screen {
 	s := Screen{Width: width, Height: height}
 	if width < MinWidth || height < MinHeight {
@@ -47,13 +56,14 @@ func Compute(width, height int) Screen {
 		s.Body = Rect{X: 0, Y: 0, Width: max(width, 0), Height: max(height, 0)}
 		return s
 	}
-	s.Header = Rect{X: 0, Y: 0, Width: width, Height: headerHeight}
+	s.Header = Rect{X: 0, Y: 0, Width: width, Height: headerHeight + ruleHeight}
+	s.Nav = Rect{X: 0, Y: headerHeight - 1, Width: width, Height: 1}
 	s.Status = Rect{X: 0, Y: height - statusHeight, Width: width, Height: statusHeight}
 	s.Body = Rect{
 		X:      0,
-		Y:      headerHeight,
+		Y:      s.Header.Height,
 		Width:  width,
-		Height: height - headerHeight - statusHeight,
+		Height: height - s.Header.Height - statusHeight,
 	}
 	return s
 }

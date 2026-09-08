@@ -92,6 +92,7 @@ func TestDumpFrames(t *testing.T) {
 	for name, key := range frames {
 		m := newTestModel(t)
 		m.Update(tea.WindowSizeMsg{Width: 110, Height: 32})
+		m.applyLayout()
 		loadCatalogInto(m, testCatalog())
 		loadApplicationsInto(m, dumpApplications()...)
 		switch name {

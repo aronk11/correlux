@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><title>Correlux social card</title
+  ><link rel="stylesheet" href="assets/style.css" /><style>
+    body {
+      width: 1200px;
+      height: 630px;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at 80% 30%, #d2cdc255, transparent 60%), #efeeeb;
+      padding: 55px 65px;
+    }
+    .brand {
+      font-size: 32px;
+    }
+    .social-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .social-top > span {
+      font: 12px var(--mono);
+      color: #312c23;
+      letter-spacing: 0.1em;
+    }
+    h1 {
+      font-size: 94px;
+      line-height: 1.02;
+      letter-spacing: -0.06em;
+      margin-top: 54px;
+    }
+    .social-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 34px;
+      padding-top: 23px;
+      border-top: 1px solid #c2baaa;
+      color: #554d3d;
+      font-size: 16px;
+    }
+    .social-bottom code {
+      font-size: 12px;
+      color: #312c23;
+    }
+    .mark {
+      position: absolute;
+      right: 90px;
+      top: 205px;
+      border: 1px solid #c0b7a7;
+      width: 260px;
+      height: 260px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      transform: rotate(-12deg);
+    }
+    .mark:before {
+      content: "";
+      position: absolute;
+      inset: -35px;
+      border: 1px solid #cac3b5;
+      border-radius: 50%;
+    }
+    .mark img {
+      background: #232820;
+      border-radius: 22px;
+      padding: 20px;
+      box-sizing: content-box;
+      width: 115px;
+      height: 115px;
+    }
+  </style>
+  <div class="social-top">
+    <div class="brand">
+      <img src="assets/logo.svg" width="40" height="40" alt="" />correlux<span
+        class="brand-dot"
+        >_</span
+      >
+    </div>
+    <span>OPEN SOURCE. TERMINAL NATIVE.</span>
+  </div>
+  <h1>
+    Your cluster<br />has drama.<br /><span class="serif-accent"
+      >Get the plot.</span
+    >
+  </h1>
+  <div class="mark"><img src="assets/logo.svg" alt="" /></div>
+  <div class="social-bottom">
+    <span>Less cluster. More clarity.</span
+    ><code>github.com/aronk11/correlux ↗</code>
+  </div>
+</html>
