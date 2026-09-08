@@ -376,7 +376,9 @@ func New(opts Options) *Model {
 		}
 	}
 
-	m.search = newInput("filter…")
+	// The placeholder is where the comparison syntax is discovered: nobody
+	// reads a help screen to find out that a filter can do arithmetic.
+	m.search = newInput("filter…  or restarts>5, age<1h, ns=shop")
 	m.confirmInput = newInput("")
 	m.promptInput = newInput("")
 

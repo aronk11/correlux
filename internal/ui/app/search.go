@@ -2,12 +2,14 @@ package app
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/sahilm/fuzzy"
 
 	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/query"
 	"github.com/aronk11/correlux/internal/kube/resources"
 	"github.com/aronk11/correlux/internal/ui/theme"
 )
@@ -19,6 +21,12 @@ import (
 // shortcut, it is the honest one — a server-side selector cannot match on the
 // cells a printer produced, and a table that silently changed what it was
 // listing would be worse than one that says how much it is showing.
+//
+// A word that names a column is a comparison and everything else is still
+// fuzzy text, so `restarts>5 payments` reads as it looks. The comparisons work
+// against the columns a view already draws, which means the same syntax serves
+// the dashboard, any kind the API server prints and the fleet's merged table,
+// including a custom resource nobody wrote code for (internal/domain/query).
 
 // startSearch opens the filter on the current view.
 func (m *Model) startSearch() tea.Cmd {
@@ -58,6 +66,38 @@ func (m *Model) searchable() bool {
 // query is what the user typed, trimmed.
 func (m *Model) query() string { return strings.TrimSpace(m.search.Value()) }
 
+// parsedQuery is what they typed, understood.
+func (m *Model) parsedQuery() query.Query { return query.Parse(m.query()) }
+
+// searchColumns are the column names the filter can compare against on the
+// current screen. They are the headings the user is looking at, which is the
+// only set they could reasonably guess from.
+func (m *Model) searchColumns() []string {
+	switch m.view {
+	case viewApplications:
+		return applicationColumns
+	case viewTable:
+		if table := m.table.Get(); table != nil {
+			return columnNames(table.Columns)
+		}
+	case viewFleetResource:
+		return mergedColumnNames(m.fleetTable.Columns)
+	}
+	return nil
+}
+
+func columnNames(columns []resources.Column) []string {
+	out := make([]string, 0, len(columns))
+	for _, c := range columns {
+		out = append(out, c.Name)
+	}
+	return out
+}
+
+func mergedColumnNames(columns []resources.Column) []string {
+	return columnNames(columns)
+}
+
 // filtering reports whether a filter is in force.
 func (m *Model) filtering() bool { return m.query() != "" }
 
@@ -90,25 +130,37 @@ func (m *Model) resetCursors() {
 	m.fleetPort.Cursor, m.fleetPort.Offset = 0, 0
 }
 
-// matches returns the indices of the rows a query keeps, in their original
+// matches returns the indices of the rows a filter keeps, in their original
 // order.
 //
-// The match is fuzzy over the whole row: typing "payei" finds
-// "payments-7d8f  ImagePullBackOff", because during an incident people type
-// what they remember, not what they can see.
-func matches(rows [][]string, query string) []int {
-	if strings.TrimSpace(query) == "" {
+// Comparisons run first and cheaply, and the fuzzy pass runs over what
+// survives: typing "payei" finds "payments-7d8f  ImagePullBackOff", because
+// during an incident people type what they remember, not what they can see.
+func matches(columns []string, rows [][]string, filter string) []int {
+	q := query.Parse(filter)
+	if q.Empty() {
 		return nil
 	}
-	haystack := make([]string, len(rows))
+
+	kept := make([]int, 0, len(rows))
 	for i, cells := range rows {
-		haystack[i] = strings.ToLower(strings.Join(cells, " "))
+		if q.Match(columns, cells) {
+			kept = append(kept, i)
+		}
+	}
+	if q.Text == "" {
+		return kept
 	}
 
-	found := fuzzy.Find(strings.ToLower(query), haystack)
+	haystack := make([]string, len(kept))
+	for i, index := range kept {
+		haystack[i] = strings.ToLower(strings.Join(rows[index], " "))
+	}
+
+	found := fuzzy.Find(strings.ToLower(q.Text), haystack)
 	out := make([]int, 0, len(found))
 	for _, match := range found {
-		out = append(out, match.Index)
+		out = append(out, kept[match.Index])
 	}
 	// fuzzy.Find ranks by score; a table must stay in the order the server
 	// sorted it, or a filtered list becomes a different list.
@@ -135,7 +187,7 @@ func (m *Model) visibleRows() []resources.Row {
 		cells[i] = rows[i].Cells
 	}
 	out := make([]resources.Row, 0, len(rows))
-	for _, i := range matches(cells, m.query()) {
+	for _, i := range matches(m.searchColumns(), cells, m.query()) {
 		out = append(out, rows[i])
 	}
 	return out
@@ -150,14 +202,10 @@ func (m *Model) visibleApplications() []application.Application {
 	}
 	cells := make([][]string, len(apps))
 	for i := range apps {
-		a := &apps[i]
-		cells[i] = []string{
-			a.Name, a.Namespace, a.Health.String(), a.Summary,
-			a.ProblemSummary(), a.Manager.Label(), workloadSummary(a),
-		}
+		cells[i] = applicationCells(&apps[i])
 	}
 	out := make([]application.Application, 0, len(apps))
-	for _, i := range matches(cells, m.query()) {
+	for _, i := range matches(applicationColumns, cells, m.query()) {
 		out = append(out, apps[i])
 	}
 	return out
@@ -174,10 +222,48 @@ func (m *Model) visibleFleetRows() []resources.MergedRow {
 		cells[i] = rows[i].Cells
 	}
 	out := make([]resources.MergedRow, 0, len(rows))
-	for _, i := range matches(cells, m.query()) {
+	for _, i := range matches(m.searchColumns(), cells, m.query()) {
 		out = append(out, rows[i])
 	}
 	return out
+}
+
+// applicationColumns name what the dashboard shows, in the order
+// applicationCells writes them. They are the headings on screen, so what
+// somebody can read is what they can filter on.
+var applicationColumns = []string{
+	"Status", "Application", "Namespace", "Pods", "Workloads",
+	"Managed by", "Restarts", "Age", "Detail",
+}
+
+// applicationCells is one dashboard row as the filter sees it. It is not the
+// rendered row: the health glyph and the theme have no business in a filter,
+// and an age is compared against the clock rather than against the words
+// "2d4h".
+func applicationCells(a *application.Application) []string {
+	return []string{
+		a.Health.String(),
+		a.Name,
+		a.Namespace,
+		itoa(int(a.ReadyPods)) + "/" + itoa(int(a.DesiredPods)),
+		workloadSummary(a),
+		a.Manager.Label(),
+		itoa(int(a.Restarts)),
+		formatAge(a.CreatedAt, time.Now()),
+		a.Summary + " " + a.ProblemSummary(),
+	}
+}
+
+// emptyFilterMessage says why nothing is left, and it says which of the two
+// nothings this is: a filter that matched none of the rows, or a filter naming
+// a column this screen does not have. The second one is not an empty cluster,
+// and must never be able to look like one.
+func (m *Model) emptyFilterMessage(total int, noun string) string {
+	if problems := m.parsedQuery().Problems(m.searchColumns()); len(problems) > 0 {
+		return strings.Join(problems, "; ") + ". The columns here are " +
+			strings.Join(m.searchColumns(), ", ") + "."
+	}
+	return "Nothing matches " + m.query() + " among " + itoa(total) + " " + noun + "."
 }
 
 // searchNote says what the filter is showing, and what it is showing it out of.

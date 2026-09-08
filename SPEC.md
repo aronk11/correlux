@@ -136,6 +136,12 @@ an account that may not read a whole cluster
 `/` searches the current scope across applications, pods, deployments, services,
 ingresses, nodes, CRDs, namespaces and events.
 
+The filter is fuzzy text over the whole row, and a word naming a column is a
+comparison instead — `restarts>5`, `age<1h`, `ns=shop`, `!kube-system` — against
+the columns the view already draws, so the same syntax serves the dashboard, any
+kind the API server prints and the fleet's merged table. A term naming a column
+that is not on screen is reported rather than answered with an empty list.
+
 ## 10. The WHY feature
 
 `Ctrl+W` explains why the selected object is unhealthy.

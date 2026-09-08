@@ -193,8 +193,7 @@ func (m *Model) fleetResourceData() screens.TableData {
 
 	rows := m.visibleFleetRows()
 	if len(rows) == 0 && m.filtering() {
-		d.Message = "Nothing matches " + m.query() + " among " +
-			itoa(len(m.fleetTable.Rows)) + " " + m.fleetResource.Plural() + "."
+		d.Message = m.emptyFilterMessage(len(m.fleetTable.Rows), m.fleetResource.Plural())
 		return d
 	}
 	if len(rows) == 0 {
