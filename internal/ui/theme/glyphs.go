@@ -33,8 +33,11 @@ type Glyphs struct {
 	Unchecked string
 	Arrow     string
 	Ellipsis  string
-	Prompt    string
-	Prod      string
+	// Rule draws the line that closes the header block. It is chrome, not
+	// content: one character repeated across the width.
+	Rule   string
+	Prompt string
+	Prod   string
 	// BarFull and BarEmpty draw a proportion. They are a shape, never a
 	// meaning: the number they illustrate is always printed beside them.
 	BarFull  string
@@ -54,6 +57,7 @@ var unicodeGlyphs = Glyphs{
 	Unchecked: "[ ]",
 	Arrow:     "→",
 	Ellipsis:  "…",
+	Rule:      "─",
 	Prompt:    "❯",
 	Prod:      "⬤",
 	BarFull:   "█",
@@ -73,6 +77,7 @@ var asciiGlyphs = Glyphs{
 	Unchecked: "[ ]",
 	Arrow:     "->",
 	Ellipsis:  "...",
+	Rule:      "-",
 	Prompt:    ">",
 	Prod:      "#",
 	BarFull:   "#",

@@ -240,7 +240,10 @@ func New(caps Capabilities, pref config.Theme) *Theme {
 	t.Critical = base.Foreground(p.crit)
 	t.Info = base.Foreground(p.accent)
 	t.ContextProd = base.Foreground(p.prodFG).Background(p.prodBG).Bold(true).Padding(0, 1)
-	t.ContextSafe = base.Foreground(p.fg).Bold(true).Padding(0, 1)
+	// No padding: a context without a badge background is just a word, and an
+	// indented word puts the header's first line out of line with the two
+	// below it.
+	t.ContextSafe = base.Foreground(p.fg).Bold(true)
 	t.Overlay = base.Border(lipgloss.RoundedBorder()).BorderForeground(p.borderFocus).Padding(0, 1)
 	t.OverlayTitle = base.Foreground(p.accent).Bold(true)
 	t.SelectedRow = base.Foreground(p.selectedFG).Background(p.selectedBG).Bold(true)

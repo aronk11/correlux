@@ -106,11 +106,50 @@ Cluster → Scope → Application → Problem / resource
 
 Not `Cluster → Resource type → Object`.
 
+The persistent navigation has three levels: cluster and scope on the first
+header line, the current breadcrumb on the second, and a compact navigation
+bar on the third. A rule closes the block, so the chrome and the cluster's own
+data never read as one list. How many of the things the breadcrumb points at
+there are — applications, table rows, clusters — is printed at the end of the
+breadcrumb line, not inside the last crumb: a count is not a place you can
+navigate to.
+
+Apps, Resources, Usage, Events and Fleet are destinations; Commands opens a
+tool over the current workspace. The active destination is marked in text as
+well as colour, and every item occupies the same width active or not, so the
+bar does not shuffle sideways as you move through it. Navigation supports
+mouse clicks and the configured keyboard shortcuts; narrow terminals omit the
+shortcut labels.
+
+Escape means one step back, on every screen: the explanation returns to the
+application it is about, that application to the dashboard, an object to the
+list that held it. It is never a jump home — that is the Apps key — because a
+back key that sometimes discards the whole investigation is one you have to
+think about before pressing. The status bar names the screen Escape will land
+on rather than printing the word "Back", and it names it once: a shortcut the
+navigation bar is already showing is not repeated below.
+
+The status bar offers only what the screen can do at that moment. On an
+unreachable cluster or in an empty scope, the keys that act on a row are not
+advertised, so the keys that get you out of it are not buried among them.
+
+Returning from logs restores the view that opened them, including the selected
+application or filtered resource table. Opening a menu preserves the workspace,
+selection and scroll position. Actions resolve the visible filtered row, never
+the same row number in an unfiltered data set.
+
 ## 6. Command palette
 
 `Ctrl+P` (also `Cmd+P` on macOS) opens a global, fuzzy-searchable palette.
 Commands must be discoverable; users must not have to memorise cryptic
 shortcuts.
+
+The palette is docked above the status bar, leaving the cluster header visible.
+Its title identifies the current subject. Applicable inspection commands are
+ranked ahead of general navigation; mutating commands retain their deliberate
+confirmation flow. Escape dismisses the palette without navigating away.
+Overlay rendering and mouse hit testing use the same geometry, and borders,
+footers and rows outside the visible list cannot execute a command.
 
 ## 7. Cluster switching
 

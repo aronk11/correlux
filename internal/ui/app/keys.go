@@ -214,23 +214,44 @@ var namedKeys = map[string]rune{
 	"space":     tea.KeySpace,
 }
 
-// prettyKey renders a keystroke the way it is printed on a keyboard.
+// displayKeys spells the keys that are not a character the way the keyboard
+// does. A key printed as "esc" in the middle of a bar of "Ctrl+K" and "Enter"
+// reads as a word somebody forgot to finish.
+var displayKeys = map[string]string{
+	"esc":       "Esc",
+	"enter":     "Enter",
+	"tab":       "Tab",
+	"space":     "Space",
+	"backspace": "Backspace",
+	"delete":    "Delete",
+	"home":      "Home",
+	"end":       "End",
+	"pgup":      "PgUp",
+	"pgdown":    "PgDn",
+	"up":        "Up",
+	"down":      "Down",
+	"left":      "Left",
+	"right":     "Right",
+}
+
+var displayModifiers = map[string]string{"ctrl": "Ctrl", "alt": "Alt", "shift": "Shift"}
+
+// prettyKey renders a keystroke the way it is printed on a keyboard. A single
+// character is left exactly as it is bound: "u" and "F" are different keys.
 func prettyKey(key string) string {
-	replacements := map[string]string{
-		"ctrl+":  "Ctrl+",
-		"alt+":   "Alt+",
-		"shift+": "Shift+",
+	parts := strings.Split(key, "+")
+	last := len(parts) - 1
+	for i, part := range parts[:last] {
+		if name, ok := displayModifiers[part]; ok {
+			parts[i] = name
+		}
 	}
-	out := key
-	for from, to := range replacements {
-		out = strings.ReplaceAll(out, from, to)
+	switch name, named := displayKeys[parts[last]]; {
+	case named:
+		parts[last] = name
+	case last > 0:
+		// The final key of a chord: "ctrl+p" -> "Ctrl+P".
+		parts[last] = strings.ToUpper(parts[last])
 	}
-	if len(out) == 1 {
-		return out
-	}
-	// Upper-case the final key of a chord: "Ctrl+p" -> "Ctrl+P".
-	if idx := strings.LastIndex(out, "+"); idx >= 0 && idx < len(out)-1 {
-		return out[:idx+1] + strings.ToUpper(out[idx+1:])
-	}
-	return out
+	return strings.Join(parts, "+")
 }

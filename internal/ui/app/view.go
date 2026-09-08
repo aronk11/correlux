@@ -44,6 +44,8 @@ func (m *Model) View() tea.View {
 
 	base := strings.Join([]string{
 		components.RenderHeader(m.theme, m.headerData(), m.screen.Header.Width),
+		m.renderNavigation(),
+		m.renderRule(),
 		m.renderBody(),
 		components.RenderStatus(m.theme, m.statusData(), m.screen.Status.Width),
 	}, "\n")
@@ -56,10 +58,19 @@ func (m *Model) View() tea.View {
 	rect := m.overlayRect()
 	overlay := m.renderOverlay(rect)
 	canvas := lipgloss.NewCanvas(m.screen.Width, m.screen.Height)
-	canvas.Compose(lipgloss.NewLayer(base))
-	canvas.Compose(lipgloss.NewLayer(overlay).X(rect.X).Y(rect.Y).Z(1))
+	canvas.Compose(lipgloss.NewCompositor(
+		lipgloss.NewLayer(base),
+		lipgloss.NewLayer(overlay).X(rect.X).Y(rect.Y).Z(1),
+	))
 	v.SetContent(canvas.Render())
 	return v
+}
+
+// renderRule closes the header block. It is the only horizontal line Correlux
+// draws outside a panel: one line, at the one place where chrome stops and the
+// cluster's own data starts.
+func (m *Model) renderRule() string {
+	return m.theme.Muted.Render(strings.Repeat(m.theme.Glyphs.Rule, max(m.screen.Width, 0)))
 }
 
 func (m *Model) renderTooSmall() string {
@@ -78,6 +89,7 @@ func (m *Model) headerData() components.HeaderData {
 		Version:    m.version(),
 		Update:     m.updateHeaderLabel(),
 		Breadcrumb: m.breadcrumb(),
+		Note:       m.headerNote(),
 		Auto:       m.autoRefreshLabel(),
 		Busy:       m.busyLabel(),
 	}
@@ -136,7 +148,7 @@ func (m *Model) breadcrumb() []string {
 	case viewFleet:
 		// The fleet sits above the cluster: these are the two screens that are
 		// not about the context in the header.
-		return []string{"Fleet", fleetCrumb(m.fleetMembers)}
+		return []string{"Fleet"}
 	case viewFleetResource:
 		return []string{"Fleet", m.fleetResource.Kind(), m.fleetResourceLabel()}
 	}
@@ -144,11 +156,7 @@ func (m *Model) breadcrumb() []string {
 	crumbs := []string{"Cluster", m.scopeLabel()}
 	switch m.view {
 	case viewTable:
-		label := m.resource.Kind()
-		if table := m.table.Get(); table != nil {
-			label += "  " + m.rowCountLabel(table)
-		}
-		return append(crumbs, label)
+		return append(crumbs, m.resource.Kind())
 	case viewApplication, viewWhy:
 		crumbs = append(crumbs, "Applications")
 		name := m.selectedApp
@@ -190,8 +198,25 @@ func (m *Model) breadcrumb() []string {
 	case viewOverview:
 		return append(crumbs, "Session")
 	default:
-		return append(crumbs, "Applications  "+m.applicationsLabel())
+		return append(crumbs, "Applications")
 	}
+}
+
+// headerNote counts whatever the breadcrumb points at, for the right-hand end
+// of that line. Only the screens whose subject is a list have one: a count
+// beside a single application would be counting the thing you are looking at.
+func (m *Model) headerNote() string {
+	switch m.view {
+	case viewApplications:
+		return m.applicationsLabel()
+	case viewFleet:
+		return fleetCrumb(m.fleetMembers)
+	case viewTable:
+		if table := m.table.Get(); table != nil {
+			return m.rowCountLabel(table) + " " + plural(len(table.Rows), "row")
+		}
+	}
+	return ""
 }
 
 // applicationsLabel counts the dashboard the way an operator triages it: how
@@ -264,7 +289,7 @@ func (m *Model) statusData() components.StatusData {
 	// screen, a hint telling you how to filter is a line of noise. It reads
 	// with the other ways of narrowing what is shown, not after "Quit", which
 	// is where appending it to the end used to put it.
-	if m.searchable() && !m.searching && !m.filtering() {
+	if m.searchable() && m.listRows() > 0 && !m.searching && !m.filtering() {
 		hints = append(hints, components.KeyHint{
 			Group: components.HintScope, Key: m.keys.Key(ActionSearch), Desc: "Filter", Priority: 83,
 		})
@@ -272,11 +297,13 @@ func (m *Model) statusData() components.StatusData {
 
 	switch m.view {
 	case viewTable:
-		table := []components.KeyHint{
-			{Key: "↑↓", Desc: "Rows", Priority: 70},
-			{Key: "Enter", Desc: "Open", Priority: 72},
-			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
-			{Key: "Esc", Desc: "Applications", Priority: 85},
+		var table []components.KeyHint
+		if m.listRows() > 0 {
+			table = []components.KeyHint{
+				{Key: "↑↓", Desc: "Rows", Priority: 70},
+				{Key: "Enter", Desc: "Open", Priority: 72},
+				{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
+			}
 		}
 		if _, _, ok := m.execTarget(); ok {
 			table = append(table, components.KeyHint{
@@ -291,38 +318,40 @@ func (m *Model) statusData() components.StatusData {
 		table = append(table, m.changeHints()...)
 		hints = append(table, hints...)
 	case viewApplications:
-		hints = append([]components.KeyHint{
-			{Key: "↑↓", Desc: "Move", Priority: 70},
-			{Key: "Enter", Desc: "Open", Priority: 72},
-			{Group: components.HintView, Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
-			{Group: components.HintView, Key: m.keys.Key(ActionGrouping), Desc: "Grouping", Priority: 45},
+		app := []components.KeyHint{
 			{Group: components.HintView, Key: m.keys.Key(ActionUsage), Desc: "Usage", Priority: 79},
-			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
-		}, hints...)
+		}
+		// A key that acts on a row is offered only while there is a row. An
+		// unreachable cluster or an empty scope otherwise advertises half a
+		// dozen keys that do nothing, and the one key that would help — the
+		// cluster switcher — reads as just another of them.
+		if m.listRows() > 0 {
+			app = append([]components.KeyHint{
+				{Key: "↑↓", Desc: "Move", Priority: 70},
+				{Key: "Enter", Desc: "Open", Priority: 72},
+				{Group: components.HintView, Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
+				{Group: components.HintView, Key: m.keys.Key(ActionGrouping), Desc: "Grouping", Priority: 45},
+				{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
+			}, app...)
+		}
+		hints = append(app, hints...)
 	case viewUsage:
 		// The hints name what the keys do here and now: cluster-wide the rows
-		// are namespaces, and Esc only widens the scope for somebody who
-		// narrowed it on this screen.
+		// are namespaces, and in one namespace they are its applications.
 		move, enter := "Applications", "Open application"
 		if m.allNamespaces {
 			move, enter = "Namespaces", "Open namespace"
-		}
-		back := "Applications"
-		if m.usageDrilledIn {
-			back = "All namespaces"
 		}
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: move, Priority: 70},
 			{Key: "Enter", Desc: enter, Priority: 72},
 			{Group: components.HintSession, Key: m.keys.Key(ActionRefresh), Desc: "Measure again", Priority: 84},
-			{Key: "Esc", Desc: back, Priority: 85},
 		}, hints...)
 	case viewActivity:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Events", Priority: 70},
 			{Key: "Enter", Desc: "Open object", Priority: 72},
 			{Group: components.HintSession, Key: m.keys.Key(ActionRefresh), Desc: "Reload", Priority: 84},
-			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewApplication:
 		app := []components.KeyHint{
@@ -332,7 +361,6 @@ func (m *Model) statusData() components.StatusData {
 			{Group: components.HintView, Key: m.keys.Key(ActionGrouping), Desc: groupingHint(m.groupingShown), Priority: 45},
 			{Group: components.HintView, Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
 			{Group: components.HintView, Key: m.keys.Key(ActionUsage), Desc: "Usage", Priority: 79},
-			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}
 		if _, _, ok := m.execTarget(); ok {
 			app = append(app, components.KeyHint{
@@ -346,7 +374,6 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "↑↓", Desc: "Scroll", Priority: 70},
 			{Key: "Enter", Desc: "Objects", Priority: 72},
 			{Group: components.HintView, Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
-			{Key: "Esc", Desc: "Applications", Priority: 85},
 		}, hints...)
 	case viewFleet:
 		hints = append([]components.KeyHint{
@@ -356,7 +383,6 @@ func (m *Model) statusData() components.StatusData {
 			{Group: components.HintView, Key: m.keys.Key(ActionNamespacePicker), Desc: "Namespaces", Priority: 86},
 			{Group: components.HintView, Key: m.keys.Key(ActionResourcePicker), Desc: "Across the fleet", Priority: 85},
 			{Group: components.HintSession, Key: m.keys.Key(ActionRefresh), Desc: "Reload", Priority: 84},
-			{Key: "Esc", Desc: "Back", Priority: 85},
 		}, hints...)
 	case viewFleetResource:
 		hints = append([]components.KeyHint{
@@ -364,7 +390,6 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "Enter", Desc: "Open there", Priority: 72},
 			{Group: components.HintView, Key: m.keys.Key(ActionNamespacePicker), Desc: "Namespaces", Priority: 83},
 			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 82},
-			{Key: "Esc", Desc: "Fleet", Priority: 85},
 		}, hints...)
 	case viewLogs:
 		logHints := []components.KeyHint{
@@ -373,7 +398,6 @@ func (m *Model) statusData() components.StatusData {
 			{Group: components.HintView, Key: m.keys.Key(ActionTimestamps), Desc: "Times", Priority: 82},
 			{Group: components.HintView, Key: m.keys.Key(ActionPrevious), Desc: previousHint(m.logPrevious), Priority: 81},
 			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wrapHint(m.logWrap), Priority: 80},
-			{Key: "Esc", Desc: "Back", Priority: 85},
 		}
 		if len(m.logLines) > 0 {
 			logHints = append(logHints, components.KeyHint{
@@ -386,7 +410,6 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "↑↓", Desc: "Related", Priority: 70},
 			{Key: "Enter", Desc: "Follow", Priority: 72},
 			{Group: components.HintView, Key: m.keys.Key(ActionYAML), Desc: yamlHint(m.objectYAML), Priority: 87},
-			{Key: "Esc", Desc: "Back", Priority: 85},
 		}
 		if m.objectDecodable() {
 			object = append(object, components.KeyHint{
@@ -421,6 +444,17 @@ func (m *Model) statusData() components.StatusData {
 		object = append(object, m.changeHints()...)
 		hints = append(object, hints...)
 	}
+
+	// One back key, named once, in the same place on every screen. It reads
+	// with the other two navigation keys — move, open, leave — rather than
+	// among the keys that change what is on screen.
+	if dest := m.backDestination(); dest != "" {
+		hints = append(hints, components.KeyHint{
+			Key: m.keys.Key(ActionClose), Desc: dest, Priority: 85,
+		})
+	}
+	hints = m.withoutNavigationDuplicates(hints)
+
 	switch m.overlay {
 	case overlayNone:
 	case overlayConfirm:
@@ -961,7 +995,8 @@ func (m *Model) renderHelp(width, height int) string {
 	}{
 		{"Navigate", [][2]string{
 			{m.keys.Key(ActionPalette), "Command palette — every action, by name"},
-			{m.keys.Key(ActionApplications), "Back to the application dashboard"},
+			{m.keys.Key(ActionApplications), "Home: the application dashboard, from anywhere"},
+			{"Esc", "Back one step, or close what is open"},
 			{m.keys.Key(ActionFleet), "The fleet: every chosen cluster at once, read-only"},
 			{m.keys.Key(ActionEdit), "In the fleet: choose which clusters are in it, and save"},
 			{m.keys.Key(ActionResourcePicker), "In the fleet: browse one kind across every cluster"},
@@ -973,7 +1008,6 @@ func (m *Model) renderHelp(width, height int) string {
 			{"Enter", "Open the application: its workloads, pods and network"},
 			{m.keys.Key(ActionWhy), "Explain why it is unhealthy, from the cluster's own evidence"},
 			{m.keys.Key(ActionGrouping), "Show which signal grouped each object, and how sure it is"},
-			{"Esc", "Back to the dashboard"},
 		}},
 		{"Logs", [][2]string{
 			{m.keys.Key(ActionLogs), "Read the logs of the pod, workload or application in hand"},
@@ -994,7 +1028,6 @@ func (m *Model) renderHelp(width, height int) string {
 			{m.keys.Key(ActionEdit), "Edit the open object in $EDITOR, then review what changed"},
 			{m.keys.Key(ActionExec), "Open an interactive shell in the pod, or a running pod of the workload"},
 			{m.keys.Key(ActionCopy), "Copy its namespace/name to the clipboard"},
-			{"Esc", "Back the way you came in"},
 		}},
 		{"Cluster", [][2]string{
 			{m.keys.Key(ActionResourcePicker), "Browse resource kinds, including custom resources"},
@@ -1016,11 +1049,9 @@ func (m *Model) renderHelp(width, height int) string {
 			{"↑ ↓ / j k", "Move; the next page loads as you reach the end"},
 			{"Enter", "Open the object under the cursor, custom resources included"},
 			{m.keys.Key(ActionToggleWide), "Toggle the wide columns"},
-			{"Esc", "Back to the overview"},
 		}},
 		{"General", [][2]string{
 			{m.keys.Key(ActionHelp), "This help"},
-			{"Esc", "Close overlay"},
 			{m.keys.Key(ActionQuit), "Quit"},
 		}},
 		{"In lists", [][2]string{

@@ -233,6 +233,9 @@ func (s *Selector) ScrollBy(lines int) { s.Move(lines) }
 // ClickRow selects the row at the given y offset inside the list area and
 // reports whether the click landed on a selectable row.
 func (s *Selector) ClickRow(y int) bool {
+	if y < 0 || y >= s.viewport {
+		return false
+	}
 	idx := s.offset + y
 	if idx < 0 || idx >= len(s.items) {
 		return false

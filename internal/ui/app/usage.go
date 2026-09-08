@@ -36,6 +36,8 @@ func (m *Model) openUsage() tea.Cmd {
 	if m.view == viewUsage {
 		return m.backToApplications()
 	}
+	m.stopLogs()
+	m.stopFleet()
 	m.view = viewUsage
 	m.usagePort.Offset, m.usagePort.Cursor = 0, 0
 	m.usageDrilledIn = false
