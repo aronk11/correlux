@@ -177,10 +177,16 @@ func TestWhyIsReachableFromTheOpenApplicationAndBack(t *testing.T) {
 		t.Errorf("Enter must lead from the explanation to the objects, got %v", m.view)
 	}
 
+	// Esc is one step back, not a jump home: the explanation is about an
+	// application, so that application is what is behind it.
 	press(t, m, "ctrl+w")
 	press(t, m, "esc")
+	if m.view != viewApplication {
+		t.Errorf("Esc must return to the application the explanation is about, got %v", m.view)
+	}
+	press(t, m, "esc")
 	if m.view != viewApplications {
-		t.Errorf("Esc is home from anywhere, got %v", m.view)
+		t.Errorf("a second Esc leaves the application, got %v", m.view)
 	}
 }
 

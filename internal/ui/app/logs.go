@@ -57,6 +57,7 @@ func (m *Model) openLogs() tea.Cmd {
 			m.logPrevious = previousRunExists(&app)
 		}
 	}
+	m.logFrom = m.view
 	m.view = viewLogs
 	m.rebuildCommands()
 	return m.startLogs()
@@ -175,7 +176,7 @@ func (m *Model) logSources() ([]logs.Source, string, bool) {
 		}
 		return podSources(app.Pods), "Logs of " + app.Name, len(app.Pods) > 0
 	case viewTable:
-		rows := m.tableRows()
+		rows := m.visibleRows()
 		if m.tablePort.Cursor < 0 || m.tablePort.Cursor >= len(rows) {
 			return nil, "", false
 		}
@@ -283,10 +284,7 @@ func (m *Model) closeLogs() tea.Cmd {
 	}
 	m.logGeneration++
 	m.logStream = nil
-	m.view = viewObject
-	if m.objectTarget.empty() {
-		m.view = viewApplications
-	}
+	m.view = m.logFrom
 	m.rebuildCommands()
 	return nil
 }
