@@ -107,8 +107,9 @@ func selectorOf(selector map[string]any) string {
 		if !ok {
 			continue
 		}
-		var values []string
-		for _, v := range slice(expr, "values") {
+		raw := slice(expr, "values")
+		values := make([]string, 0, len(raw))
+		for _, v := range raw {
 			values = append(values, value(v))
 		}
 		clause := str(expr, "key") + " " + strings.ToLower(str(expr, "operator"))

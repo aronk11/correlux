@@ -14,7 +14,7 @@ vars:
   MODULE: github.com/aronk11/correlux
   TOOLS_DIR: "{{.ROOT_DIR}}/.tools"
   # Pinned tool versions. CI uses the same ones.
-  GOLANGCI_VERSION: v2.6.2
+  GOLANGCI_VERSION: v2.9.0
   GORELEASER_VERSION: v2.18.0
   KIND_VERSION: v0.33.0
   # kind cluster used by the integration and load tasks.
