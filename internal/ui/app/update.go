@@ -854,6 +854,14 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.openOverlay(overlayNamespaces)
 	case ActionResourcePicker:
 		return m.openOverlay(overlayResources)
+	case ActionSort:
+		// Offered only where there is a table to reorder. Everywhere else the
+		// key does nothing rather than opening a picker over a screen it
+		// cannot apply to.
+		if !m.sortable() {
+			return nil
+		}
+		return m.openOverlay(overlaySort)
 	case ActionToggleWide:
 		// Both table-shaped views hide the same secondary columns, and one
 		// toggle for both is one thing to learn instead of two.
@@ -1025,6 +1033,9 @@ func (m *Model) handleClick(msg tea.MouseClickMsg) tea.Cmd {
 	}
 	if m.overlay == overlayNone && msg.Mouse().Y == m.screen.Nav.Y {
 		return m.clickNavigation(msg.Mouse().X)
+	}
+	if m.overlay == overlayNone && m.screen.Body.Contains(msg.Mouse().X, msg.Mouse().Y) {
+		return m.clickBody(msg.Mouse().X, msg.Mouse().Y)
 	}
 	sel := m.activeSelector()
 	if sel == nil {

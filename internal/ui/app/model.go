@@ -21,6 +21,7 @@ import (
 	"github.com/aronk11/correlux/internal/ui/components"
 	"github.com/aronk11/correlux/internal/ui/layout"
 	"github.com/aronk11/correlux/internal/ui/palette"
+	"github.com/aronk11/correlux/internal/ui/screens"
 	"github.com/aronk11/correlux/internal/ui/theme"
 	"github.com/aronk11/correlux/internal/update"
 )
@@ -46,6 +47,10 @@ const (
 	// overlayFleetNamespaces scopes the fleet to a few namespaces, across every
 	// cluster in it.
 	overlayFleetNamespaces
+	// overlaySort chooses the column a table is ordered by. It lists the
+	// headings on screen, so what somebody can read is what they can sort on —
+	// the same rule the filter follows.
+	overlaySort
 )
 
 // viewKind identifies the full-window view behind any overlay.
@@ -231,8 +236,22 @@ type Model struct {
 	// The resource browser.
 	view        viewKind
 	resource    kubediscovery.Resource
-	tableWide   bool
+	tableWide   screens.WideMode
 	loadingMore bool
+
+	// The order each table is in. They are kept apart on purpose: ordering the
+	// dashboard by restarts says nothing about how somebody wants a list of
+	// nodes, and one screen quietly reordering another is a change nobody
+	// asked for.
+	appSort   tableSort
+	tableSort tableSort
+	fleetSort tableSort
+
+	// frameTable caches the table the frame being rendered draws, so the body,
+	// the status bar and the palette do not each filter and sort every row
+	// again. It is valid for one View and cleared around it.
+	frameTable   *screens.TableData
+	frameCaching bool
 
 	// The timed reload. It is off until the user turns it on, and it only ever
 	// refetches what is on screen.
@@ -308,6 +327,7 @@ type Model struct {
 	fleetNSPicker *components.Selector
 	nsPicker      *components.Selector
 	resPicker     *components.Selector
+	sortPicker    *components.Selector
 
 	// The filter over whatever list is on screen.
 	search    components.Input
@@ -404,6 +424,7 @@ func New(opts Options) *Model {
 	m.nsPicker.Footer = "Enter switch   Esc cancel"
 
 	m.resPicker = components.NewSelector("Resources", "Filter resource kinds…", m.filterResources)
+	m.sortPicker = components.NewSelector("Sort by", "Filter columns…", m.filterSortColumns)
 	m.resPicker.EmptyMessage = "No resource kind matches."
 	m.resPicker.Footer = "Enter open   Esc cancel"
 

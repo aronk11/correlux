@@ -42,6 +42,11 @@ type Glyphs struct {
 	// meaning: the number they illustrate is always printed beside them.
 	BarFull  string
 	BarEmpty string
+	// SortAsc and SortDesc mark the heading a table is ordered by. The heading
+	// keeps its name beside the mark: the arrow says which way, the word says
+	// what, and neither is left to be inferred from the other.
+	SortAsc  string
+	SortDesc string
 }
 
 var unicodeGlyphs = Glyphs{
@@ -62,6 +67,8 @@ var unicodeGlyphs = Glyphs{
 	Prod:      "⬤",
 	BarFull:   "█",
 	BarEmpty:  "░",
+	SortAsc:   "↑",
+	SortDesc:  "↓",
 }
 
 var asciiGlyphs = Glyphs{
@@ -82,6 +89,8 @@ var asciiGlyphs = Glyphs{
 	Prod:      "#",
 	BarFull:   "#",
 	BarEmpty:  ".",
+	SortAsc:   "^",
+	SortDesc:  "v",
 }
 
 // Env abstracts environment lookup so detection can be tested without
