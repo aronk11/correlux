@@ -42,6 +42,11 @@ type HeaderData struct {
 	// where the keys live: a progress word is not worth hiding them for, and a
 	// word that outlives its work misreports how long the work took.
 	Busy string
+	// Freshness says how old the data on screen is ("as of 12s ago"), and only
+	// while Auto is empty: Correlux never watches (ADR 17), so a screen that is
+	// not polling on a timer must say plainly that what it shows is a snapshot,
+	// not say nothing and let a quiet screen read as a live one.
+	Freshness string
 }
 
 // RenderHeader draws the two-line header: identity on top, position below.
@@ -72,8 +77,11 @@ func RenderHeader(t *theme.Theme, d HeaderData, width int) string {
 
 	left := strings.Join([]string{badge, scope, conn}, t.Muted.Render("  "+t.Glyphs.Bullet+"  "))
 	right := t.Muted.Render(d.Version)
-	if d.Auto != "" {
+	switch {
+	case d.Auto != "":
 		right = t.Info.Render(d.Auto) + t.Muted.Render("  "+d.Version)
+	case d.Freshness != "":
+		right = t.Muted.Render(d.Freshness) + t.Muted.Render("  "+d.Version)
 	}
 	if d.Update != "" {
 		right += t.Style(theme.StatusWarning).Render(" " + d.Update)

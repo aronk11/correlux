@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aronk11/correlux/internal/config"
 	"github.com/aronk11/correlux/internal/domain/application"
@@ -113,6 +114,26 @@ func TestWhatIsBrokenIsListedWithItsCluster(t *testing.T) {
 	// A healthy application is not an incident and does not belong in the list.
 	if strings.Contains(out, "api") {
 		t.Errorf("only what is broken belongs here:\n%s", out)
+	}
+}
+
+func TestAClusterRowSaysHowLongAgoItWasRead(t *testing.T) {
+	m := fleetModel(t, "staging", "prod-eu")
+	press(t, m, "F")
+
+	fresh := ready("staging", false, fleetApp("payments", application.Healthy, 3, 3))
+	fresh.ReadAt = time.Now().Add(-5 * time.Second)
+	stale := ready("prod-eu", true)
+	stale.ReadAt = time.Now().Add(-2 * time.Minute)
+	answer(m, fresh)
+	answer(m, stale)
+
+	out := plainView(m)
+	if !strings.Contains(out, "read 5s ago") {
+		t.Errorf("a freshly read cluster must say so:\n%s", out)
+	}
+	if !strings.Contains(out, "read 2m ago") {
+		t.Errorf("each cluster answers on its own schedule and must say its own age:\n%s", out)
 	}
 }
 
