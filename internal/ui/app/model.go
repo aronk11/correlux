@@ -172,6 +172,18 @@ type Model struct {
 	// in this application: which signal decided it, and how sure that signal
 	// is (ADR 16 — correlation must be explainable).
 	groupingShown bool
+	// whyFrom is the view Diagnosis was opened from, so Esc returns there
+	// rather than to a fixed screen — the dashboard when it was opened from
+	// there directly, the application otherwise (ADR 23).
+	whyFrom viewKind
+	// whySubject is the application whyPort's scroll was last reset for. It is
+	// its own field rather than a comparison against selectedApp because
+	// explainApplication sets selectedApp (via openApplication) before it
+	// calls explain — comparing against selectedApp there would always read
+	// the new value, never the old one.
+	whySubject string
+	// activityFrom is the same idea for Events (ADR 23).
+	activityFrom viewKind
 
 	// The object inspector.
 	objectTarget objectRef

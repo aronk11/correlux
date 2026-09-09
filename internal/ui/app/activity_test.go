@@ -74,3 +74,50 @@ func TestClickingAnActivityRowSelectsItAndClickingItAgainOpensIt(t *testing.T) {
 		t.Errorf("clicking the selected row must open it, view=%v target=%+v", m.view, m.objectTarget)
 	}
 }
+
+func TestOpeningLogsFromAnActivityRow(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	press(t, m, "E")
+	loadEvidenceInto(m, application.Context{Events: []application.Event{{
+		Meta: application.Meta{Namespace: "default"}, Type: "Warning", Reason: "BackOff",
+		About: application.ObjectRef{Kind: "Pod", Name: "payments-0"}, LastSeen: time.Now(),
+	}}})
+	m.activityPort.Offset = 1 // off the default, so a discarded scroll would be caught below
+
+	press(t, m, "l")
+	if m.view != viewLogs {
+		t.Fatalf("l must open logs for the selected event's object, got view %v", m.view)
+	}
+
+	press(t, m, "esc")
+	if m.view != viewActivity {
+		t.Fatalf("Esc from logs must return to Events, got %v", m.view)
+	}
+	if m.activityPort.Offset != 1 {
+		t.Errorf("returning to Events must not discard its scroll, offset = %d", m.activityPort.Offset)
+	}
+}
+
+func TestEventsScrollSurvivesReturningToTheSameScope(t *testing.T) {
+	m := newTestModel(t)
+	press(t, m, "E")
+	loadEvidenceInto(m, application.Context{Events: []application.Event{{
+		Meta: application.Meta{Namespace: "default"}, Type: "Warning", Reason: "BackOff",
+		About: application.ObjectRef{Kind: "Pod", Name: "payments-0"}, LastSeen: time.Now(),
+	}}})
+	m.activityPort.Offset = 1
+
+	press(t, m, "esc") // leaves Events, opened straight from the dashboard, for the dashboard
+	if m.view != viewApplications {
+		t.Fatalf("esc must return to the dashboard it was opened from, got %v", m.view)
+	}
+
+	press(t, m, "E") // a fresh press, same scope, evidence already loaded
+	if m.view != viewActivity {
+		t.Fatalf("E must reopen Events, got %v", m.view)
+	}
+	if m.activityPort.Offset != 1 {
+		t.Errorf("re-opening Events for the same scope must not discard its scroll, offset = %d", m.activityPort.Offset)
+	}
+}
