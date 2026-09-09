@@ -43,7 +43,7 @@ jobs:
       - name: Benchmarks
         run: task bench:cluster | tee bench.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: benchmarks
           path: bench.txt
