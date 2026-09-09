@@ -982,7 +982,11 @@ func (m *Model) openResource(fullName string) tea.Cmd {
 	m.tablePort.Offset = 0
 	m.loadingMore = false
 	m.table.Reset()
-	m.rebuildCommands()
+	// A filter is a comparison against the columns on screen (ns=shop,
+	// restarts>5); carrying one to a kind with a different column set would
+	// silently compare against columns that mean something else here, or do
+	// not exist at all.
+	m.clearSearch()
 	return m.loadTable()
 }
 
