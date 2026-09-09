@@ -1,0 +1,79 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>21. Correlux says when it is out of date, and that is the only thing it asks — Correlux docs</title><meta name="description" content="21. Correlux says when it is out of date, and that is the only thing it asks for Correlux, the application-first Kubernetes terminal UI."><meta name="theme-color" content="#11151d"><link rel="canonical" href="https://aronk11.github.io/correlux/docs/0021-update-check.html"><link rel="icon" href="../assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/style.css"><script src="../assets/main.js" defer></script></head><body>
+<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><a class="brand" href="../" aria-label="Correlux home"><img src="../assets/logo.svg" width="34" height="34" alt="">correlux<span class="brand-dot">_</span></a><nav aria-label="Main navigation"><a href="../#features">The good stuff</a><a href="./" aria-current="page">Docs</a><a href="https://github.com/aronk11/correlux" class="github-link">GitHub ↗</a></nav><a class="button button-small" href="../#install">Get Correlux ↗</a></header>
+<div class="docs-layout"><aside class="docs-sidebar" aria-label="Documentation navigation"><button class="docs-search" data-search>Search docs <kbd>⌘ / Ctrl K</kbd></button><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html">User guide</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details open><summary>ALL 20 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html" aria-current="page">21. Correlux says when it is out of date, and that is the only thing it asks</a></details></div><details class="docs-mobile-nav"><summary>Browse documentation</summary><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html">User guide</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details open><summary>ALL 20 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html" aria-current="page">21. Correlux says when it is out of date, and that is the only thing it asks</a></details></div></details></aside><main class="doc-article" id="main"><div class="doc-breadcrumb"><a href="./">DOCS</a> / 21. CORRELUX SAYS WHEN IT IS OUT OF DATE, AND THAT IS THE ONLY THING IT ASKS</div><article class="prose"><h1 id="21-correlux-says-when-it-is-out-of-date-and-that-is-the-only-thing-it-asks">21. Correlux says when it is out of date, and that is the only thing it asks</h1>
+<ul>
+<li>Status: accepted</li>
+<li>Date: 2026-09-07</li>
+</ul>
+<h2 id="context">Context</h2>
+<p>Correlux ships as a single binary that people install once and then keep. There
+is no package manager telling most of them a new version exists, no server to
+push a notice, and no telemetry that would let anybody notice they are three
+releases behind. In practice a user finds out that the fleet view learned to
+scope namespaces when they happen to open the repository — which is to say,
+mostly not at all.</p>
+<p>The obvious fix is the one every CLI has: ask a public feed for the latest
+version and mention it. The reason it is not obvious <em>here</em> is that until now
+Correlux has never opened a connection to anything but a Kubernetes API server.
+That is not an accident of implementation; it is close to the product&#39;s pitch —
+&quot;no server, no agent, no CRD, no container, no browser&quot;, and the rule that
+Correlux never contacts a cluster nobody named (<a href="0019-fleet-overview.html">ADR 19</a>).
+<code>net/http</code> did not appear anywhere in the tree, and the people this tool is for
+run it inside networks where an unexpected outbound request is a finding, not a
+feature.</p>
+<p>So the question is not whether an update check is useful. It is whether it can
+exist without quietly turning a tool that talks to your cluster into a tool that
+talks to the internet about you.</p>
+<h2 id="decision">Decision</h2>
+<p>Check once a day, in the background, and make every part of it findable.</p>
+<ol>
+<li><strong>One request, to one public endpoint, carrying nothing.</strong> GitHub&#39;s own
+&quot;latest release&quot; feed for this repository, unauthenticated, <code>GET</code>, five
+second timeout. The only thing sent that is not in the request line is a
+User-Agent naming the version <code>correlux version</code> already prints. No
+identifier, no context name, no cluster, no counter. The answer is a version
+number and a link.</li>
+<li><strong>At most once a day, cached on disk</strong> beside the configuration file. Asking
+on every start would be asking a hundred times a day on somebody&#39;s laptop,
+which is rude to a server nobody is paying for.</li>
+<li><strong>It never delays or interrupts anything.</strong> The check is a command like any
+other, fired last in <code>Init</code>, and a failure is stored rather than shown. A
+laptop on a train, a proxy that refuses, an air-gapped bastion: none of them
+are problems with Correlux, and none of them may put a banner in front of
+somebody looking at a broken cluster.</li>
+<li><strong>All four states are distinguishable, in one place.</strong> The session screen
+says which of &quot;a newer version is available&quot;, &quot;up to date&quot;, &quot;could not
+check&quot;, and &quot;the check is off&quot; is true, next to the switch that turns it off
+(<a href="0005-explicit-async-state.html">ADR 5</a>). The header only ever says the first
+one: a header that permanently reports &quot;up to date&quot; spends a line on the
+answer nobody needed.</li>
+<li><strong>One line switches it off for good.</strong> <code>update.check: false</code>, and Correlux
+contacts nothing but Kubernetes again — which the same screen then says.</li>
+</ol>
+<p><code>correlux version</code> prints what the last check learned and never performs one:
+it is run by scripts, and a command that reaches for the network is a command
+that hangs behind a firewall.</p>
+<p>Only the numeric core of a version is compared. <code>go install</code> and local builds
+stamp versions like <code>v0.10.0-3-gabc1234</code> — three commits <em>after</em> the tag —
+which strict semantic versioning ranks <em>below</em> <code>v0.10.0</code> and would announce as
+an update to a version the user is already past. Ignoring the suffix costs a
+release candidate its notification and never tells anybody to install what they
+are already running.</p>
+<h2 id="consequences">Consequences</h2>
+<ul>
+<li>The claim &quot;the only external dependency is access to a Kubernetes API&quot; needs
+one qualification in SPEC, and it is a qualification the user controls.</li>
+<li><code>net/http</code> enters the tree. It stays in <code>internal/update</code>, which is the only
+package allowed to open a connection that is not a Kubernetes client, and
+which the layering already keeps out of the domain (<a href="0004-layered-architecture.html">ADR 4</a>).</li>
+<li>The default is on. That is a deliberate trade: opt-in would mean the feature
+reaches nobody who does not already read the changelog, which is the group
+that needs it least. The cost of being wrong is one GET a day to a public
+endpoint, discoverable on the session screen and stoppable in one line.</li>
+<li>If a distribution ever wants a build that cannot check at all, the honest
+answer is a build-time default rather than a runtime setting. Nothing here
+prevents that; nobody has asked yet.</li>
+</ul>
+</article><a class="doc-edit" href="https://github.com/aronk11/correlux/edit/main/docs/adr/0021-update-check.md">Improve this page on GitHub ↗</a></main><nav class="docs-toc" aria-label="On this page"><span>ON THIS PAGE</span><a href="#context">Context</a><a href="#decision">Decision</a><a href="#consequences">Consequences</a></nav></div>
+<footer class="site-footer section-wrap"><a class="brand" href="../"><img src="../assets/logo.svg" width="28" height="28" alt="">correlux<span class="brand-dot">_</span></a><span>Less cluster. More clarity.</span><nav aria-label="Footer"><a href="contributing.html">Contribute</a><a href="https://github.com/aronk11/correlux/issues">Issues</a><a href="https://github.com/aronk11/correlux/blob/main/LICENSE">Apache 2.0</a></nav></footer>
+<dialog class="search-dialog" aria-labelledby="search-label"><div class="search-top"><label id="search-label" class="sr-only" for="docs-query">Search documentation</label><input id="docs-query" type="search" placeholder="Search documentation…" autocomplete="off"><button class="search-close" aria-label="Close search">ESC</button></div><div class="search-results"></div><div class="search-foot search-count" role="status" aria-live="polite">Search locally. No account. No tracking.</div></dialog><div class="toast" role="status" aria-live="polite"></div></body></html>
