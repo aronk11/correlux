@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -632,7 +633,14 @@ func memberDetail(m fleet.Member) string {
 		parts = append(parts, itoa(kinds)+" kind(s) unreadable")
 	}
 	if len(parts) == 0 {
-		return "nothing broken"
+		parts = append(parts, "nothing broken")
+	}
+	// Each cluster answers independently and on its own schedule (ADR 19: the
+	// fleet has no timed refresh by default), so one cluster's row can be
+	// fresh while its neighbour's is an hour old. The state column says
+	// whether the last attempt succeeded; this says how long ago that was.
+	if !m.ReadAt.IsZero() {
+		parts = append(parts, "read "+formatAge(m.ReadAt, time.Now())+" ago")
 	}
 	return strings.Join(parts, ", ")
 }

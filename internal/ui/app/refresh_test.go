@@ -46,6 +46,49 @@ func TestAutoRefreshIsOffUntilItIsAskedFor(t *testing.T) {
 	}
 }
 
+func TestFreshnessIsShownOnlyOnceThereIsDataAndOnlyWhileNotPolling(t *testing.T) {
+	m := newTestModel(t)
+	if strings.Contains(plainView(m), "as of") {
+		t.Error("nothing has loaded yet; there is no age to claim")
+	}
+
+	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
+	out := plainView(m)
+	if !strings.Contains(out, "as of ") {
+		t.Errorf("with auto-refresh off, the header must say how old the data is — Correlux never watches (ADR 17):\n%s", out)
+	}
+
+	// With auto-refresh on, the interval already bounds the staleness; saying
+	// both would say the same thing twice.
+	press(t, m, "ctrl+f")
+	out = plainView(m)
+	if strings.Contains(out, "as of ") {
+		t.Errorf("auto-refresh already names its own interval, freshness must not repeat it:\n%s", out)
+	}
+	if !strings.Contains(out, "auto ") {
+		t.Errorf("auto-refresh must still be named:\n%s", out)
+	}
+}
+
+func TestFreshnessFollowsTheOpenView(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
+	if !strings.Contains(plainView(m), "as of ") {
+		t.Fatal("the dashboard's own data must have an age")
+	}
+
+	loadCatalogInto(m, testCatalog())
+	m.openResource("pods")
+	if strings.Contains(plainView(m), "as of ") {
+		t.Error("the resource table has not answered yet; it must not borrow the dashboard's age")
+	}
+
+	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: &resources.Table{}})
+	if out := plainView(m); !strings.Contains(out, "as of ") {
+		t.Errorf("once the table answers, its own age must be shown:\n%s", out)
+	}
+}
+
 func TestTheKeyIsAdvertisedInTheStatusBar(t *testing.T) {
 	m := newTestModel(t)
 	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
