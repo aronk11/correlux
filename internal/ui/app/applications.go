@@ -50,9 +50,15 @@ func (m *Model) openApplication(name string) tea.Cmd {
 	for i := range apps {
 		a := &apps[i]
 		if a.Key() == name || a.Name == name {
+			// The scroll and selection only reset when the application itself
+			// changes (ADR 23) — reopening the one already on screen, the way a
+			// lateral return from Diagnosis or Events now does, must not
+			// discard where the user was.
+			if m.selectedApp != a.Key() {
+				m.detailPort.Offset, m.detailPort.Cursor = 0, 0
+			}
 			m.selectedApp = a.Key()
 			m.view = viewApplication
-			m.detailPort.Offset, m.detailPort.Cursor = 0, 0
 			m.rebuildCommands()
 			// Opening an application is the moment its evidence becomes worth
 			// fetching: the events belong on this screen, and the explanation

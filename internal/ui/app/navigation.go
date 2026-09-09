@@ -152,10 +152,11 @@ func (m *Model) commandSubject() string {
 // What is left is the screens one step below the dashboard.
 func (m *Model) goBack() tea.Cmd {
 	if m.view == viewWhy {
-		// The explanation is about one application, and that application is
-		// the screen behind it — not the dashboard two steps up.
-		m.view = viewApplication
-		m.detailPort.Offset = 0
+		// Diagnosis is a detour, and whyFrom is where it was a detour from
+		// (ADR 23) — usually the application detail, but the dashboard when
+		// it was opened from there directly. Its scroll is left as it was:
+		// this is the same screen the user left, not a fresh one.
+		m.view = m.whyFrom
 		m.rebuildCommands()
 		return nil
 	}

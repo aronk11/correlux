@@ -140,6 +140,29 @@ func TestOpeningAnApplicationShowsWhatItIsMadeOf(t *testing.T) {
 	}
 }
 
+func TestResourceScrollResetsOnlyWhenTheApplicationChanges(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m,
+		testApplication("payments", application.Degraded, 2, 3),
+		testApplication("api", application.Healthy, 2, 2),
+	)
+
+	m.openApplication("payments")
+	m.detailPort.Offset, m.detailPort.Cursor = 3, 2
+
+	m.openApplication("payments") // the same application again
+	if m.detailPort.Offset != 3 || m.detailPort.Cursor != 2 {
+		t.Errorf("re-opening the same application must not discard its scroll, offset=%d cursor=%d",
+			m.detailPort.Offset, m.detailPort.Cursor)
+	}
+
+	m.openApplication("api") // a different application
+	if m.detailPort.Offset != 0 || m.detailPort.Cursor != 0 {
+		t.Errorf("opening a different application must reset the scroll, offset=%d cursor=%d",
+			m.detailPort.Offset, m.detailPort.Cursor)
+	}
+}
+
 func TestTheCursorFollowsTheApplicationAcrossARefresh(t *testing.T) {
 	m := newTestModel(t)
 	loadApplicationsInto(m,

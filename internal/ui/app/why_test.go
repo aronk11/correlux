@@ -190,6 +190,60 @@ func TestWhyIsReachableFromTheOpenApplicationAndBack(t *testing.T) {
 	}
 }
 
+func TestWhyOpenedDirectlyFromTheDashboardReturnsThereOnEscape(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, brokenApplication())
+
+	press(t, m, "ctrl+w") // straight from the dashboard cursor, not through the detail view
+	if m.view != viewWhy {
+		t.Fatalf("Ctrl+W must open the explanation, got view %v", m.view)
+	}
+
+	press(t, m, "esc")
+	if m.view != viewApplications {
+		t.Errorf("Esc must return to the dashboard it was actually opened from, got %v", m.view)
+	}
+}
+
+func TestDiagnosisScrollSurvivesALateralDetourToEvents(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	loadApplicationsInto(m, brokenApplication())
+	press(t, m, "enter")  // Resource
+	press(t, m, "ctrl+w") // Diagnosis
+	m.whyPort.Offset = 3
+
+	press(t, m, "E")
+	if m.view != viewActivity {
+		t.Fatalf("E must open Events, got %v", m.view)
+	}
+	press(t, m, "esc")
+	if m.view != viewWhy {
+		t.Fatalf("Esc from Events must return to Diagnosis, got %v", m.view)
+	}
+	if m.whyPort.Offset != 3 {
+		t.Errorf("returning to Diagnosis must not discard its scroll, offset = %d", m.whyPort.Offset)
+	}
+}
+
+func TestDiagnosisScrollResetsOnlyWhenTheApplicationChanges(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, brokenApplication(), testApplication("api", application.Healthy, 2, 2))
+
+	m.explainApplication("payments")
+	m.whyPort.Offset = 3
+
+	m.explainApplication("payments") // the same application again
+	if m.whyPort.Offset != 3 {
+		t.Errorf("re-opening the same application's diagnosis must not discard its scroll, offset = %d", m.whyPort.Offset)
+	}
+
+	m.explainApplication("api") // a different application
+	if m.whyPort.Offset != 0 {
+		t.Errorf("opening a different application's diagnosis must reset the scroll, offset = %d", m.whyPort.Offset)
+	}
+}
+
 func TestTheDashboardOffersAWhyCommandPerBrokenApplication(t *testing.T) {
 	m := newTestModel(t)
 	loadApplicationsInto(m,

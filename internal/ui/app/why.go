@@ -72,9 +72,21 @@ func (m *Model) explain() tea.Cmd {
 		m.notice("Select an application first", theme.StatusWarning)
 		return m.expireNotice()
 	}
+	// Diagnosis is a detour from wherever it was opened, and Esc must return
+	// there (ADR 23) — the dashboard when it was opened from there directly,
+	// the application otherwise. A re-entry from within Diagnosis itself must
+	// not overwrite a real origin with itself.
+	if m.view != viewWhy {
+		m.whyFrom = m.view
+	}
+	// The scroll only resets when the subject actually changes; returning to
+	// the same application's diagnosis after a detour must not discard it.
+	if m.whySubject != a.Key() {
+		m.whyPort.Offset = 0
+	}
+	m.whySubject = a.Key()
 	m.selectedApp = a.Key()
 	m.view = viewWhy
-	m.whyPort.Offset = 0
 	m.rebuildCommands()
 
 	// The explanation is only as good as the evidence; fetch it if this scope
