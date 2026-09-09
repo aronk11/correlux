@@ -160,6 +160,74 @@ func TestEscapeClearsTheFilterBeforeLeavingTheView(t *testing.T) {
 	}
 }
 
+func TestFilterDoesNotCarryAcrossAResourceKindSwitch(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	m.openResource("pods")
+	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: manyPods("payments-1", "worker-1")})
+	typeFilter(t, m, "restarts>5")
+	if !m.filtering() {
+		t.Fatal("need an active filter for this test to mean anything")
+	}
+
+	// Nodes have no restarts column; "restarts>5" carried over would silently
+	// compare against a column that does not exist here.
+	m.openResource("nodes")
+	if m.filtering() {
+		t.Errorf("switching resource kind must drop a filter written for the old one, still has %q", m.query())
+	}
+}
+
+func TestFilterDoesNotCarryFromATableToTheDashboard(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, testApplication("payments", application.Healthy, 1, 1))
+	loadCatalogInto(m, testCatalog())
+	m.openResource("pods")
+	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: manyPods("payments-1", "worker-1")})
+	typeFilter(t, m, "restarts>5")
+
+	m.backToApplications()
+	if m.filtering() {
+		t.Errorf("returning to the dashboard must drop a filter written for the table's columns, still has %q", m.query())
+	}
+	if out := plainView(m); !strings.Contains(out, "payments") {
+		t.Errorf("the dashboard must show its own rows, not filter them by a comparison from another screen:\n%s", out)
+	}
+}
+
+func TestFilterDoesNotCarryFromTheFleetOverviewToOneKind(t *testing.T) {
+	m := fleetModel(t, "staging")
+	press(t, m, "F")
+	answer(m, ready("staging", false))
+	typeFilter(t, m, "staging")
+	if !m.filtering() {
+		t.Fatal("need an active filter for this test to mean anything")
+	}
+
+	loadCatalogInto(m, testCatalog())
+	m.openFleetResourceByName("pods")
+	if m.filtering() {
+		t.Errorf("browsing one kind across the fleet must drop the overview's filter, still has %q", m.query())
+	}
+}
+
+func TestFilterDoesNotCarryFromOneKindBackToTheFleetOverview(t *testing.T) {
+	m := fleetModel(t, "staging")
+	press(t, m, "F")
+	answer(m, ready("staging", false))
+	loadCatalogInto(m, testCatalog())
+	m.openFleetResourceByName("pods")
+	typeFilter(t, m, "restarts>5")
+	if !m.filtering() {
+		t.Fatal("need an active filter for this test to mean anything")
+	}
+
+	m.openFleet()
+	if m.filtering() {
+		t.Errorf("returning to the fleet overview must drop a filter written for one kind's columns, still has %q", m.query())
+	}
+}
+
 func TestTheDashboardFiltersToo(t *testing.T) {
 	m := newTestModel(t)
 	loadApplicationsInto(m,

@@ -40,6 +40,11 @@ type fleetStartedMsg struct {
 
 // openFleet shows the fleet overview.
 func (m *Model) openFleet() tea.Cmd {
+	// See openResource: a filter written against one screen's columns must not
+	// silently carry into another's, whether that is a resource kind or, here,
+	// the fleet overview arrived at from browsing one kind across it.
+	m.clearSearch()
+
 	contexts := m.fleetContexts()
 	if len(contexts) == 0 {
 		m.view = viewFleet

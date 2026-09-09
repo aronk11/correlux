@@ -114,7 +114,11 @@ func (m *Model) backToApplications() tea.Cmd {
 	m.stopFleet()
 	m.view = viewApplications
 	m.detailPort.Offset = 0
-	m.rebuildCommands()
+	// A filter typed against a resource table's or the fleet's columns means
+	// nothing against the dashboard's, and carrying it here would silently
+	// hide applications on a comparison the operator never made for this
+	// screen (see openResource).
+	m.clearSearch()
 	return nil
 }
 

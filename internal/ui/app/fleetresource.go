@@ -44,7 +44,10 @@ func (m *Model) openFleetResource(res kubediscovery.Resource) tea.Cmd {
 	m.fleetTable = resources.Merged{}
 	m.fleetTablePort.Cursor, m.fleetTablePort.Offset = 0, 0
 	m.view = viewFleetResource
-	m.rebuildCommands()
+	// See openResource: a filter is a comparison against the columns on
+	// screen, and carrying one across a change of kind would silently compare
+	// against columns that mean something else here, or do not exist.
+	m.clearSearch()
 	return m.startFleetResource(contexts, res)
 }
 
