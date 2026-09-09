@@ -11,6 +11,7 @@ package app
 import (
 	"sort"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
@@ -148,7 +149,32 @@ func NewKeyMap(overrides map[string]string) (KeyMap, []string) {
 // Action returns the action bound to a keystroke, if any.
 func (k KeyMap) Action(keystroke string) (string, bool) {
 	a, ok := k.bindings[keystroke]
+	if !ok {
+		a, ok = k.bindings[normalizeShiftedLetter(keystroke)]
+	}
 	return a, ok
+}
+
+// normalizeShiftedLetter turns "shift+e" into "E".
+//
+// A terminal that cannot report modifiers separately from the character
+// typed sends a shifted letter as the letter itself — "E" — which is what
+// DefaultBindings is written in. One that can (the Kitty keyboard protocol,
+// the Windows Console API) sends the base key and the modifier apart, and
+// [Key.Keystroke] renders that as "shift+e": correct, but a different string
+// from the same keystroke on a plainer terminal, and one DefaultBindings
+// never matches. Shift+E and Shift+F doing nothing on such a terminal was
+// this, not a missing binding.
+func normalizeShiftedLetter(keystroke string) string {
+	rest, ok := strings.CutPrefix(keystroke, "shift+")
+	if !ok {
+		return keystroke
+	}
+	r, size := utf8.DecodeRuneInString(rest)
+	if size != len(rest) || !unicode.IsLower(r) {
+		return keystroke
+	}
+	return string(unicode.ToUpper(r))
 }
 
 // Key returns the primary keystroke for an action, for display in help.
