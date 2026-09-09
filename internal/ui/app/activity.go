@@ -102,16 +102,23 @@ func (m *Model) handleActivityKey(key string) (tea.Cmd, bool) {
 	case "pgdown", " ":
 		m.activityPort.ScrollLines(page, m.activityData().LineCount(m.screen.Body.Width), m.bodyHeight())
 	case "enter", "right":
-		_, targets := m.activityView()
-		if m.activityPort.Cursor >= 0 && m.activityPort.Cursor < len(targets) {
-			return m.openObject(targets[m.activityPort.Cursor]), true
-		}
+		return m.openSelectedActivityObject(), true
 	case "esc", "left", "h":
 		return m.backToApplications(), true
 	default:
 		return nil, false
 	}
 	return nil, true
+}
+
+// openSelectedActivityObject opens the object the selected activity row is
+// about — the one thing Enter and a click on an already-selected row both do.
+func (m *Model) openSelectedActivityObject() tea.Cmd {
+	_, targets := m.activityView()
+	if m.activityPort.Cursor < 0 || m.activityPort.Cursor >= len(targets) {
+		return nil
+	}
+	return m.openObject(targets[m.activityPort.Cursor])
 }
 
 func (m *Model) moveActivityCursor(delta int) {

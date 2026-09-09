@@ -298,22 +298,78 @@ func (m *Model) clickBody(x, y int) tea.Cmd {
 	}
 	row := y - body.Y
 
-	d, ok := m.tableForFrame()
+	switch m.view {
+	case viewApplications, viewTable, viewFleetResource:
+		d, ok := m.tableForFrame()
+		if !ok {
+			return nil
+		}
+		switch m.view {
+		case viewApplications:
+			return m.clickTableRow(d, row, x, len(m.visibleApplications()),
+				&m.appPort, m.applicationsVisible(), m.openSelectedApplication)
+		case viewTable:
+			return m.clickTableRow(d, row, x, len(m.visibleRows()),
+				&m.tablePort, m.rowsPerScreen(), m.openSelectedRow)
+		case viewFleetResource:
+			return m.clickTableRow(d, row, x, len(m.visibleFleetRows()),
+				&m.fleetTablePort, m.rowsPerScreen(), m.openFleetRow)
+		}
+	case viewApplication:
+		data, targets := m.applicationView()
+		return m.clickTargetRow(data.TargetLines(m.screen.Body.Width), len(targets), &m.detailPort, row, m.openSelectedObject)
+	case viewObject:
+		if m.objectYAML {
+			// The document has nothing to select in this mode; a click has
+			// nothing to do here either.
+			return nil
+		}
+		data, targets := m.objectView()
+		return m.clickTargetRow(data.TargetLines(m.screen.Body.Width), len(targets), &m.objectPort, row, m.openSelectedRelation)
+	case viewFleet:
+		data := m.fleetData()
+		return m.clickTargetRow(data.TargetLines(m.screen.Body.Width), len(m.fleetTargets()), &m.fleetPort, row, m.enterFleetRow)
+	case viewUsage:
+		data, targets := m.usageView()
+		return m.clickTargetRow(data.TargetLines(m.screen.Body.Width), len(targets), &m.usagePort, row, m.openSelectedUsageTarget)
+	case viewActivity:
+		data, targets := m.activityView()
+		return m.clickTargetRow(data.TargetLines(m.screen.Body.Width), len(targets), &m.activityPort, row, m.openSelectedActivityObject)
+	}
+	return nil
+}
+
+// clickTargetRow resolves a click against a target-line screen — one whose
+// rows have no fixed height or heading, like an application's detail view or
+// an object's relations. It follows clickTableRow's own convention exactly:
+// a click selects the row under the pointer, and a click on the row already
+// selected opens it, so the pointer means the same thing on every scrollable
+// screen in Correlux rather than a different one depending on which of them
+// happens to be a table.
+func (m *Model) clickTargetRow(lines map[int]int, count int, port *layout.Viewport, row int, open func() tea.Cmd) tea.Cmd {
+	if count == 0 {
+		return nil
+	}
+	target, ok := lineTarget(lines, port.Offset+row)
 	if !ok {
 		return nil
 	}
-	switch m.view {
-	case viewApplications:
-		return m.clickTableRow(d, row, x, len(m.visibleApplications()),
-			&m.appPort, m.applicationsVisible(), m.openSelectedApplication)
-	case viewTable:
-		return m.clickTableRow(d, row, x, len(m.visibleRows()),
-			&m.tablePort, m.rowsPerScreen(), m.openSelectedRow)
-	case viewFleetResource:
-		return m.clickTableRow(d, row, x, len(m.visibleFleetRows()),
-			&m.fleetTablePort, m.rowsPerScreen(), m.openFleetRow)
+	if target == port.Cursor {
+		return open()
 	}
+	port.Cursor = target
 	return nil
+}
+
+// lineTarget reverse-looks-up a TargetLines map: which navigable row, if any,
+// rendered to a given line.
+func lineTarget(lines map[int]int, line int) (int, bool) {
+	for target, l := range lines {
+		if l == line {
+			return target, true
+		}
+	}
+	return -1, false
 }
 
 // clickTableRow resolves one click against a rendered table.

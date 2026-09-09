@@ -43,3 +43,34 @@ func TestActivityEventOpensTheObjectItNames(t *testing.T) {
 		t.Errorf("Esc must return to the activity timeline, got %v", m.view)
 	}
 }
+
+func TestClickingAnActivityRowSelectsItAndClickingItAgainOpensIt(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	press(t, m, "E")
+	loadEvidenceInto(m, application.Context{Events: []application.Event{{
+		Meta: application.Meta{Namespace: "default"}, Type: "Warning", Reason: "BackOff",
+		About: application.ObjectRef{Kind: "Pod", Name: "payments-0"}, LastSeen: time.Now(),
+	}}})
+
+	data, targets := m.activityView()
+	if len(targets) == 0 {
+		t.Fatal("the event's object must be navigable, or this proves nothing")
+	}
+	line := data.TargetLines(m.screen.Body.Width)[0]
+	// Off the row before the first click, so selecting it is a real change
+	// rather than a no-op that happens to already agree with the default.
+	m.activityPort.Cursor = -1
+
+	m.handleClick(clickAt(0, m.screen.Body.Y+line))
+	if m.activityPort.Cursor != 0 {
+		t.Fatalf("clicking a row must select it, cursor is %d", m.activityPort.Cursor)
+	}
+	if m.view != viewActivity {
+		t.Fatal("one click selects, it does not navigate")
+	}
+	m.handleClick(clickAt(0, m.screen.Body.Y+line))
+	if m.view != viewObject || m.objectTarget.Name != "payments-0" {
+		t.Errorf("clicking the selected row must open it, view=%v target=%+v", m.view, m.objectTarget)
+	}
+}
