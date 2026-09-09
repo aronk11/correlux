@@ -176,18 +176,39 @@ func sortInts(values []int) {
 	}
 }
 
-// visibleRows are the resource table's rows after the filter.
+// visibleRows are the resource table's rows after the filter and the sort.
 func (m *Model) visibleRows() []resources.Row {
 	rows := m.tableRows()
-	if !m.filtering() {
+	if m.filtering() {
+		cells := make([][]string, len(rows))
+		for i := range rows {
+			cells[i] = rows[i].Cells
+		}
+		out := make([]resources.Row, 0, len(rows))
+		for _, i := range matches(m.searchColumns(), cells, m.query()) {
+			out = append(out, rows[i])
+		}
+		rows = out
+	}
+	return ordered(rows, m.searchColumns(), func(r *resources.Row) []string { return r.Cells }, m.tableSort)
+}
+
+// ordered reorders rows that have already been filtered.
+//
+// Sorting runs after filtering rather than before it, so the two compose the
+// way they read: narrow to what matters, then put the worst of it first. The
+// cells it sorts on are the ones the filter compares, so a column that answers
+// `restarts>5` and a column ordered by restarts agree about what a restart is.
+func ordered[T any](rows []T, columns []string, cells func(*T) []string, s tableSort) []T {
+	if !s.active() || len(rows) == 0 {
 		return rows
 	}
-	cells := make([][]string, len(rows))
+	grid := make([][]string, len(rows))
 	for i := range rows {
-		cells[i] = rows[i].Cells
+		grid[i] = cells(&rows[i])
 	}
-	out := make([]resources.Row, 0, len(rows))
-	for _, i := range matches(m.searchColumns(), cells, m.query()) {
+	out := make([]T, 0, len(rows))
+	for _, i := range query.Order(columns, grid, s.column, s.desc) {
 		out = append(out, rows[i])
 	}
 	return out
@@ -197,35 +218,35 @@ func (m *Model) visibleRows() []resources.Row {
 // haystack is what the row shows, so what you can read is what you can search.
 func (m *Model) visibleApplications() []application.Application {
 	apps := m.applications()
-	if !m.filtering() {
-		return apps
+	if m.filtering() {
+		cells := make([][]string, len(apps))
+		for i := range apps {
+			cells[i] = applicationCells(&apps[i])
+		}
+		out := make([]application.Application, 0, len(apps))
+		for _, i := range matches(applicationColumns, cells, m.query()) {
+			out = append(out, apps[i])
+		}
+		apps = out
 	}
-	cells := make([][]string, len(apps))
-	for i := range apps {
-		cells[i] = applicationCells(&apps[i])
-	}
-	out := make([]application.Application, 0, len(apps))
-	for _, i := range matches(applicationColumns, cells, m.query()) {
-		out = append(out, apps[i])
-	}
-	return out
+	return ordered(apps, applicationColumns, applicationCells, m.appSort)
 }
 
 // visibleFleetRows are the cross-cluster table's rows after the filter.
 func (m *Model) visibleFleetRows() []resources.MergedRow {
 	rows := m.fleetTable.Rows
-	if !m.filtering() {
-		return rows
+	if m.filtering() {
+		cells := make([][]string, len(rows))
+		for i := range rows {
+			cells[i] = rows[i].Cells
+		}
+		out := make([]resources.MergedRow, 0, len(rows))
+		for _, i := range matches(m.searchColumns(), cells, m.query()) {
+			out = append(out, rows[i])
+		}
+		rows = out
 	}
-	cells := make([][]string, len(rows))
-	for i := range rows {
-		cells[i] = rows[i].Cells
-	}
-	out := make([]resources.MergedRow, 0, len(rows))
-	for _, i := range matches(m.searchColumns(), cells, m.query()) {
-		out = append(out, rows[i])
-	}
-	return out
+	return ordered(rows, m.searchColumns(), func(r *resources.MergedRow) []string { return r.Cells }, m.fleetSort)
 }
 
 // applicationColumns name what the dashboard shows, in the order

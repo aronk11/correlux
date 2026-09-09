@@ -309,12 +309,20 @@ func TestWhoDeployedAnApplicationIsOnScreenAndReachable(t *testing.T) {
 	}
 	loadApplicationsInto(m, app)
 
-	// The dashboard carries it in the wide columns.
-	press(t, m, "w")
+	// The dashboard carries it in the wide columns, and a terminal with room
+	// for them draws them without being asked.
 	if out := plainView(m); !strings.Contains(out, "Flux payments") {
 		t.Errorf("the dashboard must say who deployed it:\n%s", out)
 	}
+	// The toggle still works, in the direction the screen is actually in.
 	press(t, m, "w")
+	if out := plainView(m); strings.Contains(out, "Flux payments") {
+		t.Errorf("w must hide the wide columns that were on screen:\n%s", out)
+	}
+	press(t, m, "w")
+	if out := plainView(m); !strings.Contains(out, "Flux payments") {
+		t.Errorf("w must bring them back:\n%s", out)
+	}
 
 	press(t, m, "enter")
 	out := plainView(m)

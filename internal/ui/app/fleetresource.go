@@ -188,7 +188,9 @@ func (m *Model) fleetResourceData() screens.TableData {
 	d := screens.TableData{
 		Cursor:   m.fleetTablePort.Cursor,
 		Offset:   m.fleetTablePort.Offset,
-		ShowWide: m.tableWide,
+		Wide:     m.wideMode(),
+		Sort:     m.fleetSort.column,
+		SortDesc: m.fleetSort.desc,
 	}
 
 	rows := m.visibleFleetRows()
@@ -277,6 +279,9 @@ func (m *Model) fleetResourceLabel() string {
 	}
 	if m.fleetTable.Truncated {
 		parts = append(parts, "more rows left unread")
+	}
+	if note := sortedAmongLoaded(m.fleetSort.active(), m.fleetPending > 0 || m.fleetTable.Truncated); note != "" {
+		parts = append(parts, note)
 	}
 	return strings.Join(parts, "   ")
 }

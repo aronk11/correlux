@@ -27,6 +27,7 @@ Michael Nygard's: context, decision, consequences.
 | [19](0019-fleet-overview.md) | A fleet overview across several kubeconfig contexts, read-only | accepted |
 | [20](0020-changes-go-through-one-gate.md) | Every change goes through one gate, and Correlux never edits for you | accepted |
 | [21](0021-update-check.md) | Correlux says when it is out of date, and that is the only thing it asks | accepted |
+| [22](0022-client-side-sorting-and-width-aware-columns.md) | A table is ordered on the client, and its columns follow the width | accepted |
 
 ## Adding one
 

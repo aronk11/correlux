@@ -10,6 +10,7 @@ import (
 	"github.com/aronk11/correlux/internal/kube/logs"
 	"github.com/aronk11/correlux/internal/ui/async"
 	"github.com/aronk11/correlux/internal/ui/palette"
+	"github.com/aronk11/correlux/internal/ui/screens"
 	"github.com/aronk11/correlux/internal/ui/theme"
 )
 
@@ -53,6 +54,8 @@ const (
 	paletteOpenResources    palette.ActionID = "open.resources"
 	paletteOpenResource     palette.ActionID = "open.resource"
 	paletteToggleWide       palette.ActionID = "toggle.wide"
+	paletteSort             palette.ActionID = "table.sort"
+	paletteSortDefault      palette.ActionID = "table.sort.default"
 	paletteBackToOverview   palette.ActionID = "open.overview"
 	paletteRefresh          palette.ActionID = "refresh"
 	paletteAutoRefresh      palette.ActionID = "refresh.auto"
@@ -258,12 +261,38 @@ func (m *Model) rebuildCommands() {
 		})
 	}
 
-	if m.view == viewTable || m.view == viewApplications {
+	if m.sortable() {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.sort",
+			Action:   paletteSort,
+			Title:    "Sort " + m.sortSubject() + " by a column…",
+			Subtitle: m.sortPaletteSubtitle(),
+			Category: "View",
+			Keywords: []string{"sort", "order", "worst", "highest", "column", "rank"},
+			Shortcut: m.keys.Key(ActionSort),
+			Weight:   84,
+			Enabled:  true,
+		})
+		if m.currentSort().active() {
+			cmds = append(cmds, palette.Command{
+				ID:       "cmd.sort.default",
+				Action:   paletteSortDefault,
+				Title:    m.defaultOrderLabel(),
+				Subtitle: "undo the column sort",
+				Category: "View",
+				Keywords: []string{"sort", "unsort", "default", "order", "reset"},
+				Weight:   83,
+				Enabled:  true,
+			})
+		}
+	}
+
+	if (m.view == viewTable || m.view == viewApplications) && m.wideToggleMatters() {
 		cmds = append(cmds,
 			palette.Command{
 				ID:       "cmd.wide",
 				Action:   paletteToggleWide,
-				Title:    wideTitle(m.tableWide),
+				Title:    wideTitle(m.showingWide()),
 				Subtitle: m.wideSubject(),
 				Category: "View",
 				Keywords: []string{"wide", "columns", "-o wide", "details"},
@@ -979,10 +1008,54 @@ func (m *Model) backToOverview() tea.Cmd {
 }
 
 // toggleWide switches between the compact and the wide column set.
+//
+// It flips away from what is currently *on screen* rather than from the last
+// value of a flag. The default is automatic — every column that fits is drawn
+// — so on a wide terminal the first press has to hide columns and on a narrow
+// one it has to show them. A toggle that ignored which of the two the user was
+// looking at would do nothing at all on one press in two.
 func (m *Model) toggleWide() tea.Cmd {
-	m.tableWide = !m.tableWide
+	if m.showingWide() {
+		m.tableWide = screens.WideOff
+	} else {
+		m.tableWide = screens.WideOn
+	}
 	m.rebuildCommands()
 	return nil
+}
+
+// showingWide reports whether a wide column is on screen right now.
+//
+// It asks the rendered table rather than the flag: on a terminal too narrow to
+// hold them, the wide columns are absent whatever the user last pressed, and a
+// status bar offering to "hide" a column nobody can see is a status bar that
+// has stopped describing the screen.
+func (m *Model) showingWide() bool {
+	body := m.screen.Body
+	if body.Empty() {
+		return false
+	}
+	d, ok := m.tableForFrame()
+	if !ok {
+		return false
+	}
+	return d.ShowingWide(m.theme, body.Width)
+}
+
+// wideToggleMatters reports whether showing and hiding the wide columns would
+// draw two different tables at this width. Where it would not, the key is not
+// offered: a hotkey bound to nothing happening is confusing whether or not it
+// is destructive (SPEC 17).
+func (m *Model) wideToggleMatters() bool {
+	body := m.screen.Body
+	if body.Empty() {
+		return false
+	}
+	d, ok := m.tableForFrame()
+	if !ok {
+		return false
+	}
+	return d.WideAvailable(m.theme, body.Width)
 }
 
 func allNamespacesTitle(active bool) string {
@@ -1053,6 +1126,10 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.openResource(cmd.Arg)
 	case paletteToggleWide:
 		return m.toggleWide()
+	case paletteSort:
+		return m.openOverlay(overlaySort)
+	case paletteSortDefault:
+		return m.clearSort()
 	case paletteToggleYAML:
 		m.toggleObjectYAML()
 		return nil

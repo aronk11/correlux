@@ -88,6 +88,8 @@ func TestDumpFrames(t *testing.T) {
 		"help":        "?",
 		"table":       "",
 		"usage":       "",
+		"sort":        "s",
+		"sorted":      "",
 	}
 	for name, key := range frames {
 		m := newTestModel(t)
@@ -96,10 +98,13 @@ func TestDumpFrames(t *testing.T) {
 		loadCatalogInto(m, testCatalog())
 		loadApplicationsInto(m, dumpApplications()...)
 		switch name {
-		case "table":
+		case "table", "sort", "sorted":
 			m.openResource("pods")
 			m.Update(tableLoadedMsg{gen: m.table.Generation(), table: podTablePage(
 				"payments-7d8f9c", "payments-8a91bd", "worker-91abcd", "frontend-2f4e6a")})
+			if name == "sorted" {
+				m.sortBy("Restarts")
+			}
 		case "application":
 			m.openApplication("payments")
 			loadEvidenceInto(m, dumpEvidence())

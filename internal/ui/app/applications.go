@@ -175,7 +175,8 @@ func healthStatus(h application.Health) theme.Status {
 // the resource browser uses: sorting, column fitting and cursor behaviour must
 // not differ between two screens that look like tables (SPEC 14).
 func (m *Model) applicationsData() screens.TableData {
-	d := screens.TableData{Cursor: m.appPort.Cursor, Offset: m.appPort.Offset, ShowWide: m.tableWide}
+	d := screens.TableData{Cursor: m.appPort.Cursor, Offset: m.appPort.Offset, Wide: m.wideMode(),
+		Sort: m.appSort.column, SortDesc: m.appSort.desc}
 
 	switch m.apps.State() {
 	case async.Idle, async.Loading:

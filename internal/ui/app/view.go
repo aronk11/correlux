@@ -41,6 +41,7 @@ func (m *Model) View() tea.View {
 		v.SetContent(m.renderTooSmall())
 		return v
 	}
+	defer m.beginFrame()()
 
 	base := strings.Join([]string{
 		components.RenderHeader(m.theme, m.headerData(), m.screen.Header.Width),
@@ -213,10 +214,29 @@ func (m *Model) headerNote() string {
 		return fleetCrumb(m.fleetMembers)
 	case viewTable:
 		if table := m.table.Get(); table != nil {
-			return m.rowCountLabel(table) + " " + plural(len(table.Rows), "row")
+			note := m.rowCountLabel(table) + " " + plural(len(table.Rows), "row")
+			if sortedAmongLoaded(m.tableSort.active(), table.HasMore()) != "" {
+				note += ", " + sortedAmongLoaded(m.tableSort.active(), table.HasMore())
+			}
+			return note
 		}
 	}
 	return ""
+}
+
+// sortedAmongLoaded qualifies the order of a table that has not been read
+// whole.
+//
+// Sorting reorders the rows Correlux has, and on a paged table those are not
+// all the rows there are: the first row of a table sorted by restarts is the
+// worst of what is loaded, which is a different claim from the worst in the
+// cluster, and the difference is exactly the one somebody acts on. The same
+// rule the filter already follows when it says "of 4213 loaded rows".
+func sortedAmongLoaded(sorted, more bool) string {
+	if !sorted || !more {
+		return ""
+	}
+	return "sorted among those loaded"
 }
 
 // applicationsLabel counts the dashboard the way an operator triages it: how
@@ -302,7 +322,8 @@ func (m *Model) statusData() components.StatusData {
 			table = []components.KeyHint{
 				{Key: "↑↓", Desc: "Rows", Priority: 70},
 				{Key: "Enter", Desc: "Open", Priority: 72},
-				{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
+				{Group: components.HintView, Key: m.keys.Key(ActionSort), Desc: m.sortHint(), Priority: 60},
+				{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.showingWide()), Priority: 50},
 			}
 		}
 		if _, _, ok := m.execTarget(); ok {
@@ -331,7 +352,8 @@ func (m *Model) statusData() components.StatusData {
 				{Key: "Enter", Desc: "Open", Priority: 72},
 				{Group: components.HintView, Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
 				{Group: components.HintView, Key: m.keys.Key(ActionGrouping), Desc: "Grouping", Priority: 45},
-				{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 50},
+				{Group: components.HintView, Key: m.keys.Key(ActionSort), Desc: m.sortHint(), Priority: 60},
+				{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.showingWide()), Priority: 50},
 			}, app...)
 		}
 		hints = append(app, hints...)
@@ -389,7 +411,8 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "↑↓", Desc: "Rows", Priority: 70},
 			{Key: "Enter", Desc: "Open there", Priority: 72},
 			{Group: components.HintView, Key: m.keys.Key(ActionNamespacePicker), Desc: "Namespaces", Priority: 83},
-			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.tableWide), Priority: 82},
+			{Group: components.HintView, Key: m.keys.Key(ActionSort), Desc: m.sortHint(), Priority: 60},
+			{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.showingWide()), Priority: 82},
 		}, hints...)
 	case viewLogs:
 		logHints := []components.KeyHint{
@@ -535,9 +558,9 @@ func (m *Model) renderBody() string {
 	var content string
 	switch m.view {
 	case viewTable:
-		content = screens.RenderTable(m.theme, m.tableData(), body.Width, body.Height)
+		content = screens.RenderTable(m.theme, m.frameTableFor(), body.Width, body.Height)
 	case viewApplications:
-		content = screens.RenderTable(m.theme, m.applicationsData(), body.Width, body.Height)
+		content = screens.RenderTable(m.theme, m.frameTableFor(), body.Width, body.Height)
 	case viewApplication:
 		content = screens.RenderApplication(m.theme, m.applicationData(), body.Width, body.Height)
 	case viewWhy:
@@ -553,7 +576,7 @@ func (m *Model) renderBody() string {
 	case viewFleet:
 		content = screens.RenderFleet(m.theme, m.fleetData(), body.Width, body.Height)
 	case viewFleetResource:
-		content = screens.RenderTable(m.theme, m.fleetResourceData(), body.Width, body.Height)
+		content = screens.RenderTable(m.theme, m.frameTableFor(), body.Width, body.Height)
 	default:
 		content = screens.RenderOverview(m.theme, m.overviewData(), body.Width, body.Height)
 	}
@@ -567,7 +590,9 @@ func (m *Model) tableData() screens.TableData {
 	d := screens.TableData{
 		Cursor:   m.tablePort.Cursor,
 		Offset:   m.tablePort.Offset,
-		ShowWide: m.tableWide,
+		Wide:     m.wideMode(),
+		Sort:     m.tableSort.column,
+		SortDesc: m.tableSort.desc,
 	}
 
 	switch m.table.State() {
@@ -1045,10 +1070,12 @@ func (m *Model) renderHelp(width, height int) string {
 			{"age<1h", "An age column is a duration; every other one is a number"},
 			{"ns=shop age<1h", "Terms are and-ed; the columns are the ones on screen"},
 		}},
-		{"In a resource table", [][2]string{
+		{"In a table", [][2]string{
 			{"↑ ↓ / j k", "Move; the next page loads as you reach the end"},
 			{"Enter", "Open the object under the cursor, custom resources included"},
-			{m.keys.Key(ActionToggleWide), "Toggle the wide columns"},
+			{m.keys.Key(ActionSort), "Sort by a column; the same column again reverses it"},
+			{"Click a heading", "Sorts by it, the way clicking a row selects it"},
+			{m.keys.Key(ActionToggleWide), "Show or hide the wide columns; they appear on their own where they fit"},
 		}},
 		{"General", [][2]string{
 			{m.keys.Key(ActionHelp), "This help"},

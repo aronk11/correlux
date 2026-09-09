@@ -181,6 +181,18 @@ the columns the view already draws, so the same syntax serves the dashboard, any
 kind the API server prints and the fleet's merged table. A term naming a column
 that is not on screen is reported rather than answered with an empty list.
 
+`s` orders the table by one of those same columns, and clicking a heading does
+the same thing. Sorting reads a cell the way the filter compares it — an age
+column as a duration, every other one as a number with the suffixes Kubernetes
+prints — so the two never disagree about what a column holds. Cells with no
+value sort last in both directions, equal rows keep the order they arrived in,
+and each screen keeps its own order. Sorting is client-side over the rows
+already loaded, and a table with pages outstanding says so rather than letting
+its first row read as the worst in the cluster; the default order stays what the
+screen is for — worst first on the dashboard, the server's own order in a
+resource table
+([ADR 22](docs/adr/0022-client-side-sorting-and-width-aware-columns.md)).
+
 ## 10. The WHY feature
 
 `Ctrl+W` explains why the selected object is unhealthy.
@@ -255,6 +267,12 @@ deployments, services, ingresses, nodes, ConfigMaps, Secrets, jobs, cronjobs,
 PVCs, CRDs — with sorting, filtering, search, details, YAML, JSON, logs, events,
 exec, describe and edit. Table and detail components are reusable rather than
 duplicated per resource.
+
+A table draws every column that fits. Marking a column wide says it is the
+first to go when space runs out, not that it is hidden while space remains: a
+wide terminal showing the compact column set and blank space to the right of it
+costs the reader information and gains them nothing. The toggle stays, and
+flips away from what is on screen rather than from the last value of a flag.
 
 ## 15. Logs
 

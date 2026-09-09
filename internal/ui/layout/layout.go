@@ -22,6 +22,12 @@ type Rect struct {
 // Empty reports whether the rect has no area.
 func (r Rect) Empty() bool { return r.Width <= 0 || r.Height <= 0 }
 
+// Contains reports whether a screen cell falls inside the rect, which is how a
+// mouse position becomes the region it landed on.
+func (r Rect) Contains(x, y int) bool {
+	return x >= r.X && x < r.X+r.Width && y >= r.Y && y < r.Y+r.Height
+}
+
 // Screen is the resolved geometry for one frame.
 type Screen struct {
 	Width, Height int

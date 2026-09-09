@@ -167,8 +167,11 @@ func TestOpeningAResourceShowsItsTable(t *testing.T) {
 			t.Errorf("table output is missing %q:\n%s", want, out)
 		}
 	}
-	if strings.Contains(out, "kind-worker") {
-		t.Error("a priority column must be hidden until the wide view is asked for")
+	// A terminal with room for it draws the priority column without being
+	// asked; the point of marking a column wide is that it is the first to go
+	// when space runs out, not that it is hidden while space remains.
+	if !strings.Contains(out, "kind-worker") {
+		t.Errorf("a wide column must be drawn where it fits:\n%s", out)
 	}
 }
 
@@ -213,13 +216,40 @@ func TestWideTogglesTheHiddenColumns(t *testing.T) {
 	m.openResource("pods")
 	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: podTablePage("payments-7d8f")})
 
-	press(t, m, "w")
+	// The toggle flips away from what is on screen, so on a terminal wide
+	// enough to be showing the extra columns already, the first press hides
+	// them. A toggle that always started from "off" would do nothing at all on
+	// one press in two.
 	if !strings.Contains(view(m), "kind-worker") {
-		t.Error("the wide view must show priority columns")
+		t.Error("a wide column must be drawn where it fits")
 	}
 	press(t, m, "w")
 	if strings.Contains(view(m), "kind-worker") {
-		t.Error("toggling back must hide them again")
+		t.Error("w must hide the columns that were on screen")
+	}
+	press(t, m, "w")
+	if !strings.Contains(view(m), "kind-worker") {
+		t.Error("w must bring them back")
+	}
+}
+
+func TestNarrowTerminalHidesWideColumnsAndWSqueezesThemBack(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	m.openResource("pods")
+	// A name long enough that the node column no longer fits beside it.
+	m.Update(tableLoadedMsg{gen: m.table.Generation(), table: podTablePage("payments-7d8f-0000000000")})
+	m.width, m.height = 60, 20
+	m.applyLayout()
+
+	if strings.Contains(view(m), "kind-worker") {
+		t.Errorf("a wide column must go when the row does not fit:\n%s", view(m))
+	}
+	// Asking for it explicitly squeezes the other columns rather than
+	// answering the key with no visible change at all.
+	press(t, m, "w")
+	if !strings.Contains(view(m), "kind-worker") {
+		t.Errorf("w must bring the column back, narrowing its neighbours:\n%s", view(m))
 	}
 }
 
