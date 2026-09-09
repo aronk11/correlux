@@ -93,6 +93,7 @@ func (m *Model) headerData() components.HeaderData {
 		Note:       m.headerNote(),
 		Auto:       m.autoRefreshLabel(),
 		Busy:       m.busyLabel(),
+		Freshness:  m.freshnessLabel(),
 	}
 
 	info := m.cluster.Get()
@@ -140,6 +141,35 @@ func (m *Model) autoRefreshLabel() string {
 		return ""
 	}
 	return "auto " + m.refreshEvery.String()
+}
+
+// freshnessLabel says how old the data behind the current view is. It is
+// shown only while auto-refresh is off: with auto-refresh running, the header
+// already bounds the staleness by naming the interval, and showing both would
+// say the same thing twice. Without it, a screen that only ever polls (ADR
+// 17 — there is no watch behind any of this) has nothing on it to stop it
+// from quietly reading as one that pushes updates.
+func (m *Model) freshnessLabel() string {
+	if m.autoRefresh {
+		return ""
+	}
+	var at time.Time
+	switch m.view {
+	case viewApplications, viewApplication:
+		at = m.apps.UpdatedAt()
+	case viewWhy, viewActivity:
+		at = m.evidence.UpdatedAt()
+	case viewTable:
+		at = m.table.UpdatedAt()
+	case viewObject:
+		at = m.object.UpdatedAt()
+	default:
+		return ""
+	}
+	if at.IsZero() {
+		return ""
+	}
+	return "as of " + formatAge(at, time.Now()) + " ago"
 }
 
 // breadcrumb shows where the user is in the navigation model:
