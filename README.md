@@ -100,9 +100,10 @@ correlux version
 | `Ctrl+K` | Switch cluster |
 | `Ctrl+O` | Switch namespace |
 | `/` | Filter the list on screen |
+| `s` | Sort the table by a column; the same column again reverses it |
 | `Ctrl+R` | Refresh |
 | `Ctrl+F` | Refresh on a timer, until you turn it off (`auto 2s` appears in the header) |
-| `w` | Toggle the wide columns in a resource table |
+| `w` | Show or hide the wide columns; they appear on their own where they fit |
 | `?` | Help |
 | `Esc` | Back one step: the screen you came from, or the overlay you opened |
 | `Ctrl+A` | Home: the application dashboard, from anywhere |
@@ -337,6 +338,68 @@ It is a filter, not a query: Correlux narrows the rows it has rather than asking
 the server a different question, and the bar says how much it is showing — with
 `loaded` when the table is paged and rows below have not been fetched. The order
 never changes; a filtered list is the same list with fewer rows.
+
+### Putting the worst first
+
+`/restarts>5` is "show me the ones that keep dying". `s` is "show me the worst
+one first", and during an incident that is usually the faster of the two,
+because it needs no threshold guessed in advance.
+
+`s` lists the columns the table is drawing and orders by the one you pick.
+Clicking a heading does the same thing, and choosing the column it is already
+in reverses it:
+
+```
+STATUS     APPLICATION  PODS  RESTARTS ↓  AGE    DETAIL
+✖ down     payments     0/3          412  1h30m  3 CrashLoopBackOff
+⚠ degraded worker       7/8           38  4d2h   1 OOMKilled
+✓ healthy  api          12/12          0  9d
+```
+
+The heading says which column and which way, so the order on screen is never
+something you have to remember having asked for. A column counted rather than
+named — restarts, age, a count of errors — opens at the top, because the reason
+to order a table by restarts is never to find the pod that has not restarted.
+
+It reads a cell exactly as the filter does: an age column is a duration, every
+other one is a number with the suffixes Kubernetes prints, so `500m` is half a
+CPU in one column and five hundred minutes in another. A table where `age<1h`
+and ordering by age disagreed about what an age is would be worse than one that
+could not sort at all.
+
+Cells with nothing in them — an empty column, a `—` — go last whichever way the
+sort runs: an unset value is not a small one, and a column sorted worst-first
+should not open on a screen of blanks. Rows the column cannot tell apart keep
+the order they arrived in, so a sorted table does not reshuffle itself on every
+reload.
+
+Sorting is client-side, over the rows Correlux has, and each screen keeps its
+own order: ordering the dashboard by restarts says nothing about how you want a
+list of nodes. The way back is in the picker — *worst first* on the dashboard,
+the server's own order in a resource table.
+
+Where a table is paged and rows below have not been fetched, the order says so
+— `500+ rows, sorted among those loaded` — because the first row of a sorted
+page is the worst of what is *loaded*, and on a paged table that is not the
+same claim ([ADR 22](docs/adr/0022-client-side-sorting-and-width-aware-columns.md)).
+
+### The columns you have room for
+
+A resource table draws every column that fits. On a wide terminal that is all
+of them, including the ones `kubectl get -o wide` hides; on a narrow one the
+secondary columns go first and the ones that identify the object stay.
+
+`w` overrides it in whichever direction the screen is currently in — hiding the
+extra columns where they are shown, and squeezing them in where they are not,
+narrowing their neighbours rather than answering the key with no visible change
+at all.
+
+Marking a column wide says it is the first to go when space runs out. It does
+not say it should be hidden while space remains: a 200-column terminal drawing
+the same four columns an 80-column one draws, and leaving the rest blank, costs
+the reader the information and gains them nothing. `kubectl` cannot know how
+wide your terminal is; Correlux lays out the frame and does
+([ADR 22](docs/adr/0022-client-side-sorting-and-width-aware-columns.md)).
 
 ### Changing something
 
@@ -658,6 +721,8 @@ keybindings:
   applications: ctrl+a
   fleet: F
   search: "/"
+  table.sort: s
+  table.wide: w
   why: ctrl+w
   object.yaml: "y"
   object.decode: b

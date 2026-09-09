@@ -22,6 +22,8 @@ func (m *Model) activeSelector() *components.Selector {
 		return m.fleetPicker
 	case overlayFleetNamespaces:
 		return m.fleetNSPicker
+	case overlaySort:
+		return m.sortPicker
 	default:
 		return nil
 	}
@@ -63,6 +65,11 @@ func (m *Model) openOverlay(kind overlayKind) tea.Cmd {
 		m.fleetPicker.Title = m.fleetPickerTitle()
 		m.fleetPicker.Footer = m.fleetPickerFooter()
 		m.fleetPicker.Reset()
+	case overlaySort:
+		m.sortPicker.Title = "Sort " + m.sortSubject()
+		m.sortPicker.Footer = m.sortPickerFooter()
+		m.sortPicker.Reset()
+		m.sortPicker.SelectID(m.currentSort().column)
 	case overlayFleetNamespaces:
 		m.fleetNSPicker.Title = m.fleetNamespacePickerTitle()
 		m.fleetNSPicker.Footer = m.fleetNamespacePickerFooter()
@@ -190,6 +197,12 @@ func (m *Model) confirmSelection() tea.Cmd {
 	case overlayNamespaces:
 		m.closeOverlay()
 		return m.switchNamespace(item.ID)
+	case overlaySort:
+		m.closeOverlay()
+		if item.ID == sortDefaultID {
+			return m.clearSort()
+		}
+		return m.sortBy(item.ID)
 	case overlayResources:
 		m.closeOverlay()
 		// Picked from a fleet screen, the kind is browsed across the fleet
@@ -232,6 +245,14 @@ func (m *Model) overlayRect() layout.Rect {
 		return layout.Overlay(m.screen, layout.OverlayOptions{
 			WidthRatio: 0.6, HeightRatio: 0.65,
 			MinWidth: 44, MaxWidth: 88, MinHeight: 10, MaxHeight: 24,
+		})
+	case overlaySort:
+		// Shorter than the kind picker: this list is one line per column of
+		// the table behind it, and a panel taller than its contents reads as
+		// a list that failed to load.
+		return layout.Overlay(m.screen, layout.OverlayOptions{
+			WidthRatio: 0.5, HeightRatio: 0.5,
+			MinWidth: 40, MaxWidth: 70, MinHeight: 8, MaxHeight: 18,
 		})
 	case overlayPrompt:
 		return layout.Overlay(m.screen, layout.OverlayOptions{

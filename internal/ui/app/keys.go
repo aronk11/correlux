@@ -47,6 +47,7 @@ const (
 	ActionPrevious        = "logs.previous"
 	ActionOverview        = "overview"
 	ActionToggleWide      = "table.wide"
+	ActionSort            = "table.sort"
 	ActionAllNamespaces   = "namespace.all"
 	ActionRefresh         = "refresh"
 	ActionAutoRefresh     = "refresh.auto"
@@ -93,6 +94,7 @@ var DefaultBindings = map[string]string{
 	ActionTimestamps:      "t",
 	ActionPrevious:        "p",
 	ActionToggleWide:      "w",
+	ActionSort:            "s",
 	ActionRefresh:         "ctrl+r",
 	ActionAutoRefresh:     "ctrl+f",
 	ActionClose:           "esc",
