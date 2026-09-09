@@ -60,3 +60,50 @@ func TestPressingShiftEAndShiftFOpensEventsAndFleet(t *testing.T) {
 		t.Errorf("shift+f must open Fleet the way F does, got view %v", m.view)
 	}
 }
+
+// The destructive actions are bound the same shifted-letter way (ADR: "avoid
+// single letters for anything destructive"), so they carried the identical
+// bug — Shift+S/C/D/R doing nothing on a terminal that reports modifiers
+// apart from the base key. One end-to-end case per action, each reaching the
+// confirmation it must ask for before anything is sent.
+
+func TestPressingShiftSAsksToScale(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, scalableCatalog())
+	openWorkload(t, m)
+
+	press(t, m, "shift+s")
+	if m.overlay != overlayPrompt {
+		t.Fatalf("shift+s must ask for the count the way S does, overlay = %v", m.overlay)
+	}
+}
+
+func TestPressingShiftCAsksToCordon(t *testing.T) {
+	m := newTestModel(t)
+	openNode(t, m, "node-1", false)
+
+	press(t, m, "shift+c")
+	if m.overlay != overlayConfirm {
+		t.Fatalf("shift+c must confirm the cordon the way C does, overlay = %v", m.overlay)
+	}
+}
+
+func TestPressingShiftDAsksToDelete(t *testing.T) {
+	m := newTestModel(t)
+	openCountedWorkload(t, m)
+
+	press(t, m, "shift+d")
+	if m.overlay != overlayConfirm {
+		t.Fatalf("shift+d must confirm the delete the way D does, overlay = %v", m.overlay)
+	}
+}
+
+func TestPressingShiftRAsksToRestart(t *testing.T) {
+	m := newTestModel(t)
+	openDeploymentObject(t, m)
+
+	press(t, m, "shift+r")
+	if m.overlay != overlayConfirm {
+		t.Fatalf("shift+r must confirm the restart the way R does, overlay = %v", m.overlay)
+	}
+}
