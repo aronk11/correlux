@@ -79,6 +79,8 @@ func (m *Model) openOverlay(kind overlayKind) tea.Cmd {
 		if !m.namespaces.HasValue() {
 			return m.loadNamespaces()
 		}
+	case overlayHelp:
+		m.helpPort.Reset()
 	}
 	return nil
 }
@@ -150,12 +152,7 @@ func (m *Model) handleOverlayKey(keystroke, text string) (tea.Cmd, bool) {
 	}
 
 	if m.overlay == overlayHelp {
-		// The help overlay has no input of its own; any other key closes it.
-		if keystroke == "?" || keystroke == "q" {
-			m.closeOverlay()
-			return nil, true
-		}
-		return nil, false
+		return nil, m.handleHelpKey(keystroke)
 	}
 
 	sel := m.activeSelector()
@@ -272,4 +269,41 @@ func (m *Model) overlayRect() layout.Rect {
 	default:
 		return layout.Rect{}
 	}
+}
+
+// overlayInnerSize is the room left for content once the overlay's border and
+// padding are subtracted — the same arithmetic renderOverlay draws with, so a
+// key handler that scrolls an overlay bounds itself against exactly what is
+// on screen.
+func (m *Model) overlayInnerSize() (width, height int) {
+	rect := m.overlayRect()
+	width = max(rect.Width-4, 8)   // border + horizontal padding
+	height = max(rect.Height-2, 3) // border
+	return width, height
+}
+
+// handleHelpKey scrolls the help overlay. It owns every key while help is
+// open — a fixed-height page that silently ate "j" or "PgDn" because it had
+// no scrolling of its own was the bug this exists to fix — closing only on
+// the keys that mean "close".
+func (m *Model) handleHelpKey(keystroke string) bool {
+	_, height := m.overlayInnerSize()
+	page := max(height-1, 1)
+	switch keystroke {
+	case "up", "k":
+		m.helpPort.ScrollLines(-1, m.helpLines(), height)
+	case "down", "j":
+		m.helpPort.ScrollLines(1, m.helpLines(), height)
+	case "pgup":
+		m.helpPort.ScrollLines(-page, m.helpLines(), height)
+	case "pgdown", " ":
+		m.helpPort.ScrollLines(page, m.helpLines(), height)
+	case "home", "g":
+		m.helpPort.Offset = 0
+	case "end", "G":
+		m.helpPort.ScrollLines(m.helpLines(), m.helpLines(), height)
+	case "?", "q", "enter":
+		m.closeOverlay()
+	}
+	return true
 }
