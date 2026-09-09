@@ -214,6 +214,37 @@ func TestApplicationUsageRowOpensTheApplication(t *testing.T) {
 	}
 }
 
+func TestClickingAUsageRowSelectsItAndClickingItAgainOpensIt(t *testing.T) {
+	m := newTestModel(t)
+	pod := usagePod("api-0", "node-1", 100, 128<<20)
+	app := usageApplication("api", pod)
+	openUsageWith(t, m,
+		usage.Live{Nodes: []application.Node{usageNode("node-1", true, 4000, 8<<30, 110)}},
+		[]application.Application{app}, pod,
+	)
+
+	data, targets := m.usageView()
+	if len(targets) == 0 {
+		t.Fatal("the application row must be navigable, or this proves nothing")
+	}
+	line := data.TargetLines(m.screen.Body.Width)[0]
+	// Off the row before the first click, so selecting it is a real change
+	// rather than a no-op that happens to already agree with the default.
+	m.usagePort.Cursor = -1
+
+	m.handleClick(clickAt(0, m.screen.Body.Y+line))
+	if m.usagePort.Cursor != 0 {
+		t.Fatalf("clicking a row must select it, cursor is %d", m.usagePort.Cursor)
+	}
+	if m.view != viewUsage {
+		t.Fatal("one click selects, it does not navigate")
+	}
+	m.handleClick(clickAt(0, m.screen.Body.Y+line))
+	if m.view != viewApplication || m.selectedApp != app.Key() {
+		t.Errorf("clicking the selected row must open it, view=%v app=%q", m.view, m.selectedApp)
+	}
+}
+
 func TestUsageSaysWhichAnswerItIsWaitingFor(t *testing.T) {
 	m := newTestModel(t)
 	press(t, m, "u")

@@ -118,6 +118,33 @@ func TestTheTargetsAreNumberedInTheOrderTheyAreDrawn(t *testing.T) {
 	}
 }
 
+func TestClickingADetailRowSelectsItAndClickingItAgainOpensIt(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	openDetail(t, m)
+
+	data, targets := m.applicationView()
+	if len(targets) < 2 {
+		t.Fatal("need at least two navigable rows for this test to mean anything")
+	}
+	line := data.TargetLines(m.screen.Body.Width)[1]
+
+	m.handleClick(clickAt(0, m.screen.Body.Y+line))
+	if m.detailPort.Cursor != 1 {
+		t.Fatalf("clicking a row must select it, cursor is %d", m.detailPort.Cursor)
+	}
+	if m.view != viewApplication {
+		t.Fatal("one click selects, it does not navigate")
+	}
+	m.handleClick(clickAt(0, m.screen.Body.Y+line))
+	if m.view != viewObject {
+		t.Fatal("clicking the selected row must open it")
+	}
+	if m.objectTarget != targets[1] {
+		t.Errorf("opened %+v, want %+v", m.objectTarget, targets[1])
+	}
+}
+
 func opensKind(targets []objectRef, kind string) bool {
 	for _, ref := range targets {
 		if ref.Kind == kind {
@@ -141,6 +168,37 @@ func TestEnterOpensTheSelectedObject(t *testing.T) {
 	}
 	if out := plainView(m); !strings.Contains(out, "Loading Deployment/payments") {
 		t.Errorf("an unfinished load must say so:\n%s", out)
+	}
+}
+
+func TestClickingARelationSelectsItAndClickingItAgainFollowsIt(t *testing.T) {
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	openDetail(t, m)
+	press(t, m, "down")  // past the workload, onto the first pod
+	press(t, m, "enter") // open the pod
+	loadObjectInto(m, podObject(m.objectTarget.Name, "payments-7d8f"))
+
+	data, targets := m.objectView()
+	if len(targets) == 0 {
+		t.Fatal("the pod's controller must be a navigable relation, or this proves nothing")
+	}
+	line := data.TargetLines(m.screen.Body.Width)[0]
+	before := m.objectTarget
+	// Off the row before the first click, so selecting it is a real change
+	// rather than a no-op that happens to already agree with the default.
+	m.objectPort.Cursor = -1
+
+	m.handleClick(clickAt(0, m.screen.Body.Y+line))
+	if m.objectPort.Cursor != 0 {
+		t.Fatalf("clicking a relation must select it, cursor is %d", m.objectPort.Cursor)
+	}
+	if m.objectTarget != before {
+		t.Fatal("one click selects, it does not navigate")
+	}
+	m.handleClick(clickAt(0, m.screen.Body.Y+line))
+	if m.objectTarget != targets[0] {
+		t.Errorf("clicking the selected relation must follow it, target = %+v, want %+v", m.objectTarget, targets[0])
 	}
 }
 

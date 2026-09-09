@@ -149,6 +149,34 @@ func TestEnterGoesToTheClusterAndNothingElse(t *testing.T) {
 	}
 }
 
+func TestClickingAFleetRowSelectsItAndClickingItAgainOpensIt(t *testing.T) {
+	m := fleetModel(t, "staging", "prod-eu")
+	press(t, m, "F")
+	answer(m, ready("prod-eu", true, fleetApp("payments", application.Down, 0, 3)))
+	answer(m, ready("staging", false))
+
+	// The second row is the second configured cluster, prod-eu — a context the
+	// session is not already in, so opening it is a change a passing test
+	// cannot fake by doing nothing.
+	data := m.fleetData()
+	line := data.TargetLines(m.screen.Body.Width)[1]
+
+	m.handleClick(clickAt(0, m.screen.Body.Y+line))
+	if m.fleetPort.Cursor != 1 {
+		t.Fatalf("clicking a row must select it, cursor is %d", m.fleetPort.Cursor)
+	}
+	if m.view != viewFleet {
+		t.Fatal("one click selects, it does not navigate")
+	}
+	m.handleClick(clickAt(0, m.screen.Body.Y+line))
+	if m.view == viewFleet {
+		t.Fatal("clicking the selected row must leave the overview")
+	}
+	if m.Context() != "prod-eu" {
+		t.Errorf("clicking the selected row must open its cluster, context = %q", m.Context())
+	}
+}
+
 func TestEnterOnABrokenApplicationOpensItInItsCluster(t *testing.T) {
 	m := fleetModel(t, "staging", "prod-eu")
 	press(t, m, "F")
