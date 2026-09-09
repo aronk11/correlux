@@ -148,6 +148,7 @@ type Model struct {
 	activityPort   layout.Viewport
 	fleetPort      layout.Viewport
 	fleetTablePort layout.Viewport
+	helpPort       layout.Viewport
 	// fleetDraft is the membership being edited in the picker, and
 	// fleetDraftGroup the group it belongs to. It is held here rather than in
 	// the selector because the list is rebuilt from the filter on every

@@ -335,6 +335,55 @@ func TestHelpOverlayListsRealBindings(t *testing.T) {
 	}
 }
 
+func TestHelpOverlayScrolls(t *testing.T) {
+	m := newTestModel(t)
+	press(t, m, "?")
+
+	top := view(m)
+	if strings.Contains(top, "This help") {
+		t.Fatal("the General section must not fit on the first page — otherwise this test cannot tell scrolling apart from a static clip")
+	}
+
+	press(t, m, "G") // jump to the end
+	bottom := view(m)
+	if !strings.Contains(bottom, "This help") {
+		t.Error("scrolling to the end must reveal the General section")
+	}
+	if m.overlay != overlayHelp {
+		t.Fatal("scrolling must not close the overlay")
+	}
+
+	press(t, m, "g") // back to the top
+	if m.helpPort.Offset != 0 {
+		t.Errorf("helpPort.Offset = %d after g, want 0", m.helpPort.Offset)
+	}
+	if view(m) != top {
+		t.Error("g must restore the original first page")
+	}
+
+	press(t, m, "j")
+	if m.helpPort.Offset != 1 {
+		t.Errorf("helpPort.Offset = %d after j, want 1", m.helpPort.Offset)
+	}
+
+	press(t, m, "esc")
+	if m.overlay != overlayNone {
+		t.Error("Esc must still close the help overlay")
+	}
+}
+
+func TestHelpOverlayResetsScrollOnReopen(t *testing.T) {
+	m := newTestModel(t)
+	press(t, m, "?")
+	press(t, m, "G")
+	press(t, m, "esc")
+
+	press(t, m, "?")
+	if m.helpPort.Offset != 0 {
+		t.Errorf("reopening help must start at the top, got offset %d", m.helpPort.Offset)
+	}
+}
+
 func TestFirstResizeAppliesImmediatelyAndLaterOnesAreDebounced(t *testing.T) {
 	m := newTestModel(t)
 	if m.screen.Width != 120 {

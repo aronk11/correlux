@@ -506,6 +506,12 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "Enter", Desc: "Save", Priority: 92},
 			{Key: "Esc", Desc: "Cancel", Priority: 90},
 		}
+	case overlayHelp:
+		hints = []components.KeyHint{
+			{Key: "↑↓", Desc: "Scroll", Priority: 90},
+			{Key: "PgUp/PgDn", Desc: "Page", Priority: 88},
+			{Key: "Esc", Desc: "Close", Priority: 90},
+		}
 	default:
 		hints = []components.KeyHint{
 			{Key: "↑↓", Desc: "Navigate", Priority: 90},
@@ -971,14 +977,7 @@ func (m *Model) namespacesSummary() string {
 }
 
 func (m *Model) renderOverlay(rect layout.Rect) string {
-	inner := rect.Width - 4   // border + horizontal padding
-	innerH := rect.Height - 2 // border
-	if inner < 8 {
-		inner = 8
-	}
-	if innerH < 3 {
-		innerH = 3
-	}
+	inner, innerH := m.overlayInnerSize()
 
 	var content string
 	switch m.overlay {
@@ -1013,7 +1012,11 @@ func (m *Model) changeHints() []components.KeyHint {
 	return out
 }
 
-func (m *Model) renderHelp(width, height int) string {
+// helpText is the full, unclipped body of the help overlay. It is built once
+// and shared by renderHelp (which windows it to the visible height) and
+// helpLines (which bounds how far that window may scroll) so the two can
+// never disagree about how long the page is.
+func (m *Model) helpText() string {
 	sections := []struct {
 		title string
 		rows  [][2]string
@@ -1101,7 +1104,26 @@ func (m *Model) renderHelp(width, height int) string {
 		}
 	}
 	b.WriteString("\n\n" + m.theme.Muted.Render("Keys are configurable in "+orNone(m.configPath)))
-	return clipTo(b.String(), width, height)
+	return b.String()
+}
+
+// helpLines is the height of the help overlay's full content, so a scroll
+// key knows how far down it may still go.
+func (m *Model) helpLines() int {
+	return strings.Count(m.helpText(), "\n") + 1
+}
+
+// renderHelp windows helpText to the visible height at the overlay's current
+// scroll offset — the page a lone "?" used to render was always the same
+// prefix of this, silently clipped rather than scrolled.
+func (m *Model) renderHelp(width, height int) string {
+	lines := strings.Split(m.helpText(), "\n")
+	if m.helpPort.Offset < len(lines) {
+		lines = lines[m.helpPort.Offset:]
+	} else {
+		lines = nil
+	}
+	return clipTo(strings.Join(lines, "\n"), width, height)
 }
 
 func padBlock(s string, width, height int) string {
