@@ -624,20 +624,7 @@ func (m *Model) handleUsageKey(keystroke string) (tea.Cmd, bool) {
 	case "end", "G":
 		m.scrollUsage(m.usageLines())
 	case "enter":
-		if len(targets) == 0 {
-			return nil, true
-		}
-		target := targets[clampInt(m.usagePort.Cursor, len(targets)-1)]
-		switch target.Kind {
-		case "Namespace":
-			// The scope change resets the drill-down state along with every
-			// other scoped view, so the flag is set after it, not before.
-			cmd := m.switchNamespace(target.Name)
-			m.usageDrilledIn = true
-			return cmd, true
-		case "Application":
-			return m.openApplication(target.Name), true
-		}
+		return m.openSelectedUsageTarget(), true
 	case "esc", "left", "h":
 		// Esc goes back the way it came. Widening the scope is only going back
 		// for somebody who narrowed it here; for anyone who opened the screen
@@ -650,6 +637,28 @@ func (m *Model) handleUsageKey(keystroke string) (tea.Cmd, bool) {
 		return nil, false
 	}
 	return nil, true
+}
+
+// openSelectedUsageTarget acts on the row under the cursor: a namespace
+// narrows the scope, an application opens it. It is the one thing Enter and a
+// click both do, so neither has to decide it twice.
+func (m *Model) openSelectedUsageTarget() tea.Cmd {
+	_, targets := m.usageView()
+	if len(targets) == 0 {
+		return nil
+	}
+	target := targets[clampInt(m.usagePort.Cursor, len(targets)-1)]
+	switch target.Kind {
+	case "Namespace":
+		// The scope change resets the drill-down state along with every
+		// other scoped view, so the flag is set after it, not before.
+		cmd := m.switchNamespace(target.Name)
+		m.usageDrilledIn = true
+		return cmd
+	case "Application":
+		return m.openApplication(target.Name)
+	}
+	return nil
 }
 
 func (m *Model) usageLines() int {
