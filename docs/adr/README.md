@@ -28,6 +28,7 @@ Michael Nygard's: context, decision, consequences.
 | [20](0020-changes-go-through-one-gate.md) | Every change goes through one gate, and Correlux never edits for you | accepted |
 | [21](0021-update-check.md) | Correlux says when it is out of date, and that is the only thing it asks | accepted |
 | [22](0022-client-side-sorting-and-width-aware-columns.md) | A table is ordered on the client, and its columns follow the width | accepted |
+| [23](0023-consistent-sibling-navigation.md) | A detour from an investigation remembers where it was opened from | accepted |
 
 ## Adding one
 

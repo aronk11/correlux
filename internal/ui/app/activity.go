@@ -18,14 +18,32 @@ const maxActivityEvents = 200
 // are operational breadcrumbs, not an audit trail, and the screen says so.
 func (m *Model) openActivity() tea.Cmd {
 	if m.view == viewActivity {
-		return m.backToApplications()
+		return m.leaveActivity()
 	}
 	m.stopLogs()
 	m.stopFleet()
+	// Events is a detour from wherever it was opened, and Esc must return
+	// there (ADR 23).
+	m.activityFrom = m.view
 	m.view = viewActivity
-	m.activityPort.Offset, m.activityPort.Cursor = 0, 0
+	// The scroll only resets when there is no loaded evidence to preserve it
+	// over — an actual scope change already calls evidence.Reset() elsewhere
+	// (switchContextScoped, reloadScopedViews), which is what leaves it Idle
+	// here; a lateral return to Events for the scope already fetched must
+	// not discard where the user left it.
+	if m.evidence.State() == async.Idle {
+		m.activityPort.Offset, m.activityPort.Cursor = 0, 0
+	}
 	m.rebuildCommands()
 	return m.loadEvidence()
+}
+
+// leaveActivity returns to wherever Events was opened from (ADR 23) — the E
+// toggle and Esc both mean "leave", so both go through here.
+func (m *Model) leaveActivity() tea.Cmd {
+	m.view = m.activityFrom
+	m.rebuildCommands()
+	return nil
 }
 
 func (m *Model) activityView() (screens.ApplicationData, []objectRef) {
@@ -104,7 +122,7 @@ func (m *Model) handleActivityKey(key string) (tea.Cmd, bool) {
 	case "enter", "right":
 		return m.openSelectedActivityObject(), true
 	case "esc", "left", "h":
-		return m.backToApplications(), true
+		return m.leaveActivity(), true
 	default:
 		return nil, false
 	}

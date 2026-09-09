@@ -185,6 +185,12 @@ func (m *Model) logSources() ([]logs.Source, string, bool) {
 			Namespace: rowNamespace(rows[m.tablePort.Cursor].Namespace, m.resource.Namespaced, m.namespace, m.allNamespaces),
 			Resource:  m.resource.FullName(),
 		})
+	case viewActivity:
+		_, targets := m.activityView()
+		if m.activityPort.Cursor < 0 || m.activityPort.Cursor >= len(targets) {
+			return nil, "", false
+		}
+		return m.sourcesFor(targets[m.activityPort.Cursor])
 	}
 	return nil, "", false
 }
