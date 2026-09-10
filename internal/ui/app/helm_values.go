@@ -38,7 +38,7 @@ func (m *Model) prepareHelmValues(ref objectRef, args []string, consequence stri
 	}
 }
 
-func (m *Model) applyHelmValuesLoaded(msg helmValuesLoadedMsg) tea.Cmd {
+func (m *Model) applyHelmValuesLoaded(msg *helmValuesLoadedMsg) tea.Cmd {
 	if msg.cluster != m.contextName || msg.ref != m.objectTarget || m.view != viewObject {
 		return nil
 	}
@@ -64,10 +64,10 @@ func (m *Model) applyHelmValuesLoaded(msg helmValuesLoadedMsg) tea.Cmd {
 	}
 	editor, args := editorCommand()
 	cmd := exec.CommandContext(context.Background(), editor, append(args, file.Name())...) //nolint:gosec // user's configured editor, no shell
-	return tea.ExecProcess(cmd, func(err error) tea.Msg { return helmValuesEditedMsg{draft: msg, path: file.Name(), err: err} })
+	return tea.ExecProcess(cmd, func(err error) tea.Msg { return helmValuesEditedMsg{draft: *msg, path: file.Name(), err: err} })
 }
 
-func (m *Model) applyHelmValuesEdited(msg helmValuesEditedMsg) tea.Cmd {
+func (m *Model) applyHelmValuesEdited(msg *helmValuesEditedMsg) tea.Cmd {
 	defer os.Remove(msg.path)
 	if msg.draft.cluster != m.contextName || msg.draft.ref != m.objectTarget {
 		return nil

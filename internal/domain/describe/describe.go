@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aronk11/correlux/internal/domain/gitops"
 )
@@ -63,6 +64,12 @@ func Object(kind string, raw []byte) []Section {
 
 	if gitops.Identifies(str(doc, "apiVersion"), kind) {
 		sections = describeFlux(kind, doc)
+	}
+
+	if kind == "Secret" {
+		if certificates := certificateSection(doc, time.Now()); certificates != nil {
+			sections = append(sections, *certificates)
+		}
 	}
 
 	// Conditions are how every controller in Kubernetes reports itself, custom
@@ -318,11 +325,22 @@ func describeJob(kind string, doc map[string]any) []Section {
 		overview.add("Schedule", str(spec, "schedule"))
 		overview.add("Suspended", yesNo(boolean(spec, "suspend")))
 		overview.add("Last schedule", str(status, "lastScheduleTime"))
+		overview.add("Last successful run", str(status, "lastSuccessfulTime"))
+		overview.add("Time zone", str(spec, "timeZone"))
+		overview.add("Starting deadline (seconds)", value(spec["startingDeadlineSeconds"]))
+		overview.add("Successful history limit", value(spec["successfulJobsHistoryLimit"]))
+		overview.add("Failed history limit", value(spec["failedJobsHistoryLimit"]))
 		overview.add("Active jobs", strconv.Itoa(len(slice(status, "active"))))
 		overview.add("Concurrency", str(spec, "concurrencyPolicy"))
 		return []Section{overview, templateSection(child(child(spec, "jobTemplate"), "spec"))}
 	}
-	overview.add("Completions", strconv.Itoa(number(spec, "completions")))
+	overview.add("Completions", value(spec["completions"]))
+	for _, field := range []string{"completionMode", "backoffLimit", "backoffLimitPerIndex", "activeDeadlineSeconds", "ttlSecondsAfterFinished"} {
+		overview.add(field, value(spec[field]))
+	}
+	for _, field := range []string{"startTime", "completionTime", "completedIndexes", "failedIndexes"} {
+		overview.add(field, value(status[field]))
+	}
 	overview.add("Parallelism", strconv.Itoa(number(spec, "parallelism")))
 	overview.add("Active", strconv.Itoa(number(status, "active")))
 	overview.add("Succeeded", strconv.Itoa(number(status, "succeeded")))

@@ -259,7 +259,21 @@ func (m *Model) loadObject() tea.Cmd {
 		m.cancelObject()
 	}
 	ref := m.objectTarget
+	if localReport(ref) {
+		gen := m.object.Start()
+		if report, ok := m.localReports[m.reportKey(ref)]; ok {
+			m.object.Succeed(gen, reportObject(ref, report))
+		} else {
+			m.object.Fail(gen, errors.New("this session report is no longer retained; reopen the investigation"))
+		}
+		m.objectLoading = false
+		m.rebuildCommands()
+		return nil
+	}
 	gen := m.object.Start()
+	if ref.Resource == inspectionResource {
+		return m.loadInspection(ref, gen)
+	}
 	if ref.Resource == debugResource {
 		return m.loadDebugSessions(ref, gen)
 	}

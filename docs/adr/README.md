@@ -34,6 +34,8 @@ Michael Nygard's: context, decision, consequences.
 
 | [25](0025-explicit-troubleshooting-sessions.md) | Explicit troubleshooting identities and bounded lifetimes | accepted |
 
+| [26](0026-bounded-investigation-reports.md) | Bounded investigation reports with explicit evidence gaps | accepted |
+
 ## Adding one
 
 Copy the structure of an existing record, take the next number, and open it with

@@ -286,7 +286,7 @@ func (m *Model) confirmHelmValuesArgs(ref objectRef, action string, args []strin
 	}})
 }
 
-func (m *Model) applyHelmChanged(msg helmChangedMsg) tea.Cmd {
+func (m *Model) applyHelmChanged(msg *helmChangedMsg) tea.Cmd {
 	if msg.cluster != m.contextName {
 		return nil
 	}

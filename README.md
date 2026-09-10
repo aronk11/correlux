@@ -668,6 +668,40 @@ debug:
 Standalone sessions run as non-root Linux containers without a service-account
 token or copied application labels/volumes. See [ADR 25](docs/adr/0025-explicit-troubleshooting-sessions.md).
 
+### Connected investigations
+
+Open an object, then use the **Investigate** palette commands:
+
+- **Service routing:** selectors, EndpointSlices, an optional source pod, and
+  selecting source-egress/destination-ingress NetworkPolicies. This reads
+  configuration; use troubleshooting probes to measure connectivity.
+- **Referencing workloads:** find explicit Secret, ConfigMap, PVC and service
+  account references in namespace-local Pods, Deployments, StatefulSets,
+  DaemonSets, Jobs and CronJobs.
+- **Rollout and constraints:** controller state, Deployment ReplicaSet revisions,
+  resource quotas, limit ranges, matching disruption budgets/autoscalers and events.
+- **Storage:** follow a PVC through its StorageClass, PV and node attachments.
+- **Compare configuration:** explicitly select another context and map the target
+  namespace/name. Status, identity metadata and known credential fields are excluded.
+- **Observed changes and snapshots:** inspect changes read during this session,
+  capture a baseline, compare it later, or preview/export a portable snapshot and
+  load it in a later session. These are observations, not cluster audit history.
+
+From the fleet view, **Compare loaded fleet applications** compares images,
+runtime image IDs, requests/limits and replica counts using the stated
+namespace/name matching rule. Missing and partial observations remain visible.
+Object references also connect nodes, volume attachments, RBAC bindings, autoscalers
+and Gateway API routes. TLS Secrets show public certificate names, issuer, validity
+and fingerprint without decoding the private key; trust is not verified.
+
+**Save current investigation** retains navigation, scope and filter in local config.
+Reports offer **Export the visible investigation report**, creating a private JSON
+file without overwriting existing files. Snapshot previews redact known credential
+fields; review custom fields before exporting. Lists are bounded to 200 per kind
+and disclose incomplete reads. Session history retains eight observations for each
+of 32 objects, with a 64 KiB normalized document limit. See
+[ADR 26](docs/adr/0026-bounded-investigation-reports.md) for exact boundaries.
+
 ### Keeping up with a rollout
 
 `Ctrl+F` reloads the current screen on a timer until you turn it off, and the
