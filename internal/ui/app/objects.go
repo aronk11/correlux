@@ -19,6 +19,7 @@ import (
 // a namespace. The API group is resolved from the discovery catalog when the
 // object is fetched, so nothing above this layer has to know about GVRs.
 type objectRef struct {
+	Continuation string
 	HelmMode     string
 	HelmRevision int
 	HelmOffset   int
@@ -212,6 +213,9 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 		return d, nil
 	}
 
+	if ref.Resource == debugResource {
+		return m.debugSessionsView(d, obj)
+	}
 	if ref.Resource == helmResource {
 		return m.helmView(d, obj)
 	}

@@ -260,6 +260,9 @@ func (m *Model) loadObject() tea.Cmd {
 	}
 	ref := m.objectTarget
 	gen := m.object.Start()
+	if ref.Resource == debugResource {
+		return m.loadDebugSessions(ref, gen)
+	}
 	if ref.Resource == helmResource {
 		return m.loadHelmObject(ref, gen)
 	}

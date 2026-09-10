@@ -158,6 +158,7 @@ func run(ctx context.Context, flags globalFlags) error {
 		ConfigWarnings: s.warnings,
 	})
 
+	defer model.Close()
 	program := tea.NewProgram(model, tea.WithContext(ctx))
 	if _, err := program.Run(); err != nil {
 		if errors.Is(err, tea.ErrInterrupted) || errors.Is(err, context.Canceled) {

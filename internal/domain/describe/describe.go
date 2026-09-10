@@ -95,6 +95,7 @@ func describePod(doc map[string]any) []Section {
 	for _, group := range []struct{ field, label string }{
 		{"initContainers", "init "},
 		{"containers", ""},
+		{"ephemeralContainers", "debug "},
 	} {
 		for _, c := range slice(spec, group.field) {
 			container, ok := c.(map[string]any)
@@ -136,7 +137,7 @@ type containerState struct {
 
 func containerStates(status map[string]any) map[string]containerState {
 	out := map[string]containerState{}
-	for _, field := range []string{"initContainerStatuses", "containerStatuses"} {
+	for _, field := range []string{"initContainerStatuses", "containerStatuses", "ephemeralContainerStatuses"} {
 		for _, s := range slice(status, field) {
 			cs, ok := s.(map[string]any)
 			if !ok {
