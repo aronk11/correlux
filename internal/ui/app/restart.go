@@ -83,7 +83,7 @@ func (m *Model) readForRestart(ref objectRef, res kubediscovery.Resource) tea.Cm
 
 // applyRestartProbe turns the document into a confirmation, or into the reason
 // there is nothing to confirm.
-func (m *Model) applyRestartProbe(msg restartProbedMsg) tea.Cmd {
+func (m *Model) applyRestartProbe(msg *restartProbedMsg) tea.Cmd {
 	if msg.gen != m.restartGen {
 		return nil
 	}

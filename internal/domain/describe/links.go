@@ -28,9 +28,10 @@ func Links(kind string, raw []byte) []Link {
 	if gitops.Identifies(str(doc, "apiVersion"), kind) {
 		return fluxLinks(kind, doc, namespace)
 	}
+	extra := operationalLinks(kind, doc, namespace)
 	switch kind {
 	case "Pod":
-		return podLinks(child(doc, "spec"), namespace)
+		return append(extra, podLinks(child(doc, "spec"), namespace)...)
 	case "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Job":
 		return podLinks(child(child(child(doc, "spec"), "template"), "spec"), namespace)
 	case "CronJob":
@@ -46,7 +47,7 @@ func Links(kind string, raw []byte) []Link {
 		}
 		return out
 	}
-	return nil
+	return extra
 }
 
 func podLinks(spec map[string]any, namespace string) []Link {
@@ -56,7 +57,7 @@ func podLinks(spec map[string]any, namespace string) []Link {
 			out = append(out, Link{Kind: kind, Name: name, Namespace: namespace, Detail: detail})
 		}
 	}
-	if name := str(spec, "serviceAccountName"); name != "" && name != "default" {
+	if name := str(spec, "serviceAccountName"); name != "" {
 		add("ServiceAccount", name, "used by pod")
 	}
 	for _, item := range slice(spec, "imagePullSecrets") {

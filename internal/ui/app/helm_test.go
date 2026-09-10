@@ -83,7 +83,7 @@ func TestHelmValuesAreValidatedBeforeConfirmationAndCleanedUp(t *testing.T) {
 			if err := os.WriteFile(path, []byte(tt.values), 0600); err != nil {
 				t.Fatal(err)
 			}
-			cmd := m.applyHelmValuesEdited(helmValuesEditedMsg{draft: helmValuesLoadedMsg{cluster: m.contextName, ref: ref, values: []byte("replicas: 1\n"), args: []string{"upgrade", "api", "example/api"}}, path: path})
+			cmd := m.applyHelmValuesEdited(&helmValuesEditedMsg{draft: helmValuesLoadedMsg{cluster: m.contextName, ref: ref, values: []byte("replicas: 1\n"), args: []string{"upgrade", "api", "example/api"}}, path: path})
 			if tt.valid && (cmd != nil || m.pending == nil || len(m.pending.Diff) == 0) {
 				t.Fatal("valid edit did not enter review gate")
 			}

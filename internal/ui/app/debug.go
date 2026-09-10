@@ -184,7 +184,7 @@ func (m *Model) confirmDebugJob(job *batchv1.Job) tea.Cmd {
 	}})
 }
 
-func (m *Model) applyDebugCreated(msg debugCreatedMsg) tea.Cmd {
+func (m *Model) applyDebugCreated(msg *debugCreatedMsg) tea.Cmd {
 	if msg.cluster != m.contextName {
 		return nil
 	}
@@ -324,7 +324,7 @@ func (m *Model) promptEphemeral() tea.Cmd {
 	return nil
 }
 
-func (m *Model) applyEphemeralAdded(msg ephemeralAddedMsg) tea.Cmd {
+func (m *Model) applyEphemeralAdded(msg *ephemeralAddedMsg) tea.Cmd {
 	if msg.cluster != m.contextName {
 		return nil
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/aronk11/correlux/internal/domain/application"
 	"github.com/aronk11/correlux/internal/domain/diagnosis"
 	"github.com/aronk11/correlux/internal/domain/fleet"
+	"github.com/aronk11/correlux/internal/domain/inspection"
 	"github.com/aronk11/correlux/internal/domain/usage"
 	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	kubediscovery "github.com/aronk11/correlux/internal/kube/discovery"
@@ -101,6 +102,10 @@ type Options struct {
 
 // Model is the root Bubble Tea model.
 type Model struct {
+	restorePending  *config.SavedInvestigation
+	localReports    map[string]inspection.Report
+	observations    map[string][]objectObservation
+	snapshots       map[string]objectObservation
 	forwards        map[int]*forwardSession
 	forwardSequence int
 	cfg             config.Config
