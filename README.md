@@ -628,6 +628,46 @@ controller conditions tell you whether the requested reconciliation completed.
 Argo CD ownership navigation continues to use the generic object inspector.
 See [ADR 24](docs/adr/0024-helm-and-flux-operations.md) for boundaries and rationale.
 
+### Troubleshooting sessions
+
+From `Ctrl+P`, choose **Launch temporary toolbox**, **Check DNS resolution**,
+**Check TCP connectivity**, or **Check HTTP / TLS connectivity**. Select a
+namespace when the current view covers all namespaces, enter the destination,
+and review the image and creation confirmation. Each probe runs in a new pod;
+its policy selection and identity can differ from your application's.
+
+The resulting Job shows progress and failures. Follow its pod to read output
+with `l`, or open the toolbox shell with `x`. Completed probe pods remain
+readable while retained. **Manage troubleshooting sessions** lists Correlux's
+Jobs in the current scope, including failed and finished sessions. Delete a
+session's Job with `D` to stop it and remove its dependent pod. Toolboxes have
+a 15-minute deadline, probes a 60-second deadline, and finished Jobs/pods are
+eligible for automatic cleanup after ten minutes.
+
+On a pod, **Add debug container to this pod** asks for the target container and
+image. It shares that pod's network. Refresh until the debug container is
+running, then choose its named shell from the palette. The container exits
+after 15 minutes, but Kubernetes retains its ephemeral-container entry until
+the pod is deleted.
+
+**Port-forward from this pod** takes `local:remote` ports (`0:80` chooses an
+available local port). It binds only to `127.0.0.1`. The palette lists each
+forward's actual port, original cluster and pod, with a command to stop it.
+Forwards end when Correlux exits; switching context never retargets them.
+
+Images can be overridden with approved registry/digest references:
+
+```yaml
+debug:
+  toolboxImage: busybox:1.37.0
+  curlImage: curlimages/curl:8.21.0
+  networkImage: nicolaka/netshoot:v0.16
+  imagePullSecrets: []
+```
+
+Standalone sessions run as non-root Linux containers without a service-account
+token or copied application labels/volumes. See [ADR 25](docs/adr/0025-explicit-troubleshooting-sessions.md).
+
 ### Keeping up with a rollout
 
 `Ctrl+F` reloads the current screen on a timer until you turn it off, and the
