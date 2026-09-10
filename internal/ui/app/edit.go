@@ -176,6 +176,7 @@ func (m *Model) applyEdited(msg editedMsg) tea.Cmd {
 	m.notice("Applied changes to "+msg.ref.label(), theme.StatusHealthy)
 	if m.view == viewObject && m.objectTarget == msg.ref && msg.object != nil {
 		m.object.Succeed(m.object.Generation(), msg.object)
+		m.rebuildCommands()
 	}
 	return tea.Batch(m.loadApplications(), m.expireNotice())
 }

@@ -19,6 +19,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/aronk11/correlux/internal/domain/gitops"
 )
 
 // Section is one titled table of facts.
@@ -57,6 +59,10 @@ func Object(kind string, raw []byte) []Section {
 		// A kind with no rules of its own is still described: whatever its
 		// author put in its status is what they wanted anybody to see.
 		sections = append(sections, genericSection(doc))
+	}
+
+	if gitops.Identifies(str(doc, "apiVersion"), kind) {
+		sections = describeFlux(kind, doc)
 	}
 
 	// Conditions are how every controller in Kubernetes reports itself, custom

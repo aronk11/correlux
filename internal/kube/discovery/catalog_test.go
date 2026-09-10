@@ -302,3 +302,14 @@ func TestOnlyThePreferredVersionOfAGroupIsListed(t *testing.T) {
 		t.Errorf("widgets appears %d times, want once", widgets)
 	}
 }
+
+func TestQualifiedKindDoesNotOpenAnotherGroupsObject(t *testing.T) {
+	c := &Catalog{Resources: []Resource{
+		{GVR: schema.GroupVersionResource{Group: "other.example", Version: "v1", Resource: "kustomizations"}, GVK: schema.GroupVersionKind{Kind: "Kustomization"}},
+		{GVR: schema.GroupVersionResource{Group: "kustomize.toolkit.fluxcd.io", Version: "v1", Resource: "kustomizations"}, GVK: schema.GroupVersionKind{Kind: "Kustomization"}},
+	}}
+	r, ok := c.Lookup("Kustomization.kustomize.toolkit.fluxcd.io")
+	if !ok || r.Group() != "kustomize.toolkit.fluxcd.io" {
+		t.Fatalf("wrong qualified target: %+v", r)
+	}
+}

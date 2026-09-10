@@ -1,11 +1,16 @@
 package describe
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/aronk11/correlux/internal/domain/gitops"
+)
 
 // Link is an object explicitly referenced by another object's document.
 // Unlike owner relationships these point sideways: a Pod mounts a claim or a
 // ConfigMap, and a claim binds a PersistentVolume.
 type Link struct {
+	Resource  string // Fully qualified resource, when the API group is known.
 	Kind      string
 	Name      string
 	Namespace string
@@ -20,9 +25,16 @@ func Links(kind string, raw []byte) []Link {
 		return nil
 	}
 	namespace := str(child(doc, "metadata"), "namespace")
+	if gitops.Identifies(str(doc, "apiVersion"), kind) {
+		return fluxLinks(kind, doc, namespace)
+	}
 	switch kind {
 	case "Pod":
 		return podLinks(child(doc, "spec"), namespace)
+	case "Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Job":
+		return podLinks(child(child(child(doc, "spec"), "template"), "spec"), namespace)
+	case "CronJob":
+		return podLinks(child(child(child(child(child(doc, "spec"), "jobTemplate"), "spec"), "template"), "spec"), namespace)
 	case "PersistentVolumeClaim":
 		spec := child(doc, "spec")
 		var out []Link
@@ -115,7 +127,7 @@ func uniqueLinks(in []Link) []Link {
 	seen := map[string]bool{}
 	out := make([]Link, 0, len(in))
 	for _, link := range in {
-		key := link.Kind + "\x00" + link.Namespace + "\x00" + link.Name
+		key := link.Resource + "\x00" + link.Kind + "\x00" + link.Namespace + "\x00" + link.Name
 		if seen[key] {
 			continue
 		}

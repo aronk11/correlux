@@ -102,3 +102,12 @@ func (f *Factory) UpdateObject(
 	target := resources.Target{GVR: res.GVR, Namespaced: res.Namespaced}
 	return resources.Update(ctx, cs.Discovery().RESTClient(), target, namespace, name, document)
 }
+
+// PatchObject applies a reviewed merge patch to one discovered resource.
+func (f *Factory) PatchObject(ctx context.Context, contextName string, res discovery.Resource, namespace, name string, patch []byte) (*resources.Object, error) {
+	cs, err := f.Clientset(contextName)
+	if err != nil {
+		return nil, err
+	}
+	return resources.MergePatch(ctx, cs.Discovery().RESTClient(), resources.Target{GVR: res.GVR, Namespaced: res.Namespaced}, namespace, name, patch)
+}

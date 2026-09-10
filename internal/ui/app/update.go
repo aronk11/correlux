@@ -134,6 +134,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logBatchMsg:
 		return m, m.applyLogBatch(msg)
 
+	case helmValuesLoadedMsg:
+		return m, m.applyHelmValuesLoaded(msg)
+	case helmValuesEditedMsg:
+		return m, m.applyHelmValuesEdited(msg)
+	case helmChangedMsg:
+		return m, m.applyHelmChanged(msg)
 	case objectLoadedMsg:
 		if m.object.Accepts(msg.gen) {
 			m.objectLoading = false
@@ -143,6 +149,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.object.Succeed(msg.gen, msg.object)
+		m.rebuildCommands()
 		return m, nil
 
 	case usageLoadedMsg:
