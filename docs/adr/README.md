@@ -30,6 +30,8 @@ Michael Nygard's: context, decision, consequences.
 | [22](0022-client-side-sorting-and-width-aware-columns.md) | A table is ordered on the client, and its columns follow the width | accepted |
 | [23](0023-consistent-sibling-navigation.md) | A detour from an investigation remembers where it was opened from | accepted |
 
+| [24](0024-helm-and-flux-operations.md) | Inspect Helm through Helm and reconcile Flux through its APIs | accepted |
+
 ## Adding one
 
 Copy the structure of an existing record, take the next number, and open it with

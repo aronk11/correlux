@@ -591,21 +591,42 @@ you decide the cost is worth paying.
 
 ### Helm, Flux and Argo CD
 
-Correlux recognises their handwriting. Nothing is installed and nothing is asked
-of them: the workloads those tools create carry labels and annotations saying
-so, and an application reads them.
+Correlux recognises delivery ownership from workload labels and annotations.
+Open the **Delivered by** row to inspect the Helm release, Flux object, or Argo
+CD Application that manages the application.
 
-```
-DELIVERED BY
-  TOOL  OBJECT                NAMESPACE
-  Flux  HelmRelease/payments  flux-system
-```
+**Helm:** `Ctrl+P` → `Helm: browse releases` lists releases in the active scope,
+including failed and pending releases. Open a release for its status, chart,
+revision history, supplied/computed values, manifests, hooks, notes, and links
+to the live objects named in its stored manifest. History entries open the
+selected revision; stored manifests describe that revision, not current state.
+Lists are paged and history shows up to 256 retained revisions.
 
-`Enter` on that row opens the HelmRelease, Kustomization or Argo application
-itself — with its reconciliation conditions, like any other object. Flux is
-recognised ahead of the Helm it deploys through, because the object worth
-looking at is the one that drives the release. An application nothing claims
-says so, which on a cluster run by Flux is itself worth noticing.
+The release palette offers upgrade with a chart reference (reviewing current values in your
+editor, then confirming the diff), rollback to a specified revision, chart tests, and uninstall. Every
+operation previews its consequences and cluster through the existing action
+gate. A Flux controller can restore its desired state after a direct Helm
+operation; prefer changing the managing HelmRelease's source.
+
+These Helm workflows require an installed Helm CLI. It receives an isolated
+copy of Correlux's selected context and never changes your kubeconfig. Existing
+Kubernetes functionality and Flux inspection do not require additional binaries.
+
+**Flux:** palette commands browse the installed source, Kustomization,
+HelmRelease, image automation, and notification resource kinds, including in
+the fleet resource browser. Object details show reconciliation settings,
+reported revisions, artifacts, Helm history and controller conditions. Related
+links follow sources, dependencies, value references, credentials, health
+checks and local managed inventories. Remote-cluster inventories are not
+misrepresented as local resources.
+
+For controllers that support them, the loaded object's palette offers
+reconcile, suspend and resume. HelmReleases additionally offer retry-counter
+reset and forced install/upgrade. These use guarded, conflict-detecting patches;
+controller conditions tell you whether the requested reconciliation completed.
+
+Argo CD ownership navigation continues to use the generic object inspector.
+See [ADR 24](docs/adr/0024-helm-and-flux-operations.md) for boundaries and rationale.
 
 ### Keeping up with a rollout
 

@@ -117,6 +117,7 @@ func (c *Catalog) Lookup(name string) (Resource, bool) {
 	// Fully qualified names win, then plural, singular, kind and short names.
 	for _, match := range []func(Resource) bool{
 		func(r Resource) bool { return strings.EqualFold(r.FullName(), needle) },
+		func(r Resource) bool { return r.Group() != "" && strings.EqualFold(r.Kind()+"."+r.Group(), needle) },
 		func(r Resource) bool { return strings.EqualFold(r.Plural(), needle) },
 		func(r Resource) bool { return strings.EqualFold(r.SingularName, needle) },
 		func(r Resource) bool { return strings.EqualFold(r.Kind(), needle) },
