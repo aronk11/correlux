@@ -29,13 +29,9 @@ Michael Nygard's: context, decision, consequences.
 | [21](0021-update-check.md) | Correlux says when it is out of date, and that is the only thing it asks | accepted |
 | [22](0022-client-side-sorting-and-width-aware-columns.md) | A table is ordered on the client, and its columns follow the width | accepted |
 | [23](0023-consistent-sibling-navigation.md) | A detour from an investigation remembers where it was opened from | accepted |
-
 | [24](0024-helm-and-flux-operations.md) | Inspect Helm through Helm and reconcile Flux through its APIs | accepted |
-
 | [25](0025-explicit-troubleshooting-sessions.md) | Explicit troubleshooting identities and bounded lifetimes | accepted |
-
 | [26](0026-bounded-investigation-reports.md) | Bounded investigation reports with explicit evidence gaps | accepted |
-
 | [27](0027-air-gapped-operation.md) | Air-gapped operation is an explicit session policy | accepted |
 
 ## Adding one
