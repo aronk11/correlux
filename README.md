@@ -677,6 +677,24 @@ debug:
   imagePullSecrets: []
 ```
 
+For a shared registry mirror or proxy, use `debug.registryMirror` instead of
+repeating full references for every default image:
+
+```yaml
+airGapped: true
+debug:
+  registryMirror: registry.internal/dockerhub
+  imagePullPolicy: IfNotPresent # Never for images preloaded on every eligible node
+  # toolboxImage: registry.internal/approved/toolbox:2 # overrides the mirror
+  imagePullSecrets: []
+```
+
+Explicit image references take precedence over mirror defaults and remain
+unchanged. The mirror preserves repository paths such as `library/busybox`.
+The pull policy applies to Jobs and ephemeral containers; the latter retain
+the existing pod's pull secrets. See the [air-gapped guide](docs/air-gapped.md)
+for exact mappings, offline installation and registry preparation.
+
 Standalone sessions run as non-root Linux containers without a service-account
 token or copied application labels/volumes. See [ADR 25](docs/adr/0025-explicit-troubleshooting-sessions.md).
 

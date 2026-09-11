@@ -5,7 +5,7 @@ your change are the ones worth reading.
 
 ## Getting started
 
-Requirements: Go 1.25 or newer, plus Docker (or, on Apple Silicon, Apple's own
+Requirements: Go 1.26.0 or newer, plus Docker (or, on Apple Silicon, Apple's own
 `container` tool — see below) if you want to run the integration tests.
 Nothing else — the tools are pinned and installed on demand into `.tools/`.
 
