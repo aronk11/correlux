@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	kubeclient "github.com/aronk11/correlux/internal/kube/client"
+	"github.com/aronk11/correlux/internal/kube/debug"
 	"github.com/aronk11/correlux/internal/kube/metrics"
 	"github.com/aronk11/correlux/internal/ui/theme"
 )
@@ -76,6 +77,27 @@ func runDoctor(ctx context.Context, flags globalFlags) []checkResult {
 		status: theme.StatusHealthy,
 		detail: fmt.Sprintf("%d context(s) from %s", len(s.kubeconfig.Contexts), strings.Join(s.kubeconfig.Sources, ", ")),
 	})
+	if s.cfg.AirGapped {
+		results = append(results, checkResult{name: "air-gapped", status: theme.StatusHealthy,
+			detail: "enabled; automatic and manual release checks disabled",
+			hint:   "Kubernetes, authentication helpers, Helm and workloads must use locally available dependencies and reachable internal endpoints."})
+		policy := s.cfg.Debug.ImagePullPolicy
+		if policy == "" {
+			policy = "IfNotPresent"
+		}
+		result := checkResult{name: "debug images", status: theme.StatusHealthy, detail: "explicit images required; pull policy " + policy}
+		if _, policyErr := debug.PullPolicy(policy); policyErr != nil {
+			result.status, result.detail = theme.StatusCritical, policyErr.Error()
+		} else if s.cfg.Debug.Image("toolbox", true) == "" || s.cfg.Debug.Image("http", true) == "" || s.cfg.Debug.Image("tcp", true) == "" {
+			result.status = theme.StatusWarning
+			result.hint = "Set debug.registryMirror or individual debug images, or enter approved images when prompted. Use Never for preloaded images without a registry."
+		}
+		if result.status == theme.StatusHealthy {
+			result.detail = "pull policy " + policy
+			result.hint = "Toolbox/DNS: " + s.cfg.Debug.Image("toolbox", true) + "; HTTP: " + s.cfg.Debug.Image("http", true) + "; TCP: " + s.cfg.Debug.Image("tcp", true)
+		}
+		results = append(results, result)
+	}
 
 	kctx, _ := s.kubeconfig.Context(s.context)
 	contextDetail := s.context

@@ -147,3 +147,33 @@ func TestAnExplicitCheckAlwaysAnswers(t *testing.T) {
 		t.Errorf("message = %q, want the good answer said too", m.message)
 	}
 }
+
+func TestAirGappedModeBlocksAutomaticAndForcedUpdates(t *testing.T) {
+	withVersion(t, "v0.15.0")
+	m := newTestModel(t, func(o *Options) { o.Config.AirGapped = true; o.Config.Update.Check = true })
+	for _, force := range []bool{false, true} {
+		if cmd := m.checkForUpdate(force); cmd != nil {
+			t.Fatalf("air-gapped mode scheduled a check with force=%v", force)
+		}
+	}
+	m.checkUpdateNow()
+	if !strings.Contains(m.message, "disabled in air-gapped mode") {
+		t.Fatal(m.message)
+	}
+	for _, command := range m.registry.Commands() {
+		if command.Action == paletteCheckUpdate && command.Enabled {
+			t.Fatal("manual update command is enabled")
+		}
+	}
+	// A previously learned release must not advertise an online upgrade.
+	gen := m.updateCheck.Start()
+	m.updateCheck.Succeed(gen, update.Release{Version: "v99.0.0", URL: "https://example.test/release"})
+	if m.updateHeaderLabel() != "" {
+		t.Fatal("cached update leaked into offline header")
+	}
+	m.backToOverview()
+	out := plainView(m)
+	if !strings.Contains(out, "air-gapped") || strings.Contains(out, "v99.0.0") || strings.Contains(out, "update.check: true") {
+		t.Fatalf("misleading offline session details:\n%s", out)
+	}
+}

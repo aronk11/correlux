@@ -24,6 +24,18 @@ type Options struct {
 	Namespace, Image, Mode, Destination string
 	Seconds                             int64
 	ImagePullSecrets                    []string
+	ImagePullPolicy                     corev1.PullPolicy
+}
+
+// PullPolicy validates a configured policy. Empty keeps Kubernetes defaulting.
+func PullPolicy(value string) (corev1.PullPolicy, error) {
+	policy := corev1.PullPolicy(value)
+	switch policy {
+	case "", corev1.PullAlways, corev1.PullIfNotPresent, corev1.PullNever:
+		return policy, nil
+	default:
+		return "", errors.New("debug.imagePullPolicy must be Always, IfNotPresent or Never")
+	}
 }
 
 // Command constructs an argument vector; destinations never become shell code.
@@ -58,6 +70,9 @@ func Command(mode, destination string, seconds int64) ([]string, error) {
 
 // Job builds a restricted Linux job with a server-enforced deadline and cleanup.
 func Job(opts Options) (*batchv1.Job, error) {
+	if _, err := PullPolicy(string(opts.ImagePullPolicy)); err != nil {
+		return nil, err
+	}
 	if len(validation.IsDNS1123Label(opts.Namespace)) != 0 {
 		return nil, errors.New("select one valid namespace for troubleshooting")
 	}
@@ -76,7 +91,7 @@ func Job(opts Options) (*batchv1.Job, error) {
 		Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{Label: "true"}}, Spec: corev1.PodSpec{
 			RestartPolicy: corev1.RestartPolicyNever, AutomountServiceAccountToken: ptr.To(false), NodeSelector: map[string]string{"kubernetes.io/os": "linux"},
 			SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: ptr.To(true), RunAsUser: ptr.To[int64](1000), SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}},
-			Containers:      []corev1.Container{{Name: "toolbox", Image: opts.Image, Command: command, SecurityContext: SecurityContext(), Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("10m"), corev1.ResourceMemory: resource.MustParse("32Mi")}, Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m"), corev1.ResourceMemory: resource.MustParse("128Mi")}}}},
+			Containers:      []corev1.Container{{Name: "toolbox", Image: opts.Image, ImagePullPolicy: opts.ImagePullPolicy, Command: command, SecurityContext: SecurityContext(), Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("10m"), corev1.ResourceMemory: resource.MustParse("32Mi")}, Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m"), corev1.ResourceMemory: resource.MustParse("128Mi")}}}},
 		}},
 	}}
 	for _, name := range opts.ImagePullSecrets {

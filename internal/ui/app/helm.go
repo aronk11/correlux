@@ -55,6 +55,9 @@ func (m *Model) openHelm(mode string) tea.Cmd {
 	case "upgrade":
 		m.promptTitle = "Upgrade Helm release " + ref.Name
 		m.promptNote = "Enter chart reference and optional version, e.g. oci://registry.example/charts/api 1.2.3. The current values open in your editor before confirmation."
+		if m.cfg.AirGapped {
+			m.promptNote = "Air-gapped: enter a local chart path (with dependencies bundled) or an internal registry reference. Values open in your editor before confirmation."
+		}
 		m.promptRef = objectRef{}
 		m.promptError = ""
 		m.promptInput.SetValue("")
