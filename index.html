@@ -304,8 +304,8 @@ Start the demo to explore the actual Correlux terminal interface.</pre>
             <span aria-hidden="true">⌁</span>
             <h3>Knows your delivery tools</h3>
             <p>
-              Recognises Helm, Flux and Argo CD from the metadata they already
-              write.
+              Inspect and manage Helm releases, reconcile Flux resources, and
+              follow Argo CD metadata back to the application.
             </p>
           </div>
         </div>
@@ -410,7 +410,7 @@ Start the demo to explore the actual Correlux terminal interface.</pre>
               tabindex="0"
               hidden
             >
-              <span class="mini-label">01 / INSTALL WITH GO 1.25.4+</span>
+              <span class="mini-label">01 / INSTALL WITH GO 1.26.0+</span>
               <div class="command">
                 <code
                   >go install
@@ -446,6 +446,10 @@ Start the demo to explore the actual Correlux terminal interface.</pre>
                 href="https://github.com/aronk11/correlux/releases"
                 >Download a release <span aria-hidden="true">↗</span></a
               >
+              <p>
+                Installing in an isolated network? Follow the
+                <a href="docs/air-gapped.html">offline installation guide</a>.
+              </p>
             </div>
             <div class="launch-step">
               <span class="mini-label">02 / MEET YOUR CLUSTER</span>
@@ -542,7 +546,8 @@ Start the demo to explore the actual Correlux terminal interface.</pre>
               No additional component. Correlux talks to the Kubernetes API from
               your terminal using your existing credentials and permissions.
               There is no agent, server or CRD to deploy. Live resource usage
-              optionally uses the metrics API.
+              optionally uses the metrics API. Troubleshooting Jobs and ephemeral
+              debug containers are created only when you explicitly confirm them.
             </p>
           </details>
           <details>
@@ -572,12 +577,27 @@ Start the demo to explore the actual Correlux terminal interface.</pre>
           </details>
           <details>
             <summary>
+              Can I use it without Internet access?<span aria-hidden="true">+</span>
+            </summary>
+            <p>
+              Yes. Transfer a release archive and run <code>correlux --air-gapped</code>.
+              Automatic and manual update checks are disabled. Configure
+              <code>debug.registryMirror</code> or explicit internal images; use
+              <code>imagePullPolicy: Never</code> for preloaded images.
+              Kubernetes and your authentication helpers still need reachable
+              internal endpoints. See the <a href="docs/air-gapped.html">air-gapped guide</a>.
+            </p>
+          </details>
+          <details>
+            <summary>
               How mature is Correlux?<span aria-hidden="true">+</span>
             </summary>
             <p>
               Early and actively evolving. Applications, diagnosis, resource
-              browsing, logs, fleet groups, usage, scale and edit are
-              implemented. Delete, restart and cordon are planned. See the
+              browsing, logs, fleet groups, usage, scale, edit, delete, restart
+              and cordon are implemented. Helm operations, Flux reconciliation,
+              troubleshooting sessions, connected investigations and air-gapped
+              operation are available too. See the
               <a href="https://github.com/aronk11/correlux/releases"
                 >release notes</a
               >

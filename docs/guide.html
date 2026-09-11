@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>User guide — Correlux docs</title><meta name="description" content="User guide for Correlux, the application-first Kubernetes terminal UI."><meta name="theme-color" content="#11151d"><link rel="canonical" href="https://aronk11.github.io/correlux/docs/guide.html"><link rel="icon" href="../assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/style.css"><script src="../assets/main.js" defer></script></head><body>
 <a class="skip-link" href="#main">Skip to content</a><header class="site-header"><a class="brand" href="../" aria-label="Correlux home"><img src="../assets/logo.svg" width="34" height="34" alt="">correlux<span class="brand-dot">_</span></a><nav aria-label="Main navigation"><a href="../#features">The good stuff</a><a href="./" aria-current="page">Docs</a><a href="https://github.com/aronk11/correlux" class="github-link">GitHub ↗</a></nav><a class="button button-small" href="../#install">Get Correlux ↗</a></header>
-<div class="docs-layout"><aside class="docs-sidebar" aria-label="Documentation navigation"><button class="docs-search" data-search>Search docs <kbd>⌘ / Ctrl K</kbd></button><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html" aria-current="page">User guide</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details><summary>ALL 20 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html">21. Correlux says when it is out of date, and that is the only thing it asks</a></details></div><details class="docs-mobile-nav"><summary>Browse documentation</summary><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html" aria-current="page">User guide</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details><summary>ALL 20 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html">21. Correlux says when it is out of date, and that is the only thing it asks</a></details></div></details></aside><main class="doc-article" id="main"><div class="doc-breadcrumb"><a href="./">DOCS</a> / USER GUIDE</div><article class="prose"><h1 id="correlux">Correlux</h1>
+<div class="docs-layout"><aside class="docs-sidebar" aria-label="Documentation navigation"><button class="docs-search" data-search>Search docs <kbd>⌘ / Ctrl K</kbd></button><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html" aria-current="page">User guide</a><a href="air-gapped.html">Air-gapped environments</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details><summary>ALL 27 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html">21. Correlux says when it is out of date, and that is the only thing it asks</a><a href="0022-client-side-sorting-and-width-aware-columns.html">22. A table is ordered on the client, and its columns follow the width</a><a href="0023-consistent-sibling-navigation.html">23. A detour from an investigation remembers where it was opened from</a><a href="0024-helm-and-flux-operations.html">24. Inspect Helm releases through Helm and reconcile Flux through its APIs</a><a href="0025-explicit-troubleshooting-sessions.html">25. Troubleshooting sessions have explicit identity and bounded lifetimes</a><a href="0026-bounded-investigation-reports.html">26. Bounded investigation reports with explicit evidence gaps</a><a href="0027-air-gapped-operation.html">27. Air-gapped operation is an explicit session policy</a></details></div><details class="docs-mobile-nav"><summary>Browse documentation</summary><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html" aria-current="page">User guide</a><a href="air-gapped.html">Air-gapped environments</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details><summary>ALL 27 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html">21. Correlux says when it is out of date, and that is the only thing it asks</a><a href="0022-client-side-sorting-and-width-aware-columns.html">22. A table is ordered on the client, and its columns follow the width</a><a href="0023-consistent-sibling-navigation.html">23. A detour from an investigation remembers where it was opened from</a><a href="0024-helm-and-flux-operations.html">24. Inspect Helm releases through Helm and reconcile Flux through its APIs</a><a href="0025-explicit-troubleshooting-sessions.html">25. Troubleshooting sessions have explicit identity and bounded lifetimes</a><a href="0026-bounded-investigation-reports.html">26. Bounded investigation reports with explicit evidence gaps</a><a href="0027-air-gapped-operation.html">27. Air-gapped operation is an explicit session policy</a></details></div></details></aside><main class="doc-article" id="main"><div class="doc-breadcrumb"><a href="./">DOCS</a> / USER GUIDE</div><article class="prose"><h1 id="correlux">Correlux</h1>
 <p><strong>Don&#39;t show me Kubernetes. Show me what matters.</strong></p>
 <p><strong>Site:</strong> <a href="https://aronk11.github.io/correlux/">https://aronk11.github.io/correlux/</a></p>
 <p>Correlux is a terminal-native Kubernetes operations UI for macOS, Linux and
@@ -51,6 +51,15 @@ fact.</p>
 <p>If Homebrew insists the cask does not exist, it is holding a clone of the tap
 from before that cask was published. <code>brew untap aronk11/tap</code> and install
 again.</p>
+<h3 id="air-gapped-installations">Air-gapped installations</h3>
+<p>Transfer a release archive and its checksum into the environment, then run
+<code>correlux --air-gapped</code> or set <code>airGapped: true</code> in your config. This blocks
+both automatic and manual update checks. Troubleshooting uses explicitly
+configured internal-registry or preloaded images. Set <code>debug.registryMirror</code>
+for shared defaults or override individual images; <code>debug.imagePullPolicy: Never</code>
+supports nodes with no registry access.</p>
+<p>See the <a href="air-gapped.html">offline installation and operations guide</a> and
+<a href="examples/air-gapped.yaml">example config</a>, also included in release archives.</p>
 <h2 id="use">Use</h2>
 <pre><code class="language-bash">correlux                              # start in your current context
 correlux --context prod-eu            # start somewhere specific
@@ -160,6 +169,10 @@ correlux version
 <td>Filter the list on screen</td>
 </tr>
 <tr>
+<td><code>s</code></td>
+<td>Sort the table by a column; the same column again reverses it</td>
+</tr>
+<tr>
 <td><code>Ctrl+R</code></td>
 <td>Refresh</td>
 </tr>
@@ -169,7 +182,7 @@ correlux version
 </tr>
 <tr>
 <td><code>w</code></td>
-<td>Toggle the wide columns in a resource table</td>
+<td>Show or hide the wide columns; they appear on their own where they fit</td>
 </tr>
 <tr>
 <td><code>?</code></td>
@@ -368,6 +381,54 @@ empty list — an empty list looks exactly like a cluster with nothing in it:</p
 the server a different question, and the bar says how much it is showing — with
 <code>loaded</code> when the table is paged and rows below have not been fetched. The order
 never changes; a filtered list is the same list with fewer rows.</p>
+<h3 id="putting-the-worst-first">Putting the worst first</h3>
+<p><code>/restarts&gt;5</code> is &quot;show me the ones that keep dying&quot;. <code>s</code> is &quot;show me the worst
+one first&quot;, and during an incident that is usually the faster of the two,
+because it needs no threshold guessed in advance.</p>
+<p><code>s</code> lists the columns the table is drawing and orders by the one you pick.
+Clicking a heading does the same thing, and choosing the column it is already
+in reverses it:</p>
+<pre><code>STATUS     APPLICATION  PODS  RESTARTS ↓  AGE    DETAIL
+✖ down     payments     0/3          412  1h30m  3 CrashLoopBackOff
+⚠ degraded worker       7/8           38  4d2h   1 OOMKilled
+✓ healthy  api          12/12          0  9d
+</code></pre>
+<p>The heading says which column and which way, so the order on screen is never
+something you have to remember having asked for. A column counted rather than
+named — restarts, age, a count of errors — opens at the top, because the reason
+to order a table by restarts is never to find the pod that has not restarted.</p>
+<p>It reads a cell exactly as the filter does: an age column is a duration, every
+other one is a number with the suffixes Kubernetes prints, so <code>500m</code> is half a
+CPU in one column and five hundred minutes in another. A table where <code>age&lt;1h</code>
+and ordering by age disagreed about what an age is would be worse than one that
+could not sort at all.</p>
+<p>Cells with nothing in them — an empty column, a <code>—</code> — go last whichever way the
+sort runs: an unset value is not a small one, and a column sorted worst-first
+should not open on a screen of blanks. Rows the column cannot tell apart keep
+the order they arrived in, so a sorted table does not reshuffle itself on every
+reload.</p>
+<p>Sorting is client-side, over the rows Correlux has, and each screen keeps its
+own order: ordering the dashboard by restarts says nothing about how you want a
+list of nodes. The way back is in the picker — <em>worst first</em> on the dashboard,
+the server&#39;s own order in a resource table.</p>
+<p>Where a table is paged and rows below have not been fetched, the order says so
+— <code>500+ rows, sorted among those loaded</code> — because the first row of a sorted
+page is the worst of what is <em>loaded</em>, and on a paged table that is not the
+same claim (<a href="0022-client-side-sorting-and-width-aware-columns.html">ADR 22</a>).</p>
+<h3 id="the-columns-you-have-room-for">The columns you have room for</h3>
+<p>A resource table draws every column that fits. On a wide terminal that is all
+of them, including the ones <code>kubectl get -o wide</code> hides; on a narrow one the
+secondary columns go first and the ones that identify the object stay.</p>
+<p><code>w</code> overrides it in whichever direction the screen is currently in — hiding the
+extra columns where they are shown, and squeezing them in where they are not,
+narrowing their neighbours rather than answering the key with no visible change
+at all.</p>
+<p>Marking a column wide says it is the first to go when space runs out. It does
+not say it should be hidden while space remains: a 200-column terminal drawing
+the same four columns an 80-column one draws, and leaving the rest blank, costs
+the reader the information and gains them nothing. <code>kubectl</code> cannot know how
+wide your terminal is; Correlux lays out the frame and does
+(<a href="0022-client-side-sorting-and-width-aware-columns.html">ADR 22</a>).</p>
 <h3 id="changing-something">Changing something</h3>
 <p><code>S</code> scales the selected workload, <code>e</code> opens the object in <code>$EDITOR</code>. Both end at
 the same screen, which states what the change does before it happens:</p>
@@ -519,18 +580,112 @@ fleet, or you are inside one cluster acting on it
 did not answer, and the timer does not refresh this screen — <code>Ctrl+R</code> does, when
 you decide the cost is worth paying.</p>
 <h3 id="helm-flux-and-argo-cd">Helm, Flux and Argo CD</h3>
-<p>Correlux recognises their handwriting. Nothing is installed and nothing is asked
-of them: the workloads those tools create carry labels and annotations saying
-so, and an application reads them.</p>
-<pre><code>DELIVERED BY
-  TOOL  OBJECT                NAMESPACE
-  Flux  HelmRelease/payments  flux-system
+<p>Correlux recognises delivery ownership from workload labels and annotations.
+Open the <strong>Delivered by</strong> row to inspect the Helm release, Flux object, or Argo
+CD Application that manages the application.</p>
+<p><strong>Helm:</strong> <code>Ctrl+P</code> → <code>Helm: browse releases</code> lists releases in the active scope,
+including failed and pending releases. Open a release for its status, chart,
+revision history, supplied/computed values, manifests, hooks, notes, and links
+to the live objects named in its stored manifest. History entries open the
+selected revision; stored manifests describe that revision, not current state.
+Lists are paged and history shows up to 256 retained revisions.</p>
+<p>The release palette offers upgrade with a chart reference (reviewing current values in your
+editor, then confirming the diff), rollback to a specified revision, chart tests, and uninstall. Every
+operation previews its consequences and cluster through the existing action
+gate. A Flux controller can restore its desired state after a direct Helm
+operation; prefer changing the managing HelmRelease&#39;s source.</p>
+<p>These Helm workflows require an installed Helm CLI. It receives an isolated
+copy of Correlux&#39;s selected context and never changes your kubeconfig. Existing
+Kubernetes functionality and Flux inspection do not require additional binaries.</p>
+<p><strong>Flux:</strong> palette commands browse the installed source, Kustomization,
+HelmRelease, image automation, and notification resource kinds, including in
+the fleet resource browser. Object details show reconciliation settings,
+reported revisions, artifacts, Helm history and controller conditions. Related
+links follow sources, dependencies, value references, credentials, health
+checks and local managed inventories. Remote-cluster inventories are not
+misrepresented as local resources.</p>
+<p>For controllers that support them, the loaded object&#39;s palette offers
+reconcile, suspend and resume. HelmReleases additionally offer retry-counter
+reset and forced install/upgrade. These use guarded, conflict-detecting patches;
+controller conditions tell you whether the requested reconciliation completed.</p>
+<p>Argo CD ownership navigation continues to use the generic object inspector.
+See <a href="0024-helm-and-flux-operations.html">ADR 24</a> for boundaries and rationale.</p>
+<h3 id="troubleshooting-sessions">Troubleshooting sessions</h3>
+<p>From <code>Ctrl+P</code>, choose <strong>Launch temporary toolbox</strong>, <strong>Check DNS resolution</strong>,
+<strong>Check TCP connectivity</strong>, or <strong>Check HTTP / TLS connectivity</strong>. Select a
+namespace when the current view covers all namespaces, enter the destination,
+and review the image and creation confirmation. Each probe runs in a new pod;
+its policy selection and identity can differ from your application&#39;s.</p>
+<p>The resulting Job shows progress and failures. Follow its pod to read output
+with <code>l</code>, or open the toolbox shell with <code>x</code>. Completed probe pods remain
+readable while retained. <strong>Manage troubleshooting sessions</strong> lists Correlux&#39;s
+Jobs in the current scope, including failed and finished sessions. Delete a
+session&#39;s Job with <code>D</code> to stop it and remove its dependent pod. Toolboxes have
+a 15-minute deadline, probes a 60-second deadline, and finished Jobs/pods are
+eligible for automatic cleanup after ten minutes.</p>
+<p>On a pod, <strong>Add debug container to this pod</strong> asks for the target container and
+image. It shares that pod&#39;s network. Refresh until the debug container is
+running, then choose its named shell from the palette. The container exits
+after 15 minutes, but Kubernetes retains its ephemeral-container entry until
+the pod is deleted.</p>
+<p><strong>Port-forward from this pod</strong> takes <code>local:remote</code> ports (<code>0:80</code> chooses an
+available local port). It binds only to <code>127.0.0.1</code>. The palette lists each
+forward&#39;s actual port, original cluster and pod, with a command to stop it.
+Forwards end when Correlux exits; switching context never retargets them.</p>
+<p>Images can be overridden with approved registry/digest references:</p>
+<pre><code class="language-yaml">debug:
+  toolboxImage: busybox:1.37.0
+  curlImage: curlimages/curl:8.21.0
+  networkImage: nicolaka/netshoot:v0.16
+  imagePullSecrets: []
 </code></pre>
-<p><code>Enter</code> on that row opens the HelmRelease, Kustomization or Argo application
-itself — with its reconciliation conditions, like any other object. Flux is
-recognised ahead of the Helm it deploys through, because the object worth
-looking at is the one that drives the release. An application nothing claims
-says so, which on a cluster run by Flux is itself worth noticing.</p>
+<p>For a shared registry mirror or proxy, use <code>debug.registryMirror</code> instead of
+repeating full references for every default image:</p>
+<pre><code class="language-yaml">airGapped: true
+debug:
+  registryMirror: registry.internal/dockerhub
+  imagePullPolicy: IfNotPresent # Never for images preloaded on every eligible node
+  # toolboxImage: registry.internal/approved/toolbox:2 # overrides the mirror
+  imagePullSecrets: []
+</code></pre>
+<p>Explicit image references take precedence over mirror defaults and remain
+unchanged. The mirror preserves repository paths such as <code>library/busybox</code>.
+The pull policy applies to Jobs and ephemeral containers; the latter retain
+the existing pod&#39;s pull secrets. See the <a href="air-gapped.html">air-gapped guide</a>
+for exact mappings, offline installation and registry preparation.</p>
+<p>Standalone sessions run as non-root Linux containers without a service-account
+token or copied application labels/volumes. See <a href="0025-explicit-troubleshooting-sessions.html">ADR 25</a>.</p>
+<h3 id="connected-investigations">Connected investigations</h3>
+<p>Open an object, then use the <strong>Investigate</strong> palette commands:</p>
+<ul>
+<li><strong>Service routing:</strong> selectors, EndpointSlices, an optional source pod, and
+selecting source-egress/destination-ingress NetworkPolicies. This reads
+configuration; use troubleshooting probes to measure connectivity.</li>
+<li><strong>Referencing workloads:</strong> find explicit Secret, ConfigMap, PVC and service
+account references in namespace-local Pods, Deployments, StatefulSets,
+DaemonSets, Jobs and CronJobs.</li>
+<li><strong>Rollout and constraints:</strong> controller state, Deployment ReplicaSet revisions,
+resource quotas, limit ranges, matching disruption budgets/autoscalers and events.</li>
+<li><strong>Storage:</strong> follow a PVC through its StorageClass, PV and node attachments.</li>
+<li><strong>Compare configuration:</strong> explicitly select another context and map the target
+namespace/name. Status, identity metadata and known credential fields are excluded.</li>
+<li><strong>Observed changes and snapshots:</strong> inspect changes read during this session,
+capture a baseline, compare it later, or preview/export a portable snapshot and
+load it in a later session. These are observations, not cluster audit history.</li>
+</ul>
+<p>From the fleet view, <strong>Compare loaded fleet applications</strong> compares images,
+runtime image IDs, requests/limits and replica counts using the stated
+namespace/name matching rule. Missing and partial observations remain visible.
+Object references also connect nodes, volume attachments, RBAC bindings, autoscalers
+and Gateway API routes. TLS Secrets show public certificate names, issuer, validity
+and fingerprint without decoding the private key; trust is not verified.</p>
+<p><strong>Save current investigation</strong> retains navigation, scope and filter in local config.
+Reports offer <strong>Export the visible investigation report</strong>, creating a private JSON
+file without overwriting existing files. Snapshot previews redact known credential
+fields; review custom fields before exporting. Lists are bounded to 200 per kind
+and disclose incomplete reads. Session history retains eight observations for each
+of 32 objects, with a 64 KiB normalized document limit. See
+<a href="0026-bounded-investigation-reports.html">ADR 26</a> for exact boundaries.</p>
 <h3 id="keeping-up-with-a-rollout">Keeping up with a rollout</h3>
 <p><code>Ctrl+F</code> reloads the current screen on a timer until you turn it off, and the
 header says <code>auto 2s</code> while it does. It is off by default, refetches only what
@@ -573,10 +728,10 @@ saying it did not happen, because a check that cannot run must never read as
 &quot;up to date&quot;.</p>
 <p>One line switches it off, and the same screen then says so:</p>
 <pre><code class="language-yaml">update:
-  check: false # Correlux contacts nothing but Kubernetes
+  check: false # disable automatic release checks
 </code></pre>
 <p><code>Check for a newer Correlux</code> in the palette asks on the spot, whatever the
-setting says — asking is consent — and <code>correlux version</code> prints what the last
+<code>update.check</code> setting says, unless air-gapped mode is enabled. <code>correlux version</code> prints what the last
 check learned without ever performing one, so it cannot hang in a script.
 (<a href="0021-update-check.html">ADR 21</a>)</p>
 <h3 id="switching-context-is-session-local">Switching context is session-local</h3>
@@ -593,6 +748,7 @@ carry a <code>PROD</code> badge — in text, not only in colour.</p>
 <li>Windows: <code>%APPDATA%\correlux\config.yaml</code></li>
 </ul>
 <pre><code class="language-yaml">theme: auto # auto | dark | light
+airGapped: false # true blocks all release checks and public debug-image defaults
 
 startup:
   context: &quot;&quot;
@@ -622,6 +778,8 @@ keybindings:
   applications: ctrl+a
   fleet: F
   search: &quot;/&quot;
+  table.sort: s
+  table.wide: w
   why: ctrl+w
   object.yaml: &quot;y&quot;
   object.decode: b

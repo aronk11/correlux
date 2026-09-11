@@ -1,0 +1,164 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Air-gapped environments — Correlux docs</title><meta name="description" content="Air-gapped environments for Correlux, the application-first Kubernetes terminal UI."><meta name="theme-color" content="#11151d"><link rel="canonical" href="https://aronk11.github.io/correlux/docs/air-gapped.html"><link rel="icon" href="../assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/style.css"><script src="../assets/main.js" defer></script></head><body>
+<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><a class="brand" href="../" aria-label="Correlux home"><img src="../assets/logo.svg" width="34" height="34" alt="">correlux<span class="brand-dot">_</span></a><nav aria-label="Main navigation"><a href="../#features">The good stuff</a><a href="./" aria-current="page">Docs</a><a href="https://github.com/aronk11/correlux" class="github-link">GitHub ↗</a></nav><a class="button button-small" href="../#install">Get Correlux ↗</a></header>
+<div class="docs-layout"><aside class="docs-sidebar" aria-label="Documentation navigation"><button class="docs-search" data-search>Search docs <kbd>⌘ / Ctrl K</kbd></button><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html">User guide</a><a href="air-gapped.html" aria-current="page">Air-gapped environments</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details><summary>ALL 27 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html">21. Correlux says when it is out of date, and that is the only thing it asks</a><a href="0022-client-side-sorting-and-width-aware-columns.html">22. A table is ordered on the client, and its columns follow the width</a><a href="0023-consistent-sibling-navigation.html">23. A detour from an investigation remembers where it was opened from</a><a href="0024-helm-and-flux-operations.html">24. Inspect Helm releases through Helm and reconcile Flux through its APIs</a><a href="0025-explicit-troubleshooting-sessions.html">25. Troubleshooting sessions have explicit identity and bounded lifetimes</a><a href="0026-bounded-investigation-reports.html">26. Bounded investigation reports with explicit evidence gaps</a><a href="0027-air-gapped-operation.html">27. Air-gapped operation is an explicit session policy</a></details></div><details class="docs-mobile-nav"><summary>Browse documentation</summary><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html">User guide</a><a href="air-gapped.html" aria-current="page">Air-gapped environments</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details><summary>ALL 27 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html">21. Correlux says when it is out of date, and that is the only thing it asks</a><a href="0022-client-side-sorting-and-width-aware-columns.html">22. A table is ordered on the client, and its columns follow the width</a><a href="0023-consistent-sibling-navigation.html">23. A detour from an investigation remembers where it was opened from</a><a href="0024-helm-and-flux-operations.html">24. Inspect Helm releases through Helm and reconcile Flux through its APIs</a><a href="0025-explicit-troubleshooting-sessions.html">25. Troubleshooting sessions have explicit identity and bounded lifetimes</a><a href="0026-bounded-investigation-reports.html">26. Bounded investigation reports with explicit evidence gaps</a><a href="0027-air-gapped-operation.html">27. Air-gapped operation is an explicit session policy</a></details></div></details></aside><main class="doc-article" id="main"><div class="doc-breadcrumb"><a href="./">DOCS</a> / AIR-GAPPED ENVIRONMENTS</div><article class="prose"><h1 id="running-correlux-in-an-air-gapped-environment">Running Correlux in an air-gapped environment</h1>
+<p>Correlux runs on a workstation or bastion that can reach your Kubernetes API
+servers. It does not need a hosted service, an agent, or Internet access to
+browse resources, diagnose problems, read logs, open shells, or port-forward.
+Air-gapped mode disables every Correlux release check, including manual checks,
+and removes public-image defaults from troubleshooting prompts.</p>
+<h2 id="transfer-and-install">Transfer and install</h2>
+<p>On a connected machine, download the archive for your operating system and CPU
+and <code>checksums.txt</code> from the same <a href="https://github.com/aronk11/correlux/releases">release</a>.
+Transfer them through your approved process. The archive includes the binary,
+LICENSE, NOTICE, README, this guide, and <code>docs/examples/air-gapped.yaml</code>.</p>
+<p>On the destination, calculate the archive&#39;s SHA-256 and compare it with the
+matching entry in the transferred <code>checksums.txt</code> before extracting:</p>
+<pre><code class="language-sh"># Linux; substitute the actual downloaded archive name.
+sha256sum correlux_VERSION_linux_amd64.tar.gz
+# macOS
+shasum -a 256 correlux_VERSION_darwin_arm64.tar.gz
+</code></pre>
+<p>On Windows use <code>Get-FileHash .\correlux_VERSION_windows_amd64.zip -Algorithm SHA256</code>.
+The checksum detects transfer corruption; trust the release and checksum through
+your organization&#39;s artifact approval process. Extract the archive and place
+<code>correlux</code> (or <code>correlux.exe</code>) on <code>PATH</code>. No Go toolchain or package manager is
+needed. On macOS, transferred binaries may require approval under your local
+Gatekeeper policy. Keep this guide locally; it needs no online assets.</p>
+<p>Enable the mode on the first launch:</p>
+<pre><code class="language-sh">correlux --air-gapped --kubeconfig /path/to/internal-kubeconfig
+correlux --air-gapped --kubeconfig /path/to/internal-kubeconfig doctor
+</code></pre>
+<p>Or put <code>airGapped: true</code> in your Correlux config. Copy and adapt the supplied
+<a href="examples/air-gapped.yaml">example</a>, then run <code>correlux --config /path/to/config.yaml</code>.
+The default config locations are <code>~/.config/correlux/config.yaml</code> on Linux/macOS
+(<code>XDG_CONFIG_HOME</code> is honoured) and <code>%APPDATA%\correlux\config.yaml</code> on Windows.
+<code>CORRELUX_CONFIG_DIR</code> can point to a managed directory.</p>
+<p>The flag enables the mode for that process. A config with <code>airGapped: true</code>
+cannot be overridden with <code>--air-gapped=false</code>. The session screen and <code>doctor</code>
+report the mode. The update command is disabled, and cached update banners are
+hidden. <code>update.check: false</code> alone only disables automatic checks; use
+<code>airGapped: true</code> to block manual checks too. Invalid or unreadable configuration
+stops startup instead of silently selecting online defaults. An absent config
+still uses defaults, so keep <code>--air-gapped</code> in your launcher when relying on it.</p>
+<h2 id="troubleshooting-images">Troubleshooting images</h2>
+<p>Resource browsing and diagnosis do not launch containers. Toolboxes,
+DNS/HTTP/TCP probes, and ephemeral debug containers require images available to
+the cluster. Correlux neither downloads nor imports these images itself.</p>
+<p>For an internal registry, mirror approved images for the nodes&#39; architectures,
+configure the nodes&#39; registry trust, and set:</p>
+<pre><code class="language-yaml">airGapped: true
+debug:
+  toolboxImage: registry.internal/ops/busybox:1.37.0
+  curlImage: registry.internal/ops/curl:8.21.0
+  networkImage: registry.internal/ops/netshoot:v0.16
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets:
+    - internal-registry
+</code></pre>
+<p>Alternatively, configure one registry mirror or registry proxy prefix for all
+default images:</p>
+<pre><code class="language-yaml">airGapped: true
+debug:
+  registryMirror: registry.internal:5000/dockerhub
+  imagePullPolicy: IfNotPresent
+  # Optional override for just one image (never rewritten):
+  toolboxImage: registry.internal/approved/toolbox:2
+</code></pre>
+<p><code>registryMirror</code> is a registry host with an optional port and repository/project
+path, not an HTTP proxy URL. Do not include <code>https://</code>, credentials, a tag or a
+digest. Registry hosts need a dot, an explicit port, or the name <code>localhost</code>;
+a bare <code>registry/cache</code> would be interpreted as a Docker Hub repository. A
+trailing slash is accepted. Use <code>imagePullSecrets</code> for registry credentials;
+TLS trust is configured on the Kubernetes nodes.</p>
+<p>The precedence is: an explicit image reference, otherwise the mirror plus the
+standard repository, otherwise the public default in connected mode. With no
+mirror or override, air-gapped mode leaves the prompt empty. References entered
+in the prompt are used exactly as entered. No retry falls back to a public image.</p>
+<p>For the prefix <code>registry.internal:5000/dockerhub</code>, defaults resolve as follows:</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Scrollable reference table"><table>
+<thead>
+<tr>
+<th>Use</th>
+<th>Image</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Toolbox, DNS, ephemeral container</td>
+<td><code>registry.internal:5000/dockerhub/library/busybox:1.37.0</code></td>
+</tr>
+<tr>
+<td>HTTP/TLS</td>
+<td><code>registry.internal:5000/dockerhub/curlimages/curl:8.21.0</code></td>
+</tr>
+<tr>
+<td>TCP</td>
+<td><code>registry.internal:5000/dockerhub/nicolaka/netshoot:v0.16</code></td>
+</tr>
+</tbody></table>
+</div><p>The mirror must expose those repository paths. For another layout or a different
+image version, set the full <code>toolboxImage</code>, <code>curlImage</code>, or <code>networkImage</code> override.
+This setting selects references only for Correlux&#39;s own debug containers; it
+does not change the node runtime&#39;s mirror configuration or application images.
+Default versions can change with Correlux releases; explicit overrides pin your
+approved versions independently.</p>
+<p>A registry proxy that fetches upstream on demand still needs its upstream
+connection. For a fully disconnected environment, populate all required images
+in the internal registry before disconnecting, or use preloaded node images.
+Doctor shows the resolved default image references without contacting the registry.</p>
+<p>These are example mirror names; populate your registry before using them.
+Digest references are supported. Toolbox images need <code>/bin/sh</code> and <code>sleep</code>;
+DNS probes need <code>nslookup</code>, HTTP/TLS probes need <code>curl</code>, and TCP probes need
+<code>nc</code> with <code>-v -z -w</code> support. Images must run as UID 1000 with a read-only root
+filesystem and dropped capabilities. Include your internal CA trust in the
+curl image for TLS probes; Correlux does not disable certificate verification.</p>
+<p>If there is no registry, transfer image archives and import them into the
+Kubernetes container runtime on every eligible node using your runtime&#39;s
+supported procedure. Set <code>debug.imagePullPolicy: Never</code> and use image references
+that match the imported images exactly. Missing images fail visibly; there is
+no fallback pull. A Docker image loaded only on your workstation is not an
+image loaded on a Kubernetes node.</p>
+<p>Air-gapped mode defaults to <code>IfNotPresent</code>, including images tagged <code>latest</code>.
+<code>Never</code> prevents image pulls; <code>Always</code> remains available for an internal registry
+that requires it. Outside air-gapped mode, an omitted policy keeps Kubernetes&#39;
+normal default. The policy applies to both Jobs and ephemeral containers and is
+shown before confirmation. Admission policies can override or reject these
+settings; verify the admitted pod and node configuration. See the Kubernetes
+<a href="https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy">image pull policy documentation</a>.</p>
+<p>Missing image settings without a mirror leave the prompt empty and require an explicit image.
+Job pull secrets must exist in the target namespace. Ephemeral containers use
+the existing pod&#39;s pull secrets; Correlux does not add the configured Job secrets
+to that pod. Its configured pull policy still applies to the new container.</p>
+<h2 id="authentication-and-optional-integrations">Authentication and optional integrations</h2>
+<p>Use kubeconfig endpoints, DNS, CA certificates and credentials valid inside the
+enclave. Referenced certificate files must be present. Install any kubeconfig
+<code>exec</code> authentication helper locally, including its dependencies. If a helper
+needs a public identity provider, supply an approved offline-capable credential
+flow or reachable internal identity service. Air-gapped mode is not a network
+sandbox for credential helpers, editors, Helm, or commands run inside pods.</p>
+<p>Install Helm 3 or 4 from approved offline media on <code>PATH</code> to use Helm operations.
+For upgrades, transfer a local chart archive or directory with dependencies
+already bundled, or use a reachable internal chart/OCI registry. The upgrade
+prompt accepts a local path such as <code>/opt/charts/api-1.2.3.tgz</code>; Helm supports
+local charts as well as repository references. See <a href="https://helm.sh/docs/helm/helm_upgrade/">Helm upgrade</a>.
+Mirror workload and hook images too. Inspection and rollback use release data
+in the cluster; hooks and replacement pods still need their images available.</p>
+<p>Flux runs in the cluster. Point its Git, OCI and Helm sources at internal
+mirrors and make its controller images and credentials available there.
+Correlux&#39;s reconciliation action does not rewrite sources. Metrics Server is
+optional; mirror and install it separately if you need usage metrics. Without
+it, the rest of Correlux works and usage reports that metrics are unavailable.</p>
+<h2 id="verify-and-upgrade-offline">Verify and upgrade offline</h2>
+<p>Run <code>correlux --air-gapped doctor</code>. It probes the selected Kubernetes API and
+permissions, reports the release-check policy and missing image defaults, and
+checks metrics availability. It does not pull images or test every registry,
+helper, chart, or fleet member. Then browse resources, read pod logs, and create
+a reviewed test toolbox to verify your image setup. Verify an ephemeral
+container separately if you use that workflow. Use cluster egress controls to
+enforce your network policy for helpers and workloads.</p>
+<p>To upgrade, repeat the archive transfer and checksum verification, close
+Correlux, replace the binary, and restart with the same config or flag. There
+is no automatic download or self-updater. <code>correlux version</code> reads local version
+metadata and any existing release cache only; it never makes a network request.</p>
+</article><a class="doc-edit" href="https://github.com/aronk11/correlux/edit/main/docs/air-gapped.md">Improve this page on GitHub ↗</a></main><nav class="docs-toc" aria-label="On this page"><span>ON THIS PAGE</span><a href="#transfer-and-install">Transfer and install</a><a href="#troubleshooting-images">Troubleshooting images</a><a href="#authentication-and-optional-integrations">Authentication and optional integrations</a><a href="#verify-and-upgrade-offline">Verify and upgrade offline</a></nav></div>
+<footer class="site-footer section-wrap"><a class="brand" href="../"><img src="../assets/logo.svg" width="28" height="28" alt="">correlux<span class="brand-dot">_</span></a><span>Less cluster. More clarity.</span><nav aria-label="Footer"><a href="contributing.html">Contribute</a><a href="https://github.com/aronk11/correlux/issues">Issues</a><a href="https://github.com/aronk11/correlux/blob/main/LICENSE">Apache 2.0</a></nav></footer>
+<dialog class="search-dialog" aria-labelledby="search-label"><div class="search-top"><label id="search-label" class="sr-only" for="docs-query">Search documentation</label><input id="docs-query" type="search" placeholder="Search documentation…" autocomplete="off"><button class="search-close" aria-label="Close search">ESC</button></div><div class="search-results"></div><div class="search-foot search-count" role="status" aria-live="polite">Search locally. No account. No tracking.</div></dialog><div class="toast" role="status" aria-live="polite"></div></body></html>

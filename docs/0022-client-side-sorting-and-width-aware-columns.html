@@ -1,0 +1,92 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>22. A table is ordered on the client, and its columns follow the width — Correlux docs</title><meta name="description" content="22. A table is ordered on the client, and its columns follow the width for Correlux, the application-first Kubernetes terminal UI."><meta name="theme-color" content="#11151d"><link rel="canonical" href="https://aronk11.github.io/correlux/docs/0022-client-side-sorting-and-width-aware-columns.html"><link rel="icon" href="../assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/style.css"><script src="../assets/main.js" defer></script></head><body>
+<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><a class="brand" href="../" aria-label="Correlux home"><img src="../assets/logo.svg" width="34" height="34" alt="">correlux<span class="brand-dot">_</span></a><nav aria-label="Main navigation"><a href="../#features">The good stuff</a><a href="./" aria-current="page">Docs</a><a href="https://github.com/aronk11/correlux" class="github-link">GitHub ↗</a></nav><a class="button button-small" href="../#install">Get Correlux ↗</a></header>
+<div class="docs-layout"><aside class="docs-sidebar" aria-label="Documentation navigation"><button class="docs-search" data-search>Search docs <kbd>⌘ / Ctrl K</kbd></button><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html">User guide</a><a href="air-gapped.html">Air-gapped environments</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details open><summary>ALL 27 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html">21. Correlux says when it is out of date, and that is the only thing it asks</a><a href="0022-client-side-sorting-and-width-aware-columns.html" aria-current="page">22. A table is ordered on the client, and its columns follow the width</a><a href="0023-consistent-sibling-navigation.html">23. A detour from an investigation remembers where it was opened from</a><a href="0024-helm-and-flux-operations.html">24. Inspect Helm releases through Helm and reconcile Flux through its APIs</a><a href="0025-explicit-troubleshooting-sessions.html">25. Troubleshooting sessions have explicit identity and bounded lifetimes</a><a href="0026-bounded-investigation-reports.html">26. Bounded investigation reports with explicit evidence gaps</a><a href="0027-air-gapped-operation.html">27. Air-gapped operation is an explicit session policy</a></details></div><details class="docs-mobile-nav"><summary>Browse documentation</summary><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html">User guide</a><a href="air-gapped.html">Air-gapped environments</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details open><summary>ALL 27 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html">21. Correlux says when it is out of date, and that is the only thing it asks</a><a href="0022-client-side-sorting-and-width-aware-columns.html" aria-current="page">22. A table is ordered on the client, and its columns follow the width</a><a href="0023-consistent-sibling-navigation.html">23. A detour from an investigation remembers where it was opened from</a><a href="0024-helm-and-flux-operations.html">24. Inspect Helm releases through Helm and reconcile Flux through its APIs</a><a href="0025-explicit-troubleshooting-sessions.html">25. Troubleshooting sessions have explicit identity and bounded lifetimes</a><a href="0026-bounded-investigation-reports.html">26. Bounded investigation reports with explicit evidence gaps</a><a href="0027-air-gapped-operation.html">27. Air-gapped operation is an explicit session policy</a></details></div></details></aside><main class="doc-article" id="main"><div class="doc-breadcrumb"><a href="./">DOCS</a> / 22. A TABLE IS ORDERED ON THE CLIENT, AND ITS COLUMNS FOLLOW THE WIDTH</div><article class="prose"><h1 id="22-a-table-is-ordered-on-the-client-and-its-columns-follow-the-width">22. A table is ordered on the client, and its columns follow the width</h1>
+<ul>
+<li>Status: accepted</li>
+<li>Date: 2026-09-09</li>
+</ul>
+<h2 id="context">Context</h2>
+<p>Correlux renders every resource table from the API server&#39;s own output
+(<a href="0013-server-side-tables.html">ADR 13</a>). That decision answers <em>which columns</em>
+and <em>what is in them</em>. It left two questions unanswered, and both of them turn
+out to be the reader&#39;s rather than the server&#39;s.</p>
+<p><strong>In what order?</strong> The filter answers &quot;which rows&quot;: <code>restarts&gt;5</code> is &quot;show me
+the ones that keep dying&quot;. Nothing answered &quot;in what order&quot;, so the only way to
+find the worst pod in a namespace was to guess a threshold in advance and
+narrow until few enough rows were left to read. During an incident that is the
+wrong shape of question — you do not know the threshold yet, which is why you
+are looking.</p>
+<p>The API server cannot help here. <code>list</code> offers no ordering, and the printer
+columns a CRD declares are strings rendered for display: there is no field
+selector that says &quot;sort by the third <code>additionalPrinterColumn</code>&quot;. Ordering
+either happens on the client or it does not happen.</p>
+<p><strong>At what width?</strong> Kubernetes marks a printer column with a <code>priority</code>, and
+<code>kubectl</code> reads that as &quot;hide unless <code>-o wide</code>&quot;. Correlux inherited the
+reading, and it is the wrong one for a full-screen terminal application.
+<code>kubectl</code> prints into a stream and cannot know how wide the reader&#39;s terminal
+is. Correlux lays out a frame and knows exactly. Carrying <code>kubectl</code>&#39;s guess
+across meant a 200-column terminal drew the same four columns an 80-column one
+drew and left the rest of the row blank, with the node, the IP and the manager
+that deployed the workload one keystroke away for no reason but a flag&#39;s
+default.</p>
+<h2 id="decision">Decision</h2>
+<p><strong>Tables are sorted on the client, over the rows already loaded.</strong> <code>s</code> picks a
+column, clicking a heading does the same, and choosing the column a table is
+already in reverses it.</p>
+<p>Sorting reads a cell exactly as the filter compares one — the same
+<code>internal/domain/query</code> parsers, so an age column is a duration and every other
+one is a number with the suffixes Kubernetes prints. This is not a convenience;
+it is the whole reason the feature can exist without per-kind code. A table
+where <code>age&lt;1h</code> and <em>order by age</em> disagreed about what an age is would be worse
+than one that could not sort at all, and <code>500m</code> genuinely means half a CPU in
+one column and five hundred minutes in another.</p>
+<p>Three rules follow from wanting the result to be readable rather than merely
+ordered:</p>
+<ul>
+<li>A cell with no value — empty, <code>—</code>, <code>&lt;none&gt;</code> — sorts last in <strong>both</strong>
+directions. An unset value is not a small one, and a column sorted worst-first
+must not open on a screen of blanks.</li>
+<li>The sort is stable, so rows the column cannot tell apart keep the order the
+server gave them. A table that reshuffled its equal rows on every timed reload
+would be unusable at a two-second interval.</li>
+<li>Counted columns — restarts, age — are entered descending. The reason to order
+a table by restarts is never to find the pod that has not restarted.</li>
+</ul>
+<p>Each screen keeps its own order, and the default order stays what that screen is
+for: worst-first on the application dashboard, the server&#39;s own order in a
+resource table.</p>
+<p><strong>Columns follow the terminal&#39;s width.</strong> A table draws every column that fits.
+<code>priority</code> is read as &quot;first to go when space runs out&quot;, not &quot;hidden while space
+remains&quot;. The toggle stays and flips away from what is <em>on screen</em> rather than
+from the last value of a flag, so it always does something; asked for
+explicitly, the wide columns narrow their neighbours rather than answering the
+key with no visible change at all.</p>
+<h2 id="consequences">Consequences</h2>
+<ul>
+<li><strong>A sort covers the rows Correlux has, not the ones it has not fetched.</strong>
+This is the honest limit of a client-side sort over a paged list
+(<a href="0006-lazy-scoped-loading.html">ADR 6</a>), and it is stated on screen rather
+than left to be inferred: a sorted table with pages outstanding says
+<code>sorted among those loaded</code>, and the keystroke that chose the order says so
+too. The alternative — reading every page before ordering — is an unbounded
+LIST against somebody&#39;s production API server, which is exactly what ADR 6
+exists to prevent. Correlux would rather narrow a claim than widen a query.</li>
+<li>Sorting needs no code per resource kind, and works on a custom resource&#39;s own
+printer columns, for the same reason the filter does.</li>
+<li>The order on screen is never something to remember having asked for: the
+heading carries <code>↑</code>/<code>↓</code> (<code>^</code>/<code>v</code> where the terminal cannot do better), and the
+direction is also written in words when it is chosen
+(<a href="0009-accessibility-and-terminal-capabilities.html">ADR 9</a>).</li>
+<li>The frame costs one extra column-layout pass, so the status bar can report
+whether the wide columns are actually drawn rather than what a flag was last
+set to. Measured at ~0.7 ms for a 5,000-row table against a 150 ms budget, and
+guarded by <code>BenchmarkViewLargeTable</code>. The table a frame draws is built once
+and shared within that frame; before, three callers each filtered and sorted
+every row again.</li>
+<li>Marking a column wide is now a statement about <em>layout priority</em> rather than
+about visibility. A column that should genuinely never be shown by default
+does not exist in this model — and none of the ones Kubernetes marks are that.</li>
+</ul>
+</article><a class="doc-edit" href="https://github.com/aronk11/correlux/edit/main/docs/adr/0022-client-side-sorting-and-width-aware-columns.md">Improve this page on GitHub ↗</a></main><nav class="docs-toc" aria-label="On this page"><span>ON THIS PAGE</span><a href="#context">Context</a><a href="#decision">Decision</a><a href="#consequences">Consequences</a></nav></div>
+<footer class="site-footer section-wrap"><a class="brand" href="../"><img src="../assets/logo.svg" width="28" height="28" alt="">correlux<span class="brand-dot">_</span></a><span>Less cluster. More clarity.</span><nav aria-label="Footer"><a href="contributing.html">Contribute</a><a href="https://github.com/aronk11/correlux/issues">Issues</a><a href="https://github.com/aronk11/correlux/blob/main/LICENSE">Apache 2.0</a></nav></footer>
+<dialog class="search-dialog" aria-labelledby="search-label"><div class="search-top"><label id="search-label" class="sr-only" for="docs-query">Search documentation</label><input id="docs-query" type="search" placeholder="Search documentation…" autocomplete="off"><button class="search-close" aria-label="Close search">ESC</button></div><div class="search-results"></div><div class="search-foot search-count" role="status" aria-live="polite">Search locally. No account. No tracking.</div></dialog><div class="toast" role="status" aria-live="polite"></div></body></html>
