@@ -36,7 +36,7 @@ func TestEphemeralContainerUpdateKeepsExistingContainersAndIdentity(t *testing.T
 			t.Error(decodeErr)
 			return
 		}
-		if pod.ResourceVersion != "42" || len(pod.Spec.EphemeralContainers) != 2 || pod.Spec.EphemeralContainers[0].Name != "existing" || pod.Spec.EphemeralContainers[1].TargetContainerName != "app" {
+		if pod.ResourceVersion != "42" || len(pod.Spec.EphemeralContainers) != 2 || pod.Spec.EphemeralContainers[0].Name != "existing" || pod.Spec.EphemeralContainers[1].TargetContainerName != "app" || pod.Spec.EphemeralContainers[1].ImagePullPolicy != corev1.PullNever {
 			t.Errorf("incorrect update: %+v", pod.Spec.EphemeralContainers)
 		}
 		updated = true
@@ -44,12 +44,12 @@ func TestEphemeralContainerUpdateKeepsExistingContainersAndIdentity(t *testing.T
 	}))
 	defer server.Close()
 	f := debugTestFactory(t, server.URL)
-	name, err := f.AddDebugContainer(context.Background(), "staging", "team", "api", "uid", "42", "busybox:1.37.0", "app")
+	name, err := f.AddDebugContainer(context.Background(), "staging", "team", "api", "uid", "42", "busybox:1.37.0", "app", corev1.PullNever)
 	if err != nil || !updated || !strings.HasPrefix(name, "correlux-debug-") {
 		t.Fatalf("name=%s updated=%v err=%v", name, updated, err)
 	}
 	updated = false
-	if _, err = f.AddDebugContainer(context.Background(), "staging", "team", "api", "different-uid", "42", "busybox", "app"); err == nil || updated {
+	if _, err = f.AddDebugContainer(context.Background(), "staging", "team", "api", "different-uid", "42", "busybox", "app", corev1.PullNever); err == nil || updated {
 		t.Fatal("mutated a replacement pod")
 	}
 }

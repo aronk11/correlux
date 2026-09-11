@@ -223,7 +223,7 @@ func (m *Model) rebuildCommands() {
 			Category: "Help",
 			Keywords: []string{"update", "upgrade", "version", "release", "newer", "latest"},
 			Weight:   25,
-			Enabled:  true,
+			Enabled:  !m.cfg.AirGapped,
 		},
 		{
 			ID:       "cmd.help",

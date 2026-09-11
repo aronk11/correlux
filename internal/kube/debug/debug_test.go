@@ -50,3 +50,25 @@ func TestInvalidDebugSpecsNeverReachCreate(t *testing.T) {
 		}
 	}
 }
+
+func TestJobPreservesExplicitPullPolicy(t *testing.T) {
+	for _, value := range []string{"", "Always", "IfNotPresent", "Never"} {
+		policy, err := PullPolicy(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		job, err := Job(Options{Namespace: "team", Image: "registry.internal/toolbox:latest", Mode: "toolbox", Seconds: 900, ImagePullPolicy: policy})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(job.Spec.Template.Spec.Containers[0].ImagePullPolicy) != value {
+			t.Fatal("pull policy lost")
+		}
+	}
+	if _, err := PullPolicy("never"); err == nil {
+		t.Fatal("invalid policy accepted")
+	}
+	if _, err := Job(Options{Namespace: "team", Image: "toolbox", Mode: "toolbox", Seconds: 900, ImagePullPolicy: "invalid"}); err == nil {
+		t.Fatal("invalid job policy accepted")
+	}
+}

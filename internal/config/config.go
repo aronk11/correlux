@@ -2,7 +2,7 @@
 //
 // Configuration is optional: Correlux must run correctly with no config file at
 // all. A missing file is never an error; a malformed file is reported to the
-// caller so the UI can surface it instead of silently ignoring user intent.
+// caller so startup can stop instead of silently ignoring user intent.
 package config
 
 import (
@@ -28,6 +28,8 @@ const (
 // Config is the whole of Correlux's user configuration. Every field has a
 // usable zero value after Defaults() has been applied.
 type Config struct {
+	// AirGapped disables all release checks and public debug image defaults.
+	AirGapped           bool                 `json:"airGapped"`
 	SavedInvestigations []SavedInvestigation `json:"savedInvestigations"`
 	// Debug selects troubleshooting images and optional registry credentials.
 	Debug Debug `json:"debug"`
@@ -77,10 +79,13 @@ type Config struct {
 
 // Debug configures explicitly created troubleshooting containers.
 type Debug struct {
+	// RegistryMirror prefixes default Docker Hub repositories; explicit images win.
+	RegistryMirror   string   `json:"registryMirror"`
 	ToolboxImage     string   `json:"toolboxImage"`
 	CurlImage        string   `json:"curlImage"`
 	NetworkImage     string   `json:"networkImage"`
 	ImagePullSecrets []string `json:"imagePullSecrets"`
+	ImagePullPolicy  string   `json:"imagePullPolicy"`
 }
 
 // FleetGroup is one explicitly named set of kubeconfig contexts.
@@ -92,16 +97,16 @@ type FleetGroup struct {
 	Namespaces []string `json:"namespaces"`
 }
 
-// Update controls Correlux's only outbound request that is not to a Kubernetes
-// API server: asking the public release feed whether there is a newer version.
+// Update controls Correlux's built-in release request outside the Kubernetes
+// API: asking the public release feed whether there is a newer version.
 //
 // It is on, at most once a day, and its answer is a version number and a link.
 // Nothing about the user, their clusters or their session leaves the machine.
 // Somewhere that forbids the request outright switches it off with one line,
 // and the session view says which of the two is happening.
 type Update struct {
-	// Check enables the once-a-day check. It defaults to true; `check: false`
-	// stops Correlux contacting anything but Kubernetes, ever.
+	// Check enables the once-a-day check. Explicit checks can override false;
+	// AirGapped blocks both automatic and explicit checks.
 	Check bool `json:"check"`
 }
 
@@ -190,8 +195,7 @@ func Default() Config {
 			ProductionPatterns:     append([]string(nil), DefaultProductionPatterns...),
 		},
 		// Absent keys keep the defaults: Load starts from this value and
-		// unmarshals the file over it, so `update: {check: false}` is the only
-		// way the check is off.
+		// unmarshals the file over it. AirGapped independently blocks checks.
 		Update:      Update{Check: true},
 		Keybindings: map[string]string{},
 	}
@@ -248,6 +252,9 @@ func Load(path string) (Config, error) {
 		return cfg, fmt.Errorf("read %s: %w", path, err)
 	}
 	if err := unmarshal(data, &cfg); err != nil {
+		return Default(), fmt.Errorf("parse %s: %w", path, err)
+	}
+	if err := validateRegistryMirror(cfg.Debug.RegistryMirror); err != nil {
 		return Default(), fmt.Errorf("parse %s: %w", path, err)
 	}
 	cfg.SourcePath = path

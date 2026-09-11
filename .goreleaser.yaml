@@ -29,7 +29,7 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
-    files: [LICENSE, NOTICE, README.md]
+    files: [LICENSE, NOTICE, README.md, docs/air-gapped.md, docs/examples/air-gapped.yaml]
 
 checksum:
   name_template: checksums.txt

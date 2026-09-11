@@ -304,3 +304,13 @@ func TestDefaultsSurviveAFileThatSetsNothing(t *testing.T) {
 		t.Errorf("what the file did say must survive: %+v", cfg.Startup)
 	}
 }
+
+func TestPackagedAirGappedConfigLoads(t *testing.T) {
+	cfg, err := Load("../../docs/examples/air-gapped.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.AirGapped || cfg.Debug.ImagePullPolicy != "IfNotPresent" || cfg.Debug.Image("toolbox", true) == "" || cfg.Debug.Image("http", true) == "" || cfg.Debug.Image("tcp", true) == "" {
+		t.Fatal("packaged config does not configure offline operation")
+	}
+}

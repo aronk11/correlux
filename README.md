@@ -62,6 +62,18 @@ If Homebrew insists the cask does not exist, it is holding a clone of the tap
 from before that cask was published. `brew untap aronk11/tap` and install
 again.
 
+### Air-gapped installations
+
+Transfer a release archive and its checksum into the environment, then run
+`correlux --air-gapped` or set `airGapped: true` in your config. This blocks
+both automatic and manual update checks. Troubleshooting uses explicitly
+configured internal-registry or preloaded images. Set `debug.registryMirror`
+for shared defaults or override individual images; `debug.imagePullPolicy: Never`
+supports nodes with no registry access.
+
+See the [offline installation and operations guide](docs/air-gapped.md) and
+[example config](docs/examples/air-gapped.yaml), also included in release archives.
+
 ## Use
 
 ```bash
@@ -760,11 +772,11 @@ One line switches it off, and the same screen then says so:
 
 ```yaml
 update:
-  check: false # Correlux contacts nothing but Kubernetes
+  check: false # disable automatic release checks
 ```
 
 `Check for a newer Correlux` in the palette asks on the spot, whatever the
-setting says — asking is consent — and `correlux version` prints what the last
+`update.check` setting says, unless air-gapped mode is enabled. `correlux version` prints what the last
 check learned without ever performing one, so it cannot hang in a script.
 ([ADR 21](docs/adr/0021-update-check.md))
 
@@ -787,6 +799,7 @@ Optional. Correlux runs correctly with no config file.
 
 ```yaml
 theme: auto # auto | dark | light
+airGapped: false # true blocks all release checks and public debug-image defaults
 
 startup:
   context: ""
