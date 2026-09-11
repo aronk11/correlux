@@ -43,9 +43,11 @@ func (m *Model) updateCachePath() string {
 // checkForUpdate asks whether there is a newer Correlux.
 //
 // force is an explicit request from the palette, which ignores both the cache
-// and the configuration: somebody who asks has answered the only question the
-// setting exists to answer.
+// and update.check. Air-gapped mode always takes precedence.
 func (m *Model) checkForUpdate(force bool) tea.Cmd {
+	if m.cfg.AirGapped {
+		return nil
+	}
 	current := buildinfo.Get().Version
 	if !force {
 		if !m.cfg.Update.Check {
@@ -90,6 +92,9 @@ func (m *Model) applyUpdateCheck(msg updateCheckedMsg) tea.Cmd {
 // newerVersion is the release worth telling the user about, empty when this
 // build is current, unrankable, or nothing was learned.
 func (m *Model) newerVersion() string {
+	if m.cfg.AirGapped {
+		return ""
+	}
 	release := m.updateCheck.Get()
 	if release.Version == "" {
 		return ""
@@ -116,6 +121,8 @@ func (m *Model) updateHeaderLabel() string {
 func (m *Model) updateSummary() (value string, status theme.Status) {
 	current := buildinfo.Get().Version
 	switch {
+	case m.cfg.AirGapped:
+		return current + " — air-gapped; update checks disabled", theme.StatusUnknown
 	case !m.cfg.Update.Check && !m.updateCheck.HasValue():
 		return current + " — update check off", theme.StatusUnknown
 	case !update.Rankable(current):
@@ -146,6 +153,9 @@ func (m *Model) updateSummary() (value string, status theme.Status) {
 // narrow, a URL is one unbreakable word, and one wrapped in the middle is a
 // URL nobody can copy.
 func (m *Model) updateNote() string {
+	if m.cfg.AirGapped {
+		return "Air-gapped mode blocks automatic and manual release checks. Transfer updates offline."
+	}
 	if m.newerVersion() != "" {
 		return shortURL(m.updateCheck.Get().URL)
 	}
@@ -174,6 +184,10 @@ func (m *Model) updateSubtitleForPalette() string {
 // checkUpdateNow asks the feed on the spot and says what came back, because a
 // keystroke that answers silently reads as a keystroke that did nothing.
 func (m *Model) checkUpdateNow() tea.Cmd {
+	if m.cfg.AirGapped {
+		m.notice("Update checks are disabled in air-gapped mode", theme.StatusWarning)
+		return m.expireNotice()
+	}
 	m.notice("Asking the release feed…", theme.StatusUnknown)
 	return tea.Batch(m.checkForUpdate(true), m.expireNotice())
 }

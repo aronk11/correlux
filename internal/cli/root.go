@@ -28,6 +28,7 @@ type globalFlags struct {
 	namespace     string
 	allNamespaces bool
 	configPath    string
+	airGapped     bool
 }
 
 // Execute runs Correlux and returns the process exit code.
@@ -58,6 +59,8 @@ func Execute() int {
 		"start scoped to all namespaces")
 	root.PersistentFlags().StringVar(&flags.configPath, "config", "",
 		"path to the Correlux config file")
+	root.PersistentFlags().BoolVar(&flags.airGapped, "air-gapped", false,
+		"disable all release checks and require explicit troubleshooting images")
 
 	root.AddCommand(newVersionCommand())
 	root.AddCommand(newDoctorCommand(&flags))
@@ -93,8 +96,11 @@ func prepare(flags globalFlags) (*startup, error) {
 
 	cfg, err := loadConfig(flags.configPath)
 	if err != nil {
-		warnings = append(warnings, err.Error())
+		// Never fall back to online defaults when a requested policy could
+		// not be read. A missing file still yields defaults without error.
+		return nil, err
 	}
+	cfg.AirGapped = cfg.AirGapped || flags.airGapped
 
 	if _, intervalErr := cfg.Refresh.Interval(); intervalErr != nil {
 		warnings = append(warnings, intervalErr.Error())

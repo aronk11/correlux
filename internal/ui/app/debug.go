@@ -87,24 +87,33 @@ func (m *Model) openDebug(mode string) tea.Cmd {
 	return m.promptDebugDestination(mode, ns)
 }
 
+// debugImage shares resolution with startup diagnostics.
+func (m *Model) debugImage(mode string) string {
+	return m.cfg.Debug.Image(mode, m.cfg.AirGapped)
+}
+
+func (m *Model) debugPullPolicy() (corev1.PullPolicy, error) {
+	value := m.cfg.Debug.ImagePullPolicy
+	if value == "" && m.cfg.AirGapped {
+		value = string(corev1.PullIfNotPresent)
+	}
+	return debug.PullPolicy(value)
+}
+
+func pullPolicyLabel(policy corev1.PullPolicy) string {
+	if policy == "" {
+		return "Kubernetes default"
+	}
+	return string(policy)
+}
+
 func (m *Model) promptDebugDestination(mode, namespace string) tea.Cmd {
-	opts := debug.Options{Namespace: namespace, Mode: mode, Seconds: 60, ImagePullSecrets: m.cfg.Debug.ImagePullSecrets}
-	opts.Image = m.cfg.Debug.ToolboxImage
-	if opts.Image == "" {
-		opts.Image = "busybox:1.37.0"
+	policy, err := m.debugPullPolicy()
+	if err != nil {
+		m.notice(err.Error(), theme.StatusWarning)
+		return m.expireNotice()
 	}
-	if mode == "http" {
-		opts.Image = m.cfg.Debug.CurlImage
-		if opts.Image == "" {
-			opts.Image = "curlimages/curl:8.21.0"
-		}
-	}
-	if mode == "tcp" {
-		opts.Image = m.cfg.Debug.NetworkImage
-		if opts.Image == "" {
-			opts.Image = "nicolaka/netshoot:v0.16"
-		}
-	}
+	opts := debug.Options{Namespace: namespace, Mode: mode, Seconds: 60, Image: m.debugImage(mode), ImagePullSecrets: m.cfg.Debug.ImagePullSecrets, ImagePullPolicy: policy}
 	if mode == "toolbox" {
 		opts.Seconds = 900
 		return m.promptDebugImage(opts)
@@ -137,6 +146,9 @@ func (m *Model) promptDebugDestination(mode, namespace string) tea.Cmd {
 func (m *Model) promptDebugImage(opts debug.Options) tea.Cmd {
 	m.promptTitle = "Image for " + opts.Mode + " session"
 	m.promptNote = "Use an approved image or private-registry reference. Runtime is " + strconv.FormatInt(opts.Seconds, 10) + " seconds."
+	if m.cfg.AirGapped {
+		m.promptNote = "Air-gapped: enter an internal-registry or preloaded image. Pull policy: " + pullPolicyLabel(opts.ImagePullPolicy) + "."
+	}
 	m.promptRef = objectRef{}
 	m.promptError = ""
 	m.promptInput.SetValue(opts.Image)
@@ -166,6 +178,7 @@ func (m *Model) confirmDebugJob(job *batchv1.Job) tea.Cmd {
 	cluster, factory, from, ref := m.contextName, m.factory, m.view, m.objectTarget
 	return m.confirm(pendingAction{Title: "Create " + job.Annotations["correlux.dev/debug-mode"] + " troubleshooting session", Lines: []string{
 		"Creates one unprivileged Linux pod in " + job.Namespace + ".", "Image: " + job.Spec.Template.Spec.Containers[0].Image,
+		"Image pull policy: " + pullPolicyLabel(job.Spec.Template.Spec.Containers[0].ImagePullPolicy),
 		"Command: " + strings.Join(job.Spec.Template.Spec.Containers[0].Command, " "),
 		"No service-account token or application labels are copied.",
 		"Maximum runtime " + strconv.FormatInt(*job.Spec.ActiveDeadlineSeconds, 10) + "s; Job and pod expire 10 minutes after finishing.",
@@ -261,6 +274,11 @@ type ephemeralAddedMsg struct {
 }
 
 func (m *Model) promptEphemeral() tea.Cmd {
+	policy, err := m.debugPullPolicy()
+	if err != nil {
+		m.notice(err.Error(), theme.StatusWarning)
+		return m.expireNotice()
+	}
 	if m.view != viewObject || m.objectTarget.Kind != "Pod" || m.object.Get() == nil {
 		return nil
 	}
@@ -293,9 +311,9 @@ func (m *Model) promptEphemeral() tea.Cmd {
 		m.promptNote = "Requires /bin/sh and sleep. The container exits after 15 minutes; its entry remains until the pod is deleted."
 		m.promptRef = objectRef{}
 		m.promptError = ""
-		image := m.cfg.Debug.ToolboxImage
-		if image == "" {
-			image = "busybox:1.37.0"
+		image := m.debugImage("toolbox")
+		if m.cfg.AirGapped {
+			m.promptNote += " Air-gapped: use an internal-registry or preloaded image."
 		}
 		m.promptInput.SetValue(image)
 		m.overlay = overlayPrompt
@@ -307,14 +325,14 @@ func (m *Model) promptEphemeral() tea.Cmd {
 			}
 			m.cancelPrompt()
 			cluster, factory := m.contextName, m.factory
-			return m.confirm(pendingAction{Title: "Add ephemeral debug container to " + ref.Name, Lines: []string{"Image: " + image, "Pod " + ref.Name + " in " + ref.Namespace + ", target container " + target, "Shares the pod's network and uses its image-pull configuration.", "Runs unprivileged for 15 minutes. Its entry cannot be removed from this pod afterward."}, Challenge: m.productionChallenge(), Run: func(m *Model) tea.Cmd {
+			return m.confirm(pendingAction{Title: "Add ephemeral debug container to " + ref.Name, Lines: []string{"Image: " + image, "Image pull policy: " + pullPolicyLabel(policy), "Pod " + ref.Name + " in " + ref.Namespace + ", target container " + target, "Shares the pod's network and uses its existing image-pull secrets.", "Runs unprivileged for 15 minutes. Its entry cannot be removed from this pod afterward."}, Challenge: m.productionChallenge(), Run: func(m *Model) tea.Cmd {
 				if m.contextName != cluster {
 					return nil
 				}
 				return func() tea.Msg {
 					ctx, cancel := context.WithTimeout(context.Background(), factory.Timeout())
 					defer cancel()
-					name, err := factory.AddDebugContainer(ctx, cluster, ref.Namespace, ref.Name, string(pod.UID), pod.ResourceVersion, image, target)
+					name, err := factory.AddDebugContainer(ctx, cluster, ref.Namespace, ref.Name, string(pod.UID), pod.ResourceVersion, image, target, policy)
 					return ephemeralAddedMsg{cluster: cluster, ref: ref, name: name, err: err}
 				}
 			}})

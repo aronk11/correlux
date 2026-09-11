@@ -1,0 +1,19 @@
+# Copy to your Correlux config path and point at your internal mirror.
+airGapped: true
+
+debug:
+  # Registry host[:port] and optional project/cache path; no https://.
+  # Default images become:
+  #   registry.internal/dockerhub/library/busybox:1.37.0
+  #   registry.internal/dockerhub/curlimages/curl:8.21.0
+  #   registry.internal/dockerhub/nicolaka/netshoot:v0.16
+  registryMirror: registry.internal/dockerhub
+  # Optional full references override the mirror for one tool:
+  # toolboxImage: registry.internal/ops/toolbox:1
+  # curlImage: registry.internal/ops/curl:1
+  # networkImage: registry.internal/ops/netshoot:1
+  imagePullPolicy: IfNotPresent
+  # For preloaded images with no registry, use Never and exact image references.
+  # Credentials must exist in each namespace where you launch a Job.
+  # imagePullSecrets:
+  #   - internal-registry

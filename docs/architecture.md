@@ -66,7 +66,7 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 ## Start-up sequence
 
 1. Silence `klog` — a stray library log line corrupts a full-screen frame.
-2. Load the config file (missing is fine; malformed is reported, not fatal).
+2. Load the config file (missing is fine; malformed or unreadable is fatal so an air-gapped policy cannot silently fall back to online defaults).
 3. Load and merge the kubeconfig; classify contexts.
 4. Resolve the starting context: `--context` → config `startup.context` →
    `current-context` → the only context.
