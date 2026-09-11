@@ -19,13 +19,20 @@ import (
 // a namespace. The API group is resolved from the discovery catalog when the
 // object is fetched, so nothing above this layer has to know about GVRs.
 type objectRef struct {
-	Continuation string
-	HelmMode     string
-	HelmRevision int
-	HelmOffset   int
-	Kind         string
-	Name         string
-	Namespace    string
+	InspectionMode   string
+	SubjectResource  string
+	SourceNamespace  string
+	SourcePod        string
+	CompareContext   string
+	CompareNamespace string
+	CompareName      string
+	Continuation     string
+	HelmMode         string
+	HelmRevision     int
+	HelmOffset       int
+	Kind             string
+	Name             string
+	Namespace        string
 	// Resource is the fully qualified name ("widgets.load.Correlux.dev") when the
 	// caller knows it. Two groups may serve the same kind, and a browser that
 	// listed one of them must open that one.
@@ -132,6 +139,10 @@ func (m *Model) backFromObject() tea.Cmd {
 		m.view = viewTable
 		m.rebuildCommands()
 		return nil
+	case m.objectFrom == viewFleet:
+		m.view = viewFleet
+		m.rebuildCommands()
+		return nil
 	case m.objectFrom == viewActivity:
 		m.view = viewActivity
 		m.rebuildCommands()
@@ -213,6 +224,9 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 		return d, nil
 	}
 
+	if ref.Resource == inspectionResource {
+		return m.inspectionView(d, obj)
+	}
 	if ref.Resource == debugResource {
 		return m.debugSessionsView(d, obj)
 	}

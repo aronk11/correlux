@@ -91,14 +91,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.notice(itoa(len(msg.catalog.Failures))+" API group(s) could not be discovered; the rest is usable",
 					theme.StatusWarning)
 				m.resPicker.Refresh()
-				return m, m.expireNotice()
+				return m, tea.Batch(m.expireNotice(), m.tryRestoreInvestigation())
 			}
 		}
 		m.resPicker.Refresh()
-		return m, nil
+		return m, m.tryRestoreInvestigation()
 
 	case applicationsLoadedMsg:
-		return m, m.applyApplications(msg)
+		cmd := m.applyApplications(msg)
+		return m, tea.Batch(cmd, m.tryRestoreInvestigation())
 
 	case fleetStartedMsg:
 		if msg.gen != m.fleetGeneration {
@@ -135,19 +136,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.applyLogBatch(msg)
 
 	case helmValuesLoadedMsg:
-		return m, m.applyHelmValuesLoaded(msg)
+		return m, m.applyHelmValuesLoaded(&msg)
 	case helmValuesEditedMsg:
-		return m, m.applyHelmValuesEdited(msg)
+		return m, m.applyHelmValuesEdited(&msg)
+	case snapshotReadMsg:
+		return m, m.applySnapshotRead(&msg)
+	case reportExportedMsg:
+		return m, m.applyReportExported(msg)
 	case forwardStartedMsg:
 		return m, m.applyForwardStarted(msg)
 	case forwardEventMsg:
 		return m, m.applyForwardEvent(msg)
 	case debugCreatedMsg:
-		return m, m.applyDebugCreated(msg)
+		return m, m.applyDebugCreated(&msg)
 	case ephemeralAddedMsg:
-		return m, m.applyEphemeralAdded(msg)
+		return m, m.applyEphemeralAdded(&msg)
 	case helmChangedMsg:
-		return m, m.applyHelmChanged(msg)
+		return m, m.applyHelmChanged(&msg)
 	case objectLoadedMsg:
 		if m.object.Accepts(msg.gen) {
 			m.objectLoading = false
@@ -155,6 +160,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.object.Fail(msg.gen, msg.err)
 			return m, nil
+		}
+		if m.object.Accepts(msg.gen) {
+			m.observeObject(msg.object)
 		}
 		m.object.Succeed(msg.gen, msg.object)
 		m.rebuildCommands()
@@ -173,7 +181,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.applyDeleted(msg)
 
 	case restartProbedMsg:
-		return m, m.applyRestartProbe(msg)
+		return m, m.applyRestartProbe(&msg)
 
 	case restartedMsg:
 		return m, m.applyRestarted(msg)

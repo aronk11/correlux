@@ -147,3 +147,19 @@ func writeDocument(path string, doc *yaml.Node) error {
 	}
 	return nil
 }
+
+// SaveInvestigations changes only the saved-investigation key, retaining other
+// settings, comments and ordering through the same atomic writer as fleet saves.
+func SaveInvestigations(path string, investigations []SavedInvestigation) error {
+	if path == "" {
+		return errors.New("no configuration file to write to")
+	}
+	doc, err := readDocument(path)
+	if err != nil {
+		return err
+	}
+	if err := setKey(doc.Content[0], "savedInvestigations", investigations, len(investigations) > 0); err != nil {
+		return err
+	}
+	return writeDocument(path, doc)
+}

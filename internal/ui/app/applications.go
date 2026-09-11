@@ -328,7 +328,8 @@ func numberTargets(sections []detailSection) ([]screens.DetailSection, []objectR
 	var targets []objectRef
 	for _, section := range sections {
 		out := screens.DetailSection{Title: section.Title, Columns: section.Columns, Empty: section.Empty}
-		for _, row := range section.Rows {
+		for i := range section.Rows {
+			row := &section.Rows[i]
 			target := -1
 			if !row.Ref.empty() {
 				targets = append(targets, row.Ref)
