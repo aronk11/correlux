@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/gitops"
 	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	"github.com/aronk11/correlux/internal/ui/async"
 	"github.com/aronk11/correlux/internal/ui/screens"
@@ -440,6 +441,12 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		// reconciliation conditions like any other object.
 		if a.Manager.Kind != "" {
 			row.Ref = objectRef{Kind: a.Manager.Kind, Name: a.Manager.Name, Namespace: a.Manager.Namespace}
+			if a.Manager.Tool == "Flux" {
+				row.Ref.Resource = gitops.Resource(a.Manager.Kind)
+			}
+		}
+		if a.Manager.Tool == "Helm" && a.Manager.Name != "" {
+			row.Ref = helmRef(a.Manager.Name, a.Manager.Namespace, "status")
 		}
 		delivery.Rows = append(delivery.Rows, row)
 	}

@@ -19,9 +19,12 @@ import (
 // a namespace. The API group is resolved from the discovery catalog when the
 // object is fetched, so nothing above this layer has to know about GVRs.
 type objectRef struct {
-	Kind      string
-	Name      string
-	Namespace string
+	HelmMode     string
+	HelmRevision int
+	HelmOffset   int
+	Kind         string
+	Name         string
+	Namespace    string
 	// Resource is the fully qualified name ("widgets.load.Correlux.dev") when the
 	// caller knows it. Two groups may serve the same kind, and a browser that
 	// listed one of them must open that one.
@@ -209,6 +212,10 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 		return d, nil
 	}
 
+	if ref.Resource == helmResource {
+		return m.helmView(d, obj)
+	}
+
 	now := time.Now()
 	d.Kind = orNone(obj.Kind)
 	d.Name = obj.Name
@@ -236,6 +243,9 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 	}
 
 	sections := []screens.DetailSection{m.identitySection(obj)}
+	if ref, ok := fluxHelmReleaseRef(obj.Raw); ok {
+		sections = append(sections, screens.DetailSection{Title: "Helm release", Columns: []string{"Release", "Storage namespace"}, Rows: []screens.DetailRow{{Cells: []string{ref.Name, ref.Namespace}, Target: target(ref)}}})
+	}
 	// What the object itself reports, read out of the document rather than out
 	// of a type Correlux was compiled with.
 	for _, section := range describe.Object(obj.Kind, obj.Raw) {
@@ -318,7 +328,7 @@ func (m *Model) relationsSection(obj *resources.Object, target func(objectRef) i
 	}
 
 	for _, link := range describe.Links(obj.Kind, obj.Raw) {
-		ref := objectRef{Kind: link.Kind, Name: link.Name, Namespace: link.Namespace}
+		ref := objectRef{Kind: link.Kind, Name: link.Name, Namespace: link.Namespace, Resource: link.Resource}
 		section.Rows = append(section.Rows, screens.DetailRow{
 			Cells:  []string{"uses", link.Kind, link.Name, link.Detail},
 			Target: target(ref),
