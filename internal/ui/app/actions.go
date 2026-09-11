@@ -509,7 +509,7 @@ func (m *Model) rebuildCommands() {
 		})
 	}
 
-	if m.view == viewObject && !m.objectTarget.empty() {
+	if m.view == viewObject && !m.objectTarget.empty() && m.objectTarget.Resource != helmResource {
 		cmds = append(cmds, palette.Command{
 			ID:             "cmd.edit",
 			Action:         paletteEdit,
@@ -747,6 +747,17 @@ func (m *Model) rebuildCommands() {
 				cmds[i].Weight += 120
 			}
 		}
+	}
+	cmds = append(cmds, m.fluxCommands()...)
+	cmds = append(cmds, m.helmCommands()...)
+	if m.view == viewObject && m.objectTarget.Resource == helmResource {
+		filtered := cmds[:0]
+		for _, c := range cmds {
+			if c.ID != "cmd.copy.kubectl" && c.ID != "cmd.copy.json" && c.ID != "cmd.decode" {
+				filtered = append(filtered, c)
+			}
+		}
+		cmds = filtered
 	}
 	m.registry.Set(cmds)
 	m.cmdPal.Refresh()
@@ -1086,6 +1097,10 @@ func (m *Model) runCommand(id string) tea.Cmd {
 	m.closeOverlay()
 
 	switch cmd.Action {
+	case paletteHelm:
+		return m.openHelm(cmd.Arg)
+	case paletteFlux:
+		return m.confirmFlux(cmd.Arg)
 	case paletteOpenContexts:
 		return m.openOverlay(overlayContexts)
 	case paletteOpenNamespaces:
@@ -1373,6 +1388,9 @@ func (m *Model) refresh() tea.Cmd {
 	cmds := []tea.Cmd{m.beginBusy(true), m.probeCluster(), m.loadNamespaces(), m.loadApplications()}
 	if m.view == viewTable {
 		cmds = append(cmds, m.loadTable())
+	}
+	if m.view == viewObject {
+		cmds = append(cmds, m.loadObject())
 	}
 	if m.view == viewUsage {
 		cmds = append(cmds, m.loadUsage())
