@@ -138,6 +138,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.applyHelmValuesLoaded(msg)
 	case helmValuesEditedMsg:
 		return m, m.applyHelmValuesEdited(msg)
+	case forwardStartedMsg:
+		return m, m.applyForwardStarted(msg)
+	case forwardEventMsg:
+		return m, m.applyForwardEvent(msg)
+	case debugCreatedMsg:
+		return m, m.applyDebugCreated(msg)
+	case ephemeralAddedMsg:
+		return m, m.applyEphemeralAdded(msg)
 	case helmChangedMsg:
 		return m, m.applyHelmChanged(msg)
 	case objectLoadedMsg:

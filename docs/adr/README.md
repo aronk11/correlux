@@ -32,6 +32,8 @@ Michael Nygard's: context, decision, consequences.
 
 | [24](0024-helm-and-flux-operations.md) | Inspect Helm through Helm and reconcile Flux through its APIs | accepted |
 
+| [25](0025-explicit-troubleshooting-sessions.md) | Explicit troubleshooting identities and bounded lifetimes | accepted |
+
 ## Adding one
 
 Copy the structure of an existing record, take the next number, and open it with

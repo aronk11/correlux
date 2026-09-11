@@ -225,7 +225,7 @@ func (m *Model) podsOwnedBy(ref objectRef) []application.Pod {
 	var out []application.Pod
 	for i := range snapshot.Pods {
 		pod := snapshot.Pods[i]
-		if pod.Namespace != ref.Namespace || pod.Terminal() {
+		if pod.Namespace != ref.Namespace {
 			continue
 		}
 		if len(workload.Selector) > 0 && matchesLabels(workload.Selector, pod.Labels) {
@@ -250,9 +250,6 @@ func matchesLabels(selector, labels map[string]string) bool {
 func podSources(pods []application.Pod) []logs.Source {
 	out := make([]logs.Source, 0, len(pods))
 	for i := range pods {
-		if pods[i].Terminal() {
-			continue
-		}
 		out = append(out, logs.Source{Namespace: pods[i].Namespace, Pod: pods[i].Name})
 	}
 	return out
