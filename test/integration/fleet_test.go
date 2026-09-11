@@ -98,9 +98,12 @@ func TestAKindNoClusterServesIsReportedPerCluster(t *testing.T) {
 	// A kind the catalog knows but that is scoped to one namespace's CRD is
 	// still served; instead, ask for something no cluster has by pointing the
 	// browser at a name discovery does not resolve.
-	drainFleet(t, m, m.BrowseAcrossFleetForTest("sprockets.example.com"))
+	// Discovery rejects the name synchronously. The returned command only
+	// expires the notice; draining it races the five-second drain timeout
+	// against the notice's five-second lifetime and can erase the notice.
+	m.BrowseAcrossFleetForTest("sprockets.example.com")
 
-	if out := frame(m); !strings.Contains(out, "Unknown resource") {
+	if out := frame(m); !strings.Contains(out, "Unknown resource sprockets.example.com") {
 		t.Errorf("a kind nothing serves must be named as unknown:\n%s", out)
 	}
 }
