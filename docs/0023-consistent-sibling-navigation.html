@@ -1,0 +1,102 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>23. A detour from an investigation remembers where it was opened from — Correlux docs</title><meta name="description" content="23. A detour from an investigation remembers where it was opened from for Correlux, the application-first Kubernetes terminal UI."><meta name="theme-color" content="#11151d"><link rel="canonical" href="https://aronk11.github.io/correlux/docs/0023-consistent-sibling-navigation.html"><link rel="icon" href="../assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/style.css"><script src="../assets/main.js" defer></script></head><body>
+<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><a class="brand" href="../" aria-label="Correlux home"><img src="../assets/logo.svg" width="34" height="34" alt="">correlux<span class="brand-dot">_</span></a><nav aria-label="Main navigation"><a href="../#features">The good stuff</a><a href="./" aria-current="page">Docs</a><a href="https://github.com/aronk11/correlux" class="github-link">GitHub ↗</a></nav><a class="button button-small" href="../#install">Get Correlux ↗</a></header>
+<div class="docs-layout"><aside class="docs-sidebar" aria-label="Documentation navigation"><button class="docs-search" data-search>Search docs <kbd>⌘ / Ctrl K</kbd></button><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html">User guide</a><a href="air-gapped.html">Air-gapped environments</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details open><summary>ALL 27 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html">21. Correlux says when it is out of date, and that is the only thing it asks</a><a href="0022-client-side-sorting-and-width-aware-columns.html">22. A table is ordered on the client, and its columns follow the width</a><a href="0023-consistent-sibling-navigation.html" aria-current="page">23. A detour from an investigation remembers where it was opened from</a><a href="0024-helm-and-flux-operations.html">24. Inspect Helm releases through Helm and reconcile Flux through its APIs</a><a href="0025-explicit-troubleshooting-sessions.html">25. Troubleshooting sessions have explicit identity and bounded lifetimes</a><a href="0026-bounded-investigation-reports.html">26. Bounded investigation reports with explicit evidence gaps</a><a href="0027-air-gapped-operation.html">27. Air-gapped operation is an explicit session policy</a></details></div><details class="docs-mobile-nav"><summary>Browse documentation</summary><div class="sidebar-links"><div class="sidebar-label">GET STARTED</div><a href="index.html">Documentation</a><a href="getting-started.html">Getting started</a><div class="sidebar-label">USING CORRELUX</div><a href="guide.html">User guide</a><a href="air-gapped.html">Air-gapped environments</a><div class="sidebar-label">UNDER THE HOOD</div><a href="architecture.html">Architecture</a><a href="decisions.html">Design decisions</a><a href="specification.html">Product specification</a><div class="sidebar-label">COMMUNITY</div><a href="contributing.html">Contributing</a><a href="code-of-conduct.html">Code of conduct</a><a href="security.html">Security</a><details open><summary>ALL 27 DESIGN DECISIONS</summary><a href="0001-record-architecture-decisions.html">1. Record architecture decisions</a><a href="0002-go-and-bubble-tea.html">2. Go and Bubble Tea v2 for a single static binary</a><a href="0003-application-first-navigation.html">3. Applications, not resource types, are the primary navigation model</a><a href="0004-layered-architecture.html">4. The domain layer must not know that a terminal exists</a><a href="0005-explicit-async-state.html">5. Remote data carries an explicit lifecycle and a generation counter</a><a href="0006-lazy-scoped-loading.html">6. No global cache at startup: load lazily, within the active scope</a><a href="0007-session-local-context-switching.html">7. Switching context inside Correlux never writes to the kubeconfig</a><a href="0008-production-safety.html">8. Production contexts are classified heuristically and guarded by default</a><a href="0009-accessibility-and-terminal-capabilities.html">9. Never encode meaning in colour alone; degrade to ASCII</a><a href="0010-deterministic-diagnosis-before-ai.html">10. The diagnosis engine is deterministic; AI is an optional explanation layer</a><a href="0011-development-workflow.html">11. Trunk-based development with feature branches and Conventional Commits</a><a href="0012-task-instead-of-make.html">12. Task instead of Make</a><a href="0013-server-side-tables.html">13. Resources are rendered from the API server&#39;s own tables</a><a href="0014-load-testing-with-kind.html">14. Load is tested on a real API server, with pods that never run</a><a href="0015-signed-commits.html">15. Every commit is signed</a><a href="0016-application-inference.html">16. Applications are inferred from the cluster, not declared to Correlux</a><a href="0017-timed-refresh-not-watches.html">17. The screen reloads on a timer the user turns on, not on watches</a><a href="0018-evidence-on-demand.html">18. A diagnosis is built from evidence fetched on demand, not from a cache</a><a href="0019-fleet-overview.html">19. A fleet overview across several kubeconfig contexts, read-only</a><a href="0020-changes-go-through-one-gate.html">20. Every change goes through one gate, and Correlux never edits for you</a><a href="0021-update-check.html">21. Correlux says when it is out of date, and that is the only thing it asks</a><a href="0022-client-side-sorting-and-width-aware-columns.html">22. A table is ordered on the client, and its columns follow the width</a><a href="0023-consistent-sibling-navigation.html" aria-current="page">23. A detour from an investigation remembers where it was opened from</a><a href="0024-helm-and-flux-operations.html">24. Inspect Helm releases through Helm and reconcile Flux through its APIs</a><a href="0025-explicit-troubleshooting-sessions.html">25. Troubleshooting sessions have explicit identity and bounded lifetimes</a><a href="0026-bounded-investigation-reports.html">26. Bounded investigation reports with explicit evidence gaps</a><a href="0027-air-gapped-operation.html">27. Air-gapped operation is an explicit session policy</a></details></div></details></aside><main class="doc-article" id="main"><div class="doc-breadcrumb"><a href="./">DOCS</a> / 23. A DETOUR FROM AN INVESTIGATION REMEMBERS WHERE IT WAS OPENED FROM</div><article class="prose"><h1 id="23-a-detour-from-an-investigation-remembers-where-it-was-opened-from">23. A detour from an investigation remembers where it was opened from</h1>
+<ul>
+<li>Status: accepted</li>
+<li>Date: 2026-09-09</li>
+</ul>
+<h2 id="context">Context</h2>
+<p>Investigating an unhealthy application means moving between four different
+readings of it: what it is made of (the application detail), why it is
+unhealthy (Diagnosis, <code>Ctrl+W</code>), what happened to it recently (Events, <code>E</code>),
+and what it is saying right now (Logs, <code>l</code>). Each is its own full-window view,
+reached by its own key from wherever the investigation currently is — not a
+separate destination the way the fleet or the resource browser are, but a
+lateral move within the same one.</p>
+<p>That lateral move behaved differently depending on which of the four it was,
+in ways nobody chose on purpose:</p>
+<ul>
+<li><strong>Logs</strong> remembers where it was opened from (<code>logFrom</code>, set in <code>openLogs()</code>,
+restored in <code>closeLogs()</code>) and returns there on Escape.</li>
+<li><strong>Diagnosis</strong> hardcoded its return to the application detail regardless of
+where it was actually entered from — wrong when Diagnosis is opened straight
+from the dashboard cursor, which <code>explanationTarget()</code> has always allowed:
+Escape landed on the application detail the user never asked to see, not
+the dashboard they left.</li>
+<li><strong>Events</strong> always returned to the dashboard, even when it was reached from
+Diagnosis or Logs.</li>
+</ul>
+<p>The same three views disagreed about scroll, too. Diagnosis reset its scroll
+to the top on every open, including a lateral return to the same application&#39;s
+diagnosis after a detour through Events. Events did the same to its own
+scroll and selection. The one case that happened to preserve state — Why to
+Logs and back — worked only because <code>closeLogs()</code> restores the view directly
+rather than calling <code>explain()</code> again; it was a side effect of how Logs is
+built, not a rule anyone had written down.</p>
+<p>Reachability was asymmetric on top of that: from the application detail, all
+three others are one keypress away. From Diagnosis, Events and Logs both work
+directly. From Logs, Events works but Diagnosis does not. From Events,
+neither works — the only way out was Escape to the dashboard and back in.</p>
+<p>None of this is a case for a bigger redesign. <code>docs/ux-review.md</code>&#39;s open
+backlog already names the goal — treat these as siblings of one investigation,
+each keeping its own state — and the wide-terminal, split-pane version of that
+goal is deliberately out of scope here: the terminal floor Correlux supports
+(<code>layout.MinHeight = 12</code>) leaves five usable rows in Logs before a second pane
+would ever be drawn, and the review&#39;s own &quot;Design decisions&quot; already deferred
+a multi-pane layout once, explicitly pending logs returning reliably — which
+this record is part of finishing, not going beyond.</p>
+<h2 id="decision">Decision</h2>
+<p>A view reached as a lateral detour from an investigation records where it was
+opened from, and Escape returns there — generalizing the pattern <code>logFrom</code>
+already established rather than inventing a second one:</p>
+<ul>
+<li>Diagnosis gained <code>whyFrom</code>, Events gained <code>activityFrom</code>, set the same way
+<code>logFrom</code> is: to the view being left, unless that view is already the
+detour&#39;s own (a re-entry must not overwrite a real origin with itself).</li>
+<li><code>goBack()</code>&#39;s hardcoded Diagnosis-to-application special case now assigns
+<code>m.view = m.whyFrom</code>; <code>handleActivityKey</code>&#39;s Escape case and the <code>E</code> toggle
+both now go through a small <code>leaveActivity()</code> that does the same for
+<code>activityFrom</code>. Neither guards against a stale origin — <code>closeLogs()</code>
+never has, either; it assigns the view and trusts the destination to
+tolerate a subject that disappeared since, which every view already has to
+do independent of this.</li>
+<li>Scroll resets when the subject changes, not on every open. Diagnosis
+compares against a dedicated <code>whySubject</code> field rather than the existing
+<code>selectedApp</code> — <code>explainApplication</code> sets <code>selectedApp</code> (via
+<code>openApplication</code>) <em>before</em> it calls <code>explain</code>, so a comparison against
+<code>selectedApp</code> inside <code>explain</code> would always see the value just written, never
+the one it replaced. Events compares against <code>m.evidence.State()</code>: a real
+scope change already calls <code>evidence.Reset()</code> elsewhere
+(<code>switchContextScoped</code>, <code>reloadScopedViews</code>), which is what leaves the state
+<code>Idle</code>; a lateral return finds it already <code>Ready</code> (or <code>Failed</code> with a
+previous value) and leaves the scroll alone. The application detail&#39;s own
+<code>detailPort</code> gained the same rule in <code>openApplication</code>, for the same reason:
+a lateral round trip back to it, now that Diagnosis and Events correctly
+return there, must not discard where the user was either.</li>
+<li>Events gained one more direct move: <code>l</code> now opens logs for the object an
+Events row names, closing the one asymmetric gap that was cheap to close.
+The reverse — <code>Ctrl+W</code> resolving a <em>diagnosis</em> for an arbitrary Events row —
+is not: every existing resolution path answers &quot;an application&quot;, keyed by
+<code>selectedApp</code>, and an Events row names an object with no guaranteed owning
+application and no existing reverse lookup from one to the other. Building
+that lookup is new logic, not wiring, and belongs in its own change if it
+turns out to be worth it.</li>
+</ul>
+<h2 id="consequences">Consequences</h2>
+<ul>
+<li>Four views now agree on one rule instead of implementing three. A future
+view that behaves like a detour from an investigation should follow it too:
+record an origin the way <code>logFrom</code>/<code>whyFrom</code>/<code>activityFrom</code> do, and reset
+state on a subject change rather than on every open.</li>
+<li>This does not add a visible affordance for the relationship — no tab row,
+no indicator that these four are siblings — only the underlying behavior.
+Whether that is worth building, and what a wide-terminal split view of it
+would look like, is a separate design question; <code>screens/overview.go</code>&#39;s
+<code>twoColumnMin</code> two-column split and <code>screens/table.go</code>&#39;s fit-tested
+<code>WideAuto</code> are the two existing patterns to start from when it is asked.</li>
+<li><code>Ctrl+W</code> from Events still shows &quot;Select an application first&quot; rather than
+working, same as today. That is a known, named gap, not a silent one.</li>
+</ul>
+</article><a class="doc-edit" href="https://github.com/aronk11/correlux/edit/main/docs/adr/0023-consistent-sibling-navigation.md">Improve this page on GitHub ↗</a></main><nav class="docs-toc" aria-label="On this page"><span>ON THIS PAGE</span><a href="#context">Context</a><a href="#decision">Decision</a><a href="#consequences">Consequences</a></nav></div>
+<footer class="site-footer section-wrap"><a class="brand" href="../"><img src="../assets/logo.svg" width="28" height="28" alt="">correlux<span class="brand-dot">_</span></a><span>Less cluster. More clarity.</span><nav aria-label="Footer"><a href="contributing.html">Contribute</a><a href="https://github.com/aronk11/correlux/issues">Issues</a><a href="https://github.com/aronk11/correlux/blob/main/LICENSE">Apache 2.0</a></nav></footer>
+<dialog class="search-dialog" aria-labelledby="search-label"><div class="search-top"><label id="search-label" class="sr-only" for="docs-query">Search documentation</label><input id="docs-query" type="search" placeholder="Search documentation…" autocomplete="off"><button class="search-close" aria-label="Close search">ESC</button></div><div class="search-results"></div><div class="search-foot search-count" role="status" aria-live="polite">Search locally. No account. No tracking.</div></dialog><div class="toast" role="status" aria-live="polite"></div></body></html>
