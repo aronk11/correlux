@@ -28,6 +28,7 @@ const (
 // Config is the whole of Correlux's user configuration. Every field has a
 // usable zero value after Defaults() has been applied.
 type Config struct {
+	SavedInvestigations []SavedInvestigation `json:"savedInvestigations"`
 	// Debug selects troubleshooting images and optional registry credentials.
 	Debug Debug `json:"debug"`
 	// Theme is "auto", "dark" or "light".

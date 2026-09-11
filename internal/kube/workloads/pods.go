@@ -64,6 +64,9 @@ func containers(p *corev1.Pod) []application.Container {
 		c := container(statuses[spec.Name], true)
 		c.Name, c.Sidecar = spec.Name, spec.RestartPolicy != nil &&
 			*spec.RestartPolicy == corev1.ContainerRestartPolicyAlways
+		if c.Image == "" {
+			c.Image = spec.Image
+		}
 		fillResources(&c, spec)
 		claimed[spec.Name] = true
 		out = append(out, c)
@@ -72,6 +75,9 @@ func containers(p *corev1.Pod) []application.Container {
 		spec := &p.Spec.Containers[i]
 		c := container(statuses[spec.Name], false)
 		c.Name = spec.Name
+		if c.Image == "" {
+			c.Image = spec.Image
+		}
 		fillResources(&c, spec)
 		claimed[spec.Name] = true
 		out = append(out, c)
@@ -122,6 +128,7 @@ func container(status *corev1.ContainerStatus, init bool) application.Container 
 	}
 	s := *status
 	c.Name, c.Image, c.Ready, c.Restarts = s.Name, s.Image, s.Ready, s.RestartCount
+	c.ImageID = s.ImageID
 	switch {
 	case s.State.Waiting != nil:
 		c.State, c.Reason, c.Message = "waiting", s.State.Waiting.Reason, s.State.Waiting.Message

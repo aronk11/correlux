@@ -114,9 +114,10 @@ type Pod struct {
 // CrashLoopBackOff is *waiting* right now, and the only thing that explains why
 // is how its last run ended.
 type Container struct {
-	Name  string
-	Image string
-	Ready bool
+	Name    string
+	Image   string
+	ImageID string // Runtime-reported image identity; empty when not observed.
+	Ready   bool
 	// Init marks an init container, which blocks everything after it.
 	Init     bool
 	Restarts int32
