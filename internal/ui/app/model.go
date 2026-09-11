@@ -101,13 +101,15 @@ type Options struct {
 
 // Model is the root Bubble Tea model.
 type Model struct {
-	cfg        config.Config
-	keys       KeyMap
-	theme      *theme.Theme
-	caps       theme.Capabilities
-	kubeconfig *kubeconfig.Config
-	factory    *kubeclient.Factory
-	classifier *kubeconfig.Classifier
+	forwards        map[int]*forwardSession
+	forwardSequence int
+	cfg             config.Config
+	keys            KeyMap
+	theme           *theme.Theme
+	caps            theme.Capabilities
+	kubeconfig      *kubeconfig.Config
+	factory         *kubeclient.Factory
+	classifier      *kubeconfig.Classifier
 
 	// Session state: what the next keystroke will act on.
 	contextName   string

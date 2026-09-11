@@ -28,6 +28,8 @@ const (
 // Config is the whole of Correlux's user configuration. Every field has a
 // usable zero value after Defaults() has been applied.
 type Config struct {
+	// Debug selects troubleshooting images and optional registry credentials.
+	Debug Debug `json:"debug"`
 	// Theme is "auto", "dark" or "light".
 	Theme Theme `json:"theme"`
 
@@ -70,6 +72,14 @@ type Config struct {
 
 	// SourcePath records where this config was read from ("" if defaults).
 	SourcePath string `json:"-"`
+}
+
+// Debug configures explicitly created troubleshooting containers.
+type Debug struct {
+	ToolboxImage     string   `json:"toolboxImage"`
+	CurlImage        string   `json:"curlImage"`
+	NetworkImage     string   `json:"networkImage"`
+	ImagePullSecrets []string `json:"imagePullSecrets"`
 }
 
 // FleetGroup is one explicitly named set of kubeconfig contexts.

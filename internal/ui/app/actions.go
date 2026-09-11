@@ -509,7 +509,7 @@ func (m *Model) rebuildCommands() {
 		})
 	}
 
-	if m.view == viewObject && !m.objectTarget.empty() && m.objectTarget.Resource != helmResource {
+	if m.view == viewObject && !m.objectTarget.empty() && m.objectTarget.Resource != helmResource && m.objectTarget.Resource != debugResource {
 		cmds = append(cmds, palette.Command{
 			ID:             "cmd.edit",
 			Action:         paletteEdit,
@@ -750,7 +750,9 @@ func (m *Model) rebuildCommands() {
 	}
 	cmds = append(cmds, m.fluxCommands()...)
 	cmds = append(cmds, m.helmCommands()...)
-	if m.view == viewObject && m.objectTarget.Resource == helmResource {
+	cmds = append(cmds, m.debugCommands()...)
+	cmds = append(cmds, m.forwardCommands()...)
+	if m.view == viewObject && (m.objectTarget.Resource == helmResource || m.objectTarget.Resource == debugResource) {
 		filtered := cmds[:0]
 		for _, c := range cmds {
 			if c.ID != "cmd.copy.kubectl" && c.ID != "cmd.copy.json" && c.ID != "cmd.decode" {
@@ -1097,6 +1099,10 @@ func (m *Model) runCommand(id string) tea.Cmd {
 	m.closeOverlay()
 
 	switch cmd.Action {
+	case paletteForward:
+		return m.openForward(cmd.Arg)
+	case paletteDebug:
+		return m.openDebug(cmd.Arg)
 	case paletteHelm:
 		return m.openHelm(cmd.Arg)
 	case paletteFlux:
