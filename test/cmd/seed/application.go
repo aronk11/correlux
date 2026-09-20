@@ -444,7 +444,7 @@ func seedConfig(ctx context.Context, c *clients, namespace, app string) error {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: app, Namespace: namespace, Labels: labels(nil)},
 		Type:       corev1.SecretTypeOpaque,
-		StringData: map[string]string{"token": "not-a-real-secret"},
+		StringData: map[string]string{"token": "not-a-real-secret"}, //nolint:gosec // G101: the seeder fills a throwaway kind cluster, and a Secret with no value in it would not exercise the decode view.
 	}
 	if err := created(createSecret(ctx, c, namespace, secret)); err != nil {
 		return fmt.Errorf("secret %s/%s: %w", namespace, app, err)
