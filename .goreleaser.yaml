@@ -34,6 +34,43 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Correlux is handed a kubeconfig the first time it runs, which makes "is this
+# the binary the project published?" a question somebody has to be able to
+# answer before trusting it — and until now the honest answer was "compare a
+# checksum with the one published next to it", which proves only that the
+# download matches the file the same page served.
+#
+# An SBOM per archive, so an operator can tell whether a release contains a
+# dependency their scanner just flagged without unpacking and building it.
+# SPDX JSON because that is what syft emits by default here and what the tools
+# that consume these read.
+sboms:
+  - artifacts: archive
+
+# Signed keyless: the certificate is issued to this workflow's OIDC identity
+# for the few seconds the signature is made, so there is no private key to
+# store, rotate, or leak — which is the failure mode that makes most projects
+# stop signing after a while.
+#
+# Only the checksum file is signed. It already names every artefact by digest,
+# so one signature covers the whole release, and verifying an archive stays two
+# steps everybody already knows: check the signature on the list, then check
+# the archive against the list.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-signature=${signature}"
+      - "--output-certificate=${certificate}"
+      # cosign asks before writing to the public transparency log. There is
+      # nobody at a keyboard during a release, and the entry is the point.
+      - "--yes"
+      - "${artifact}"
+    artifacts: checksum
+    output: true
+
 # Homebrew is the first install path people try, so the cask is written by the
 # same run that builds the archives it points at: a formula naming a release
 # that does not exist yet is the classic way to ship a broken `brew install`.
