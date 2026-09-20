@@ -909,7 +909,9 @@ Correlux's large-cluster claims are measured rather than asserted
 ([ADR 14](docs/adr/0014-load-testing-with-kind.md)).
 
 Architecture and the reasoning behind it: [docs/architecture.md](docs/architecture.md)
-and [docs/adr](docs/adr/README.md).
+and [docs/adr](docs/adr/README.md). The permissions Correlux asks a cluster for:
+[docs/rbac.md](docs/rbac.md). What a release may and may not change under you:
+[docs/stability.md](docs/stability.md).
 
 ## Licence
 
