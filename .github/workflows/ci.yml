@@ -4,33 +4,57 @@ on:
   push:
     branches: [main]
   pull_request:
+  # A dependency becomes vulnerable while nobody is pushing, so govulncheck
+  # runs overnight on its own. Every other job here answers a question about a
+  # change and has nothing to say without one, which is why they are all
+  # guarded against this trigger.
+  schedule:
+    - cron: "0 4 * * *"
 
 # Cancel superseded runs: a force-push should not keep burning minutes on the
-# commit it replaced.
+# commit it replaced. The event is part of the group because the nightly run
+# shares main's ref with pushes to it, and must never cancel a run that is
+# checking a commit.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 env:
+  # The module's minimum, and what every job that is not the version matrix
+  # builds with.
   GO_VERSION: "1.26"
   TASK_VERSION: v3.53.1
+  GOLANGCI_VERSION: v2.13.2
 
 jobs:
   test:
-    name: test (${{ matrix.os }})
+    name: test (${{ matrix.os }}, go ${{ matrix.go }})
+    if: github.event_name != 'schedule'
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        go: ["1.26"]
+        include:
+          # One job on the current Go release. It is deliberately not the whole
+          # matrix: the floor in go.mod is what users build with, and finding
+          # out that a newer toolchain works is worth one runner, while raising
+          # that floor stays a decision somebody makes rather than something a
+          # Go release forces.
+          - os: ubuntu-latest
+            go: "1.27"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version: ${{ env.GO_VERSION }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go }}
           check-latest: true
 
       - name: Build
@@ -40,32 +64,50 @@ jobs:
       # not ship by default; the other two platforms cover the shared code.
       - name: Test (race)
         if: runner.os != 'Windows'
-        run: go test -race -shuffle=on ./...
+        run: go test -race -shuffle=on -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Test
         if: runner.os == 'Windows'
         run: go test -shuffle=on ./...
 
+      # One profile, from the job that builds the way users do. The same
+      # coverage measured on three runners is three artifacts nobody can
+      # compare, and the number would differ only by what is skipped per OS.
+      - name: Upload the coverage profile
+        if: matrix.os == 'ubuntu-latest' && matrix.go == '1.26'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: coverage.out
+
   lint:
     name: lint
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
           check-latest: true
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.9.0
+          version: ${{ env.GOLANGCI_VERSION }}
           args: --build-tags integration
 
   tidy:
     name: go mod tidy is clean
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
           check-latest: true
@@ -76,20 +118,45 @@ jobs:
   vuln:
     name: govulncheck
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
           check-latest: true
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
   integration:
-    name: integration (kind)
+    name: integration (kind, kubernetes ${{ matrix.kubernetes }})
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Correlux reads a cluster through discovery and the Table API, so the
+        # axis that can break it is the Kubernetes version, not the operating
+        # system the binary runs on. These are the current release and the two
+        # before it, which is the window docs/stability.md promises.
+        #
+        # The images are digest-pinned from the kind v0.33.0 release notes: a
+        # tag alone lets the node image move under a rerun of a commit that
+        # once passed, which turns a green run into an unreproducible one.
+        include:
+          - kubernetes: v1.37.0
+            image: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+          - kubernetes: v1.36.4
+            image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
+          - kubernetes: v1.35.8
+            image: kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
           check-latest: true
@@ -97,8 +164,10 @@ jobs:
       - name: Install Task
         run: go install github.com/go-task/task/v3/cmd/task@${{ env.TASK_VERSION }}
 
+      # The same variable works locally, so a failing matrix entry is
+      # reproducible with one command rather than by editing this file.
       - name: Create the kind cluster
-        run: task kind:up
+        run: task kind:up KIND_NODE_IMAGE=${{ matrix.image }}
 
       # A modest load in CI: enough to exercise pagination, the Table API and
       # CRD discovery without turning every pull request into a 10-minute job.
@@ -123,11 +192,13 @@ jobs:
   hygiene:
     name: commits
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Conventional Commits and signatures
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}

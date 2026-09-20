@@ -12,27 +12,152 @@ builds:
   - id: correlux
     main: ./cmd/correlux
     binary: correlux
-    env:
+    env: &build_env
       - CGO_ENABLED=0
-    flags:
+    flags: &build_flags
       - -trimpath
-    ldflags:
+    # Anchored and reused below rather than copied, so the two binaries cannot
+    # drift into reporting different versions of the same commit.
+    ldflags: &build_ldflags
       - -s -w
       - -X github.com/aronk11/correlux/internal/buildinfo.Version={{ .Version }}
       - -X github.com/aronk11/correlux/internal/buildinfo.Commit={{ .FullCommit }}
       - -X github.com/aronk11/correlux/internal/buildinfo.Date={{ .Date }}
-    goos: [linux, darwin, windows]
-    goarch: [amd64, arm64]
+    goos: &build_goos [linux, darwin, windows]
+    goarch: &build_goarch [amd64, arm64]
+
+  # The same program under the name kubectl looks for. `kubectl` treats any
+  # executable on PATH called kubectl-x as the subcommand `kubectl x`, so this
+  # build exists only to carry a different filename — there is no plugin API to
+  # implement and no second code path to keep working.
+  #
+  # It is a separate build rather than a copy of the first because the binary
+  # name is compiled into the artefact metadata GoReleaser uses downstream, and
+  # because krew requires an archive containing exactly one binary.
+  - id: kubectl-correlux
+    main: ./cmd/correlux
+    binary: kubectl-correlux
+    env: *build_env
+    flags: *build_flags
+    ldflags: *build_ldflags
+    goos: *build_goos
+    goarch: *build_goarch
 
 archives:
-  - formats: [tar.gz]
+  # Both archives carry the same documentation, because somebody who installed
+  # through krew has the same questions as somebody who downloaded a tarball.
+  - id: correlux
+    ids: [correlux]
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
         formats: [zip]
-    files: [LICENSE, NOTICE, README.md, docs/air-gapped.md, docs/examples/air-gapped.yaml]
+    files: &archive_files [LICENSE, NOTICE, README.md, docs/air-gapped.md, docs/examples/air-gapped.yaml]
+
+  - id: kubectl-correlux
+    ids: [kubectl-correlux]
+    # An explicit name, because the default template is built from the project
+    # name and both archives would otherwise be called correlux_<version>_… and
+    # overwrite each other.
+    name_template: "kubectl-correlux_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files: *archive_files
 
 checksum:
   name_template: checksums.txt
+
+# Correlux is handed a kubeconfig the first time it runs, which makes "is this
+# the binary the project published?" a question somebody has to be able to
+# answer before trusting it — and until now the honest answer was "compare a
+# checksum with the one published next to it", which proves only that the
+# download matches the file the same page served.
+#
+# An SBOM per archive, so an operator can tell whether a release contains a
+# dependency their scanner just flagged without unpacking and building it.
+# SPDX JSON because that is what syft emits by default here and what the tools
+# that consume these read.
+sboms:
+  - artifacts: archive
+
+# Signed keyless: the certificate is issued to this workflow's OIDC identity
+# for the few seconds the signature is made, so there is no private key to
+# store, rotate, or leak — which is the failure mode that makes most projects
+# stop signing after a while.
+#
+# Only the checksum file is signed. It already names every artefact by digest,
+# so one signature covers the whole release, and verifying an archive stays two
+# steps everybody already knows: check the signature on the list, then check
+# the archive against the list.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-signature=${signature}"
+      - "--output-certificate=${certificate}"
+      # cosign asks before writing to the public transparency log. There is
+      # nobody at a keyboard during a release, and the entry is the point.
+      - "--yes"
+      - "${artifact}"
+    artifacts: checksum
+    output: true
+
+# Linux has no Homebrew, and "download a tarball and put it on PATH" is a step
+# a configuration-managed machine should not need. These are the packages an
+# operator's existing tooling already knows how to install and remove.
+#
+# Built from the standalone binary only: a package manager installing something
+# called kubectl-correlux into /usr/bin would be putting a kubectl subcommand on
+# the system without kubectl having asked for one.
+nfpms:
+  - id: correlux
+    ids: [correlux]
+    formats: [deb, rpm, apk]
+    package_name: correlux
+    bindir: /usr/bin
+    maintainer: "aronk11 <dev@aron.gg>"
+    homepage: "https://github.com/aronk11/correlux"
+    description: "Fleet-first Kubernetes troubleshooting from your terminal"
+    license: Apache-2.0
+    # No dependencies and no scripts on purpose: the binary is static, and a
+    # package that runs code at install time is a package a hardened host has a
+    # policy about.
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/correlux/LICENSE
+      - src: NOTICE
+        dst: /usr/share/doc/correlux/NOTICE
+      - src: README.md
+        dst: /usr/share/doc/correlux/README.md
+      - src: docs/air-gapped.md
+        dst: /usr/share/doc/correlux/air-gapped.md
+
+# krew is how people who live in kubectl find a tool like this one, and the
+# manifest it needs is derived from the release: platform list, URLs and
+# SHA-256 per archive, none of which is worth maintaining by hand.
+#
+# skip_upload, because krew-index takes pull requests rather than pushes. The
+# manifest is written to dist/krew/correlux.yaml and submitted from there once
+# the release exists and its URLs resolve — a manifest opened against an
+# unpublished tag fails krew's own validation.
+krews:
+  - name: correlux
+    ids: [kubectl-correlux]
+    homepage: "https://github.com/aronk11/correlux"
+    short_description: "Fleet-first Kubernetes troubleshooting from your terminal"
+    description: |-
+      Correlux shows applications and their health instead of a list of resource
+      types, explains deterministically why one is unhealthy from the cluster's
+      own evidence, and puts every change behind a confirmation that names the
+      cluster and states the blast radius.
+
+      It runs against your existing kubeconfig. There is no server, agent, CRD
+      or container to install.
+    skip_upload: "true"
 
 # Homebrew is the first install path people try, so the cask is written by the
 # same run that builds the archives it points at: a formula naming a release
@@ -44,6 +169,10 @@ checksum:
 # `go install` as first-class paths for Linux.
 homebrew_casks:
   - name: correlux
+    # Explicitly the standalone archive. Without this the cask would pick up
+    # whichever archives match, and `brew install correlux` would start
+    # shipping a kubectl subcommand to people who never asked for one.
+    ids: [correlux]
     binaries: [correlux]
     repository:
       owner: aronk11

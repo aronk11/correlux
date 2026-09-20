@@ -5,6 +5,24 @@
 Correlux is pre-1.0. Security fixes are made against the latest released minor
 version and `main`.
 
+## Verifying a release
+
+Releases are signed and carry an SBOM and build provenance, so that "did this
+binary come from this project?" is a question you can answer yourself rather
+than infer from the URL you downloaded it from. Signing is keyless: the
+certificate belongs to the release workflow's own identity, and no private key
+exists to be stolen or to expire unnoticed.
+
+With the GitHub CLI it is one command:
+
+```sh
+gh attestation verify correlux_0.12.0_linux_amd64.tar.gz --repo aronk11/correlux
+```
+
+[docs/verifying-releases.md](docs/verifying-releases.md) has the full
+`cosign verify-blob` invocation — including the certificate identity flags that
+are what make a signature mean anything — and what the SBOM is good for.
+
 ## Reporting a vulnerability
 
 Please report security issues privately through GitHub's
