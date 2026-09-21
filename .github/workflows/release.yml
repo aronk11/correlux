@@ -35,7 +35,11 @@ jobs:
 
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
-          version: "~> v2"
+          # Pinned rather than "~> v2". The dry run in ci.yml rehearses this
+          # release with the version pinned in Taskfile.yml, and a rehearsal
+          # against a different build of GoReleaser than the one that cuts the
+          # release is not a rehearsal. Keep the two in step when bumping.
+          version: "v2.18.2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

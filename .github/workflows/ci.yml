@@ -129,6 +129,48 @@ jobs:
           check-latest: true
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 
+  # The release workflow only ever runs on a tag, so until now a mistake in
+  # .goreleaser.yaml was discovered by pushing one and watching it fail — and a
+  # tag cannot be taken back once anybody has fetched it. Two of the last three
+  # releases died that way, both in pipes that run after the binaries are
+  # already built.
+  #
+  # --snapshot rehearses the same configuration on an untagged commit: it
+  # builds every target, archives them, writes the packages and renders the
+  # Homebrew cask, which is where both of those failures were. It publishes
+  # nothing and needs no token, so it is safe on a pull request from a fork.
+  release-dry-run:
+    name: release dry run
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # GoReleaser reads the tag history to stamp the snapshot version.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      # The SBOM pipe shells out to syft and runs in snapshot mode too, so a dry
+      # run without it stops before it reaches the pipes that have been
+      # breaking. cosign is deliberately absent: the dry run skips signing,
+      # which is the one part of the release a pull request cannot rehearse —
+      # a keyless signature needs an OIDC identity that fork pull requests are
+      # not given, and it would write a transparency-log entry per CI run.
+      - uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+
+      - name: Install Task
+        run: go install github.com/go-task/task/v3/cmd/task@${{ env.TASK_VERSION }}
+
+      # The same command a contributor runs locally, so a failure here is
+      # reproducible without reading this file.
+      - name: Build the release artefacts
+        run: task dist:snapshot
+
   integration:
     name: integration (kind, kubernetes ${{ matrix.kubernetes }})
     if: github.event_name != 'schedule'

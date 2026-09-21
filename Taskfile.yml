@@ -15,7 +15,9 @@ vars:
   TOOLS_DIR: "{{.ROOT_DIR}}/.tools"
   # Pinned tool versions. CI uses the same ones.
   GOLANGCI_VERSION: v2.13.2
-  GORELEASER_VERSION: v2.18.0
+  # Also pinned in .github/workflows/release.yml, which must build with the
+  # same version the release dry run in ci.yml rehearses with.
+  GORELEASER_VERSION: v2.18.2
   KIND_VERSION: v0.33.0
   # kind cluster used by the integration and load tasks.
   KIND_CLUSTER: correlux-test
@@ -76,7 +78,11 @@ tasks:
     desc: Build the release artefacts for an untagged commit
     deps: [tools:goreleaser]
     cmds:
-      - "{{.TOOLS_DIR}}/goreleaser release --clean --snapshot --skip=publish,announce"
+      # Signing is skipped as well as publishing. A keyless signature is issued
+      # to an OIDC identity and recorded in the public transparency log, and a
+      # preview build of somebody's branch has neither an identity to be issued
+      # to nor any business in that log.
+      - "{{.TOOLS_DIR}}/goreleaser release --clean --snapshot --skip=publish,announce,sign"
 
   run:
     desc: Run Correlux against your current kubeconfig
@@ -312,7 +318,10 @@ tasks:
   tools:goreleaser:
     internal: true
     status:
-      - test -x {{.TOOLS_DIR}}/goreleaser
+      # Compare the installed version rather than only looking for the file,
+      # so bumping the pin above reinstalls instead of silently leaving a
+      # contributor on whatever they first downloaded.
+      - '{{.TOOLS_DIR}}/goreleaser --version 2>/dev/null | grep -qF "GitVersion:    {{.GORELEASER_VERSION}}"'
     cmds:
       - GOBIN={{.TOOLS_DIR}} go install github.com/goreleaser/goreleaser/v2@{{.GORELEASER_VERSION}}
 
