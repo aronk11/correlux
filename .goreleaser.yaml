@@ -211,12 +211,20 @@ homebrew_casks:
     # The binaries are not notarised with an Apple developer certificate, so
     # macOS would quarantine them and refuse the first run. Removing the
     # attribute at install time is what every unsigned cask does.
-    custom_block: |
-      postflight_steps do
-        on_macos do
-          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{staged_path}}/correlux"]
-        end
-      end
+    #
+    # This belongs in `hooks`, not in `custom_block`. GoReleaser renders the
+    # cask through Go's text/template, and `custom_block` is copied into it
+    # verbatim: a Ruby `#{}` interpolation survives that, but `{{ }}` is read
+    # as a template action and fails the whole release. `hooks.post.install`
+    # is also the field that emits a `postflight do` block, which is the cask
+    # DSL Homebrew actually has — there is no `postflight_steps`, and `run` is
+    # not a method inside it.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/correlux"]
+          end
 
 changelog:
   # Built from the commit messages, which is where the information is: the
