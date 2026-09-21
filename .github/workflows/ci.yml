@@ -163,13 +163,19 @@ jobs:
       # not given, and it would write a transparency-log entry per CI run.
       - uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
 
-      - name: Install Task
-        run: go install github.com/go-task/task/v3/cmd/task@${{ env.TASK_VERSION }}
-
-      # The same command a contributor runs locally, so a failure here is
-      # reproducible without reading this file.
-      - name: Build the release artefacts
-        run: task dist:snapshot
+      # Installed exactly as release.yml installs it — the same action, at the
+      # same pinned version, fetching the same prebuilt binary. Rehearsing the
+      # release with a differently built GoReleaser would not be rehearsing it.
+      #
+      # Not `go install` via the Taskfile: GoReleaser v2.18 needs Go 1.27 to
+      # build from source, this repository's floor is Go 1.26, and setup-go
+      # pins GOTOOLCHAIN=local so the toolchain cannot silently upgrade. The
+      # local `task dist:snapshot` runs the same flags for contributors, whose
+      # default GOTOOLCHAIN is free to fetch what the tool needs.
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          version: "v2.18.2"
+          args: release --clean --snapshot --skip=publish,announce,sign
 
   integration:
     name: integration (kind, kubernetes ${{ matrix.kubernetes }})
