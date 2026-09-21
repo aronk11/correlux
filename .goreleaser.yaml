@@ -211,12 +211,12 @@ homebrew_casks:
     # The binaries are not notarised with an Apple developer certificate, so
     # macOS would quarantine them and refuse the first run. Removing the
     # attribute at install time is what every unsigned cask does.
-    hooks:
-      post:
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/correlux"]
-          end
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{staged_path}}/correlux"]
+        end
+      end
 
 changelog:
   # Built from the commit messages, which is where the information is: the
