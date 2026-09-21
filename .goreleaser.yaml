@@ -93,12 +93,13 @@ sboms:
 # the archive against the list.
 signs:
   - cmd: cosign
-    signature: "${artifact}.sig"
-    certificate: "${artifact}.pem"
+    # Cosign v3 writes the signature, certificate and transparency-log proof
+    # into one Sigstore bundle. The old --output-signature/--output-certificate
+    # flags are ignored by v3 and leave GoReleaser with no bundle path.
+    signature: "${artifact}.sigstore.json"
     args:
       - sign-blob
-      - "--output-signature=${signature}"
-      - "--output-certificate=${certificate}"
+      - "--bundle=${signature}"
       # cosign asks before writing to the public transparency log. There is
       # nobody at a keyboard during a release, and the entry is the point.
       - "--yes"
