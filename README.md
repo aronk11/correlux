@@ -200,7 +200,7 @@ Correlux compares the one rolling out with the one before it:
 
 ```
 ⚠ revision 14 of Deployment/payments is failing while revision 13 still serves
-  Deployment/payments → revision 13 → 14 → container payments image: registry/payments:1.8 → registry/payments:1.9
+  Deployment/payments → revision 13 → 14 → container payments image
   WHY
     3 of 3 pods of the new revision are not ready, and 3 of the previous one are,
     so the difference between the two templates is the likeliest place to look
@@ -212,7 +212,9 @@ Correlux compares the one rolling out with the one before it:
   confidence: medium
 ```
 
-It never claims the change caused the failure: when the previous revision is
+With more than one finding, WHY lists them all first, so the rollout is on
+screen even when a crash loop leads, and offers `U` to roll that Deployment
+back. It never claims the change caused the failure: when the previous revision is
 not running to compare against, a change in the last six hours is reported as
 exactly what it is — a coincidence in time, with low confidence. Environment
 values are compared but never printed, because WHY is read on shared screens

@@ -78,7 +78,9 @@ func rolloutChanged(in *Input) []Diagnosis {
 			}
 		}
 		d.Subject = application.ObjectRef{Kind: w.Kind, Name: w.Name, UID: w.UID}
-		d.Chain = chain(&in.App, "revision "+revisionName(previous)+" → "+revisionName(current), changes[0].String())
+		// The field, not its values: the chain is a breadcrumb, and an image
+		// reference twice over does not fit on one. EVIDENCE quotes the values.
+		d.Chain = chain(&in.App, "revision "+revisionName(previous)+" → "+revisionName(current), changes[0].Field)
 		d.Evidence = revisionEvidence(current, previous, changes)
 		d.Suggestions = []Suggestion{
 			{Text: "Read the revision that is rolling out, whole",

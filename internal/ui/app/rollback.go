@@ -47,6 +47,9 @@ type rolledBackMsg struct {
 // attempted half-understood.
 func (m *Model) rollbackTarget() tea.Cmd {
 	ref, ok := m.targetRef()
+	if !ok && m.view == viewWhy {
+		ref, ok = m.whyRollbackRef()
+	}
 	if !ok {
 		m.notice("Select a Deployment to roll back", theme.StatusWarning)
 		return m.expireNotice()
@@ -67,6 +70,19 @@ func (m *Model) rollbackTarget() tea.Cmd {
 		plan, err := factory.PlanRollback(ctx, name, ref.Namespace, ref.Name)
 		return rollbackPlannedMsg{gen: gen, ref: ref, plan: plan, err: err}
 	}
+}
+
+// whyRollbackRef is the Deployment an explanation blames a rollout of.
+func (m *Model) whyRollbackRef() (objectRef, bool) {
+	app, ok := m.currentApplication()
+	if !ok {
+		return objectRef{}, false
+	}
+	f, ok := rolloutFinding(m.findingsFor(app.Key()))
+	if !ok {
+		return objectRef{}, false
+	}
+	return objectRef{Kind: "Deployment", Name: f.Subject.Name, Namespace: app.Namespace, Resource: "deployments.apps"}, true
 }
 
 // rollbackableTarget reports the Deployment the current screen points at.

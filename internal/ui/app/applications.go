@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/aronk11/correlux/internal/domain/application"
+	"github.com/aronk11/correlux/internal/domain/diagnosis"
 	"github.com/aronk11/correlux/internal/domain/gitops"
 	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	"github.com/aronk11/correlux/internal/ui/async"
@@ -242,7 +243,7 @@ func (m *Model) applicationsData() screens.TableData {
 				managerCell(a.Manager),
 				itoa(int(a.Restarts)),
 				formatAge(a.CreatedAt, now),
-				applicationDetail(a),
+				applicationDetail(a, health, m.findingsFor(a.Key())),
 			},
 		})
 	}
@@ -260,11 +261,20 @@ func managerCell(m application.Manager) string {
 
 // applicationDetail is the one thing worth reading about a row: what is wrong
 // with it, or nothing at all when it is healthy.
-func applicationDetail(a *application.Application) string {
+//
+// The pod states the cluster reported come first, in its own words. Without
+// any, the leading finding says what is wrong — "Service/payments has no ready
+// endpoints" — rather than "0 of 3 pods ready", which the Pods column beside
+// it already says. A deliberate state such as a paused rollout is named on a
+// healthy row too, because it is why a fix will not arrive.
+func applicationDetail(a *application.Application, health application.Health, findings []diagnosis.Diagnosis) string {
 	if problems := a.ProblemSummary(); problems != "" {
 		return problems
 	}
-	if a.Health != application.Healthy {
+	if primary, ok := diagnosis.Primary(findings); ok && (health != application.Healthy || primary.Severity == diagnosis.Info) {
+		return primary.Problem
+	}
+	if health != application.Healthy {
 		return a.Summary
 	}
 	return ""

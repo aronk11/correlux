@@ -263,8 +263,8 @@ func (m *Model) overlayRect() layout.Rect {
 		})
 	case overlayHelp:
 		return layout.Overlay(m.screen, layout.OverlayOptions{
-			WidthRatio: 0.6, HeightRatio: 0.7,
-			MinWidth: 46, MaxWidth: 76, MinHeight: 10, MaxHeight: 24,
+			WidthRatio: 0.75, HeightRatio: 0.8,
+			MinWidth: 46, MaxWidth: 100, MinHeight: 10, MaxHeight: 32,
 		})
 	default:
 		return layout.Rect{}

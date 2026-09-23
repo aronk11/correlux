@@ -238,7 +238,7 @@ func savedFleetScopeNotice(namespaces []string) string {
 func (m *Model) fleetScopeSubtitle() string {
 	namespaces := m.fleetNamespaces()
 	if len(namespaces) == 0 {
-		return "every namespace of every cluster in " + m.fleetGroupLabel()
+		return "every namespace of every cluster in fleet group " + m.fleetGroupLabel()
 	}
-	return strings.Join(namespaces, ", ") + " — in every cluster in " + m.fleetGroupLabel()
+	return strings.Join(namespaces, ", ") + " — in every cluster in fleet group " + m.fleetGroupLabel()
 }

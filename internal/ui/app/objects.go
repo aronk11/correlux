@@ -311,7 +311,7 @@ func (m *Model) identitySection(obj *resources.Object) screens.DetailSection {
 	rows := [][2]string{
 		{"Namespace", orNone(obj.Namespace)},
 		{"API", groupVersionOf(obj)},
-		{"Created", obj.CreatedAt.Format(time.RFC3339)},
+		{"Created", createdLabel(obj.CreatedAt)},
 	}
 	for _, r := range rows {
 		section.Rows = append(section.Rows, screens.DetailRow{Cells: []string{r[0], r[1]}, Target: -1})
@@ -524,4 +524,13 @@ func sortedLabelKeys(labels map[string]string) []string {
 		}
 	}
 	return out
+}
+
+// createdLabel renders a creation time, or says it is unknown: the zero time
+// formatted as a date reads like a fact about the year 1.
+func createdLabel(at time.Time) string {
+	if at.IsZero() {
+		return "unknown"
+	}
+	return at.Format(time.RFC3339)
 }
