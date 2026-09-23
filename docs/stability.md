@@ -18,7 +18,7 @@ commit that does it, marked `!` per
 they take now, and keep their meaning:
 
 - The persistent flags `--kubeconfig`, `--context`, `--namespace`/`-n`,
-  `--all-namespaces`/`-A`, `--config` and `--air-gapped`.
+  `--all-namespaces`/`-A`, `--config`, `--air-gapped` and `--read-only`.
 - `correlux version --short` prints the version and nothing else. It is the one
   output here meant to be parsed, and it performs no network request, so it
   cannot hang in a script behind a firewall.

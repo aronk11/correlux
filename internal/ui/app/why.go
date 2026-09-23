@@ -177,7 +177,28 @@ func (m *Model) whyNextActions(app *application.Application) []screens.WhyAction
 	// handleWhyKey — but it is always reachable from here, to the objects the
 	// explanation is about.
 	actions = append(actions, screens.WhyAction{Key: "enter", Text: "inspect the objects involved"})
+	// A finding that blames a rollout offers the counter-move, where it is
+	// allowed: the same key, the same gate, the Deployment it names.
+	if key := m.keys.Key(ActionRollback); key != "" && !m.readOnly() {
+		if f, ok := rolloutFinding(m.findingsFor(app.Key())); ok {
+			actions = append(actions, screens.WhyAction{Key: key, Text: "roll " + f.Subject.Kind + "/" + f.Subject.Name + " back"})
+		}
+	}
 	return actions
+}
+
+// rolloutFinding returns the finding that points at a Deployment's last
+// rollout, when the explanation has one.
+func rolloutFinding(findings []diagnosis.Diagnosis) (diagnosis.Diagnosis, bool) {
+	for i := range findings {
+		switch findings[i].Rule {
+		case "workload.revisionfailing", "workload.changed":
+			if findings[i].Subject.Kind == "Deployment" {
+				return findings[i], true
+			}
+		}
+	}
+	return diagnosis.Diagnosis{}, false
 }
 
 func logsExist(app *application.Application) bool {

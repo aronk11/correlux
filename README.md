@@ -19,11 +19,12 @@ produce: **<https://aronk11.github.io/correlux/>**
 > applications from the cluster's own ownership, labels and selectors and sorts
 > them worst first; cluster and namespace switching; the command palette; an
 > optional timed refresh; the deterministic WHY engine that explains an
-> unhealthy application from the cluster's own evidence; a resource browser that
-> lists **every** kind the cluster serves — custom resources included — with the
-> API server's own columns; and the changes it can make to a cluster — scale,
-> edit, restart, delete and cordon — each behind one confirmation that states
-> the blast radius and names the cluster. See
+> unhealthy application from the cluster's own evidence, including what the last
+> rollout changed; a resource browser that lists **every** kind the cluster
+> serves — custom resources included — with the API server's own columns; and
+> the changes it can make to a cluster — scale, edit, restart, roll back, delete
+> and cordon — each behind one confirmation that states the blast radius and
+> names the cluster, or refused outright in a read-only context. See
 > [the roadmap](#roadmap). Nothing in the UI is a mock-up: if Correlux does not
 > know something yet, it says so.
 
@@ -81,6 +82,7 @@ correlux                              # start in your current context
 correlux --context prod-eu            # start somewhere specific
 correlux -n payments                  # start in a namespace
 correlux -A                           # start scoped to all namespaces
+correlux --read-only                  # look, and refuse every change
 correlux doctor                       # why doesn't it work here?
 correlux version
 ```
@@ -100,6 +102,7 @@ correlux version
 | `e` | Edit the open object in your editor |
 | `S` | Scale the selected workload |
 | `R` | Roll the selected workload: every pod replaced as its rollout allows |
+| `U` | Roll a Deployment back to an earlier revision, after showing what changes back |
 | `D` | Delete the selected object, and what Kubernetes deletes with it |
 | `C` | Cordon the node in hand so it takes no new pods, or uncordon it |
 | `x` | Open an interactive shell in the pod, or a running pod of the workload |
@@ -182,15 +185,42 @@ model anywhere near it:
   confidence: high
 ```
 
-Thirteen rules cover crash loops, image pulls, missing config, OOM kills,
-unschedulable pods, failing probes, missing replicas, services without
-endpoints, ingresses without a backend, unhealthy nodes and unbound volumes.
+Fifteen rules cover crash loops, image pulls, missing config, OOM kills,
+unschedulable pods, failing probes, missing replicas, stalled rollouts,
+services without endpoints, ingresses without a backend, unhealthy nodes,
+unbound volumes — and what the last rollout changed.
 Each one reads what the cluster reported and stops there: where the cluster did
 not say why, Correlux says so and lowers its confidence rather than inventing a
 plausible cause. Every finding carries the evidence it rests on, attributed to
 the object that stated it.
 
-The evidence — events, endpoints, node conditions, volume claims — is fetched
+That last one answers the question most incidents start with. A Deployment
+keeps its previous ReplicaSets, each with the pod template it was made from, and
+Correlux compares the one rolling out with the one before it:
+
+```
+⚠ revision 14 of Deployment/payments is failing while revision 13 still serves
+  Deployment/payments → revision 13 → 14 → container payments image
+  WHY
+    3 of 3 pods of the new revision are not ready, and 3 of the previous one are,
+    so the difference between the two templates is the likeliest place to look
+  EVIDENCE
+    ReplicaSet/payments-7d8f  revision 14, 0 of 3 ready
+    ReplicaSet/payments-5c4b  revision 13, 3 of 3 ready
+    ReplicaSet/payments-7d8f  container payments image: registry/payments:1.8 → registry/payments:1.9
+    ReplicaSet/payments-7d8f  container payments env FEATURE_LEDGER added
+  confidence: medium
+```
+
+With more than one finding, WHY lists them all first, so the rollout is on
+screen even when a crash loop leads, and offers `U` to roll that Deployment
+back. It never claims the change caused the failure: when the previous revision is
+not running to compare against, a change in the last six hours is reported as
+exactly what it is — a coincidence in time, with low confidence. Environment
+values are compared but never printed, because WHY is read on shared screens
+([ADR 29](docs/adr/0029-rollout-revisions-answer-what-changed.md)).
+
+The evidence — events, endpoints, node conditions, volume claims, revisions — is fetched
 when you open an application, ask the question, or explicitly open the cluster
 problem overview; never on the dashboard's timer
 ([ADR 18](docs/adr/0018-evidence-on-demand.md)).
@@ -445,11 +475,37 @@ reason where it does not. `D` deletes the object in hand, in the foreground,
 pinned to the object Correlux read — so a delete decided a minute ago cannot
 land on a namesake a controller has recreated since.
 
+`U` rolls a Deployment back, the way `kubectl rollout undo` does. It reads the
+revisions the Deployment keeps, offers the previous one, and says while you type
+the number what that revision changes back; the confirmation carries the field
+list and the template diff. The write is pinned to the version Correlux read, so
+a Deployment somebody changed in the meantime is refused rather than
+overwritten, and a paused rollout is refused as kubectl refuses it. A Deployment
+that Flux or Argo CD manages will be reconciled back to its source, and the
+confirmation says so.
+
 `C` cordons the node in hand — the one open in the inspector, or the row under
 the cursor in a table of nodes — so the scheduler stops placing new pods on it.
 The pods already running there keep running: this is not a drain. On a node that
 is already cordoned the same key uncordons it, and the confirmation says which
 of the two it is about to do.
+
+### Looking without touching
+
+`--read-only`, or `dangerousActions.readOnly: true`, makes the session unable to
+change anything: scale, restart, roll back, edit, delete and cordon are refused
+with the reason, and so are shells, debug containers and port-forwards, since
+each of those can do what a change can. `readOnlyProduction: true` does the
+same for the contexts marked `PROD` and leaves the others alone;
+`readOnlyContexts` names individual ones. The header says `read-only` next to
+the cluster's name, and the palette keeps the entries, disabled, with the
+reason beside them.
+
+It is enforced twice. The UI refuses, so the refusal is legible; and every
+client Correlux builds for such a context refuses writes at the transport,
+before a request leaves the machine, so it is true even of a code path that
+forgot to ask ([ADR 28](docs/adr/0028-read-only-contexts.md)). It does not
+replace RBAC — the same credentials still write from `kubectl`.
 
 ### Several clusters at once
 
@@ -841,6 +897,9 @@ dangerousActions:
   productionPatterns:
     - '(^|[-_./])(prod|prd|production|live)([-_./]|$)'
   productionContexts: []
+  readOnly: false           # refuse every change in every context (also --read-only)
+  readOnlyProduction: false # refuse every change in production contexts
+  readOnlyContexts: []      # refuse every change in these contexts
 
 keybindings:
   palette: ctrl+p
@@ -854,6 +913,7 @@ keybindings:
   object.decode: b
   edit: e
   scale: S
+  workload.rollback: U
   exec: x
   copy: c
   logs: l
@@ -893,9 +953,10 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | — | Fleet overview across several clusters, read-only | **done** |
 | — | Helm, Flux and Argo CD recognised from what they write | **done** |
 | — | Resource usage per namespace, application and node, metrics API optional | **done** |
-| — | Exec and clipboard | next |
+| — | Exec and clipboard | **done** |
 | 5 | Safe mutating actions: scale and edit | **done** |
 | — | Further safe actions: delete, restart, cordon | **done** |
+| — | What changed: rollout revisions in WHY, rollback, read-only contexts | **done** |
 | 6 | Large-cluster performance work, guided by the benchmarks | planned |
 | 7 | Platform polish across macOS, Linux and Windows | planned |
 

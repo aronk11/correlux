@@ -1,6 +1,7 @@
 package screens
 
 import (
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -146,6 +147,20 @@ func whyLines(t *theme.Theme, d WhyData, width int) []string {
 		lines = append(lines, muted(truncateTo(strings.Join(parts, "   "), width)))
 	}
 
+	// With several findings, the list of them leads: the second one — often
+	// what changed — is otherwise a screen below the first, and a reader who
+	// stops at the first never learns it exists.
+	if len(d.Findings) > 1 {
+		lines = append(lines, "", style(func(t *theme.Theme) lipgloss.Style { return t.PanelTitle }, "FINDINGS"))
+		for _, f := range d.Findings {
+			entry := truncateTo("  "+f.Glyph+" "+f.Problem, width)
+			if t != nil {
+				entry = t.Style(f.Status).Render(entry)
+			}
+			lines = append(lines, entry)
+		}
+	}
+
 	for _, f := range d.Findings {
 		head := f.Glyph + " " + f.Problem
 		if t != nil {
@@ -182,21 +197,21 @@ func whyLines(t *theme.Theme, d WhyData, width int) []string {
 
 		if len(f.Evidence) > 0 {
 			lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.PanelTitle }, "  EVIDENCE"))
-			for _, e := range f.Evidence {
+			for _, e := range groupEvidence(f.Evidence) {
 				label := "    " + e.Source
 				if e.At != "" {
 					label += "  " + e.At
 				}
-				lines = append(lines, muted(truncateTo(label, width)))
+				lines = append(lines, wrapMuted(label, width, "      ", t)...)
 				lines = append(lines, wrapInto(e.Detail, width-6, "      ", t)...)
 			}
 		}
 
+		// One wrapped line rather than one object per line: every name here
+		// already appeared above, and the list is what Enter picks from.
 		if rel := relatedTo(f); len(rel) > 0 {
 			lines = append(lines, style(func(t *theme.Theme) lipgloss.Style { return t.PanelTitle }, "  RELATED"))
-			for _, r := range rel {
-				lines = append(lines, muted(truncateTo("    "+r, width)))
-			}
+			lines = append(lines, wrapMuted("    "+strings.Join(rel, ", "), width, "    ", t)...)
 		}
 
 		if len(f.Suggestions) > 0 {
@@ -213,6 +228,57 @@ func whyLines(t *theme.Theme, d WhyData, width int) []string {
 		lines = append(lines, muted(truncateTo("  confidence: "+f.Confidence, width)))
 	}
 	return lines
+}
+
+// groupEvidence folds facts that say the same thing about several objects of
+// one kind into one entry. Three pods killed the same way are one fact about
+// three pods, and printing it three times pushes what to check off the screen.
+// Events are never folded: each has its own time, and that is part of it.
+func groupEvidence(in []WhyEvidence) []WhyEvidence {
+	type group struct {
+		kind  string
+		names []string
+		e     WhyEvidence
+	}
+	var groups []*group
+	index := map[string]*group{}
+	for _, e := range in {
+		kind, name, ok := strings.Cut(e.Source, "/")
+		if !ok || e.At != "" {
+			groups = append(groups, &group{e: e})
+			continue
+		}
+		key := kind + "\x00" + e.Detail
+		if g, found := index[key]; found {
+			g.names = append(g.names, name)
+			continue
+		}
+		g := &group{kind: kind, names: []string{name}, e: e}
+		index[key] = g
+		groups = append(groups, g)
+	}
+	out := make([]WhyEvidence, 0, len(groups))
+	for _, g := range groups {
+		if len(g.names) > 1 {
+			g.e.Source = strconv.Itoa(len(g.names)) + " " + g.kind + "s: " + strings.Join(g.names, ", ")
+		}
+		out = append(out, g.e)
+	}
+	return out
+}
+
+// wrapMuted wraps a dimmed line, indenting what follows the first.
+func wrapMuted(s string, width int, indent string, t *theme.Theme) []string {
+	parts := wrapText(s, max(width-len(indent), 8))
+	for i := range parts {
+		if i > 0 {
+			parts[i] = indent + strings.TrimLeft(parts[i], " ")
+		}
+		if t != nil {
+			parts[i] = t.Muted.Render(parts[i])
+		}
+	}
+	return parts
 }
 
 // relatedTo lists the objects one finding touches — the workload it chains

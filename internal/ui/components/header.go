@@ -13,6 +13,10 @@ import (
 type HeaderData struct {
 	Context    string
 	Production bool
+	// ReadOnly marks a context in which Correlux refuses every change. It sits
+	// beside the cluster's name because that is where somebody looks before
+	// pressing a key that would change it.
+	ReadOnly   bool
 	Scope      string
 	ConnStatus theme.Status
 	// ConnGlyph overrides the status glyph, e.g. to show progress rather than
@@ -63,6 +67,9 @@ func RenderHeader(t *theme.Theme, d HeaderData, width int) string {
 		badge = t.ContextProd.Render(t.Glyphs.Prod + " PROD " + badge)
 	} else {
 		badge = t.ContextSafe.Render(badge)
+	}
+	if d.ReadOnly {
+		badge += " " + t.Info.Render("read-only")
 	}
 
 	scope := t.Muted.Render("scope ") + t.Emphasis.Render(orDash(d.Scope))

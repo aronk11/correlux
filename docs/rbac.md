@@ -217,11 +217,18 @@ Two things this Role does not cover, both deliberately:
 
 ## Changes to running workloads
 
-Scale, restart, edit, delete and cordon are not in any role above. They are
-ordinary writes on the object in question — `patch` for scale and restart,
-`update` for an edit, `delete`, `patch` on `nodes` for cordon — and they should
+Scale, restart, rollback, edit, delete and cordon are not in any role above.
+They are ordinary writes on the object in question — `patch` for scale, restart
+and a Deployment rollback, `update` for an edit, `delete`, `patch` on `nodes`
+for cordon — and they should
 be granted the same way you already grant them to the people who use `kubectl`,
 per kind and per namespace. Correlux puts each behind one confirmation that
 states the blast radius and names the cluster
 ([ADR 20](adr/0020-changes-go-through-one-gate.md)); it does not, and cannot,
 substitute for the API server refusing what somebody may not do.
+
+A rollback reads the Deployment's ReplicaSets first, which `correlux-read`
+already grants. For an account that may write but should not from Correlux,
+`--read-only` or `dangerousActions.readOnlyProduction` refuses every change at
+the client ([ADR 28](adr/0028-read-only-contexts.md)); that is a guard on the
+tool, and the role is still what the API server enforces.

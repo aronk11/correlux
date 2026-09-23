@@ -74,6 +74,12 @@ type Workload struct {
 	// deliberately not reconciling this workload. That is a state, not a fault.
 	Paused    bool
 	Suspended bool
+	// Stalled is set when the controller itself has given up waiting for a
+	// rollout (a Deployment past its progressDeadlineSeconds). StalledReason
+	// and StalledMessage are its own words.
+	Stalled        bool
+	StalledReason  string
+	StalledMessage string
 	// GroupedBy is why this workload belongs to its application, captured at
 	// grouping time so it never has to be recomputed to answer for itself.
 	GroupedBy Reason
@@ -299,6 +305,9 @@ type Context struct {
 	Endpoints []EndpointSet
 	Nodes     []Node
 	Claims    []Claim
+	// Revisions are the Deployments' ReplicaSets with their pod templates,
+	// which is what answers "what changed?" (see Revision).
+	Revisions []Revision
 	Gaps      []Gap
 	FetchedAt time.Time
 }

@@ -57,9 +57,10 @@ func Group(s Snapshot) []Application {
 		return g
 	}
 
-	for _, w := range s.Workloads {
-		root := ix.root(w.Meta)
+	for i := range s.Workloads {
+		root := ix.root(s.Workloads[i].Meta)
 		if g := group(root.Namespace, appName(root)); g != nil {
+			w := s.Workloads[i]
 			w.GroupedBy = ix.reasonFor(w.Meta)
 			g.Workloads = append(g.Workloads, w)
 		}
@@ -151,8 +152,8 @@ func (a *Application) finish() {
 
 func (a *Application) metas() []Meta {
 	out := make([]Meta, 0, len(a.Workloads)+len(a.Pods)+len(a.Services)+len(a.Ingresses))
-	for _, w := range a.Workloads {
-		out = append(out, w.Meta)
+	for i := range a.Workloads {
+		out = append(out, a.Workloads[i].Meta)
 	}
 	for i := range a.Pods {
 		out = append(out, a.Pods[i].Meta)
@@ -250,8 +251,8 @@ type index struct {
 
 func newIndex(s Snapshot) *index {
 	ix := &index{metas: make(map[string]Meta, len(s.Workloads)+len(s.Owners))}
-	for _, w := range s.Workloads {
-		if w.UID != "" {
+	for i := range s.Workloads {
+		if w := &s.Workloads[i]; w.UID != "" {
 			ix.metas[w.UID] = w.Meta
 		}
 	}
