@@ -25,18 +25,19 @@ func (m *Model) filterCommands(query string) []components.Item {
 	items := make([]components.Item, 0, len(matches))
 	for _, match := range matches {
 		c := match.Command
-		right := c.Shortcut
+		right, isKey := c.Shortcut, c.Shortcut != ""
 		if right == "" {
-			right = c.Category
+			right = strings.ToLower(c.Category)
 		}
 		items = append(items, components.Item{
-			ID:        c.ID,
-			Title:     c.Title,
-			Subtitle:  c.Subtitle,
-			Right:     right,
-			Highlight: match.TitlePositions,
-			Disabled:  !c.Enabled,
-			Note:      c.DisabledReason,
+			ID:         c.ID,
+			Title:      c.Title,
+			Subtitle:   c.Subtitle,
+			Right:      right,
+			RightIsKey: isKey,
+			Highlight:  match.TitlePositions,
+			Disabled:   !c.Enabled,
+			Note:       c.DisabledReason,
 		})
 	}
 	return items
