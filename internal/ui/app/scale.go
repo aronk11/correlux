@@ -72,6 +72,10 @@ func (m *Model) refreshPrompt() {
 	if m.overlay != overlayPrompt || m.promptRef.empty() {
 		return
 	}
+	if m.promptRefresh != nil {
+		m.promptRefresh(m)
+		return
+	}
 	current, _ := m.replicasOf(m.promptRef)
 	wanted, err := parseReplicas(m.promptInput.Value())
 	if err != nil {
@@ -92,6 +96,7 @@ func (m *Model) acceptPrompt() tea.Cmd {
 
 func (m *Model) cancelPrompt() {
 	m.promptAccept = nil
+	m.promptRefresh = nil
 	m.promptRef = objectRef{}
 	m.promptTitle, m.promptNote, m.promptError = "", "", ""
 	m.promptInput.Reset()

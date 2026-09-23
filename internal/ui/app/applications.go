@@ -280,7 +280,8 @@ func workloadSummary(a *application.Application) string {
 		return a.Workloads[0].Kind
 	default:
 		kinds := map[string]int{}
-		for _, w := range a.Workloads {
+		for i := range a.Workloads {
+			w := &a.Workloads[i]
 			kinds[w.Kind]++
 		}
 		if len(kinds) == 1 {
@@ -389,7 +390,8 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		Columns: []string{"Kind", "Name", "Ready", "Age"},
 		Empty:   "no workload owns these pods",
 	}
-	for _, w := range a.Workloads {
+	for i := range a.Workloads {
+		w := &a.Workloads[i]
 		ready := "—"
 		if w.Replicated {
 			ready = itoa(int(w.Ready)) + "/" + itoa(int(w.Desired))
@@ -510,7 +512,8 @@ func (m *Model) groupingSection(a *application.Application) detailSection {
 		}
 		section.Rows = append(section.Rows, row)
 	}
-	for _, w := range a.Workloads {
+	for i := range a.Workloads {
+		w := &a.Workloads[i]
 		add(w.Kind, w.Name, w.Namespace, w.GroupedBy)
 	}
 	for i := range a.Pods {

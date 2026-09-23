@@ -63,7 +63,8 @@ func (a *Application) evaluate() {
 	replicated := false
 	paused, suspended := 0, 0
 
-	for _, w := range a.Workloads {
+	for i := range a.Workloads {
+		w := &a.Workloads[i]
 		if w.Paused {
 			paused++
 		}

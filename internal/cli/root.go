@@ -29,6 +29,7 @@ type globalFlags struct {
 	allNamespaces bool
 	configPath    string
 	airGapped     bool
+	readOnly      bool
 }
 
 // Execute runs Correlux and returns the process exit code.
@@ -61,6 +62,8 @@ func Execute() int {
 		"path to the Correlux config file")
 	root.PersistentFlags().BoolVar(&flags.airGapped, "air-gapped", false,
 		"disable all release checks and require explicit troubleshooting images")
+	root.PersistentFlags().BoolVar(&flags.readOnly, "read-only", false,
+		"refuse every change to every cluster, and every shell, debug container and port-forward")
 
 	root.AddCommand(newVersionCommand())
 	root.AddCommand(newDoctorCommand(&flags))
@@ -101,6 +104,7 @@ func prepare(flags globalFlags) (*startup, error) {
 		return nil, err
 	}
 	cfg.AirGapped = cfg.AirGapped || flags.airGapped
+	cfg.Safety.ReadOnly = cfg.Safety.ReadOnly || flags.readOnly
 
 	if _, intervalErr := cfg.Refresh.Interval(); intervalErr != nil {
 		warnings = append(warnings, intervalErr.Error())
@@ -128,11 +132,23 @@ func prepare(flags globalFlags) (*startup, error) {
 	return &startup{
 		cfg:        cfg,
 		kubeconfig: kc,
-		factory:    kubeclient.New(kc.Raw(), kc.LoadingRules(), kubeclient.Options{}),
+		factory:    kubeclient.New(kc.Raw(), kc.LoadingRules(), kubeclient.Options{ReadOnly: readOnlyContexts(cfg.Safety, classifier)}),
 		classifier: classifier,
 		context:    contextName,
 		warnings:   warnings,
 	}, nil
+}
+
+// readOnlyContexts answers, for the client factory, which contexts refuse
+// every write. It classifies with the same classifier and the same three names
+// the header's PROD badge comes from, so the context that reads PROD is the
+// one that is locked — including one that appeared in a reloaded kubeconfig.
+func readOnlyContexts(safety config.Safety, classifier *kubeconfig.Classifier) func(kubeclient.Identity) bool {
+	return func(id kubeclient.Identity) bool {
+		production := classifier.IsProduction(id.Context, id.Cluster, id.Server)
+		_, readOnly := safety.ReadOnlyIn(id.Context, production)
+		return readOnly
+	}
 }
 
 func loadConfig(explicit string) (config.Config, error) {

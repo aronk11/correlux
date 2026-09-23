@@ -20,7 +20,8 @@ const eventLimit = int64(500)
 
 // CollectContext reads the evidence a diagnosis reasons about: what the cluster
 // said (events), what a service actually routes to (endpoints), where the pods
-// are running (nodes) and whether their storage is bound (claims).
+// are running (nodes), whether their storage is bound (claims) and what the
+// last rollout of each Deployment changed (revisions).
 //
 // It is a separate pass from Collect on purpose. The dashboard refreshes on a
 // timer and has to stay cheap, while this is fetched at the moment somebody
@@ -101,11 +102,32 @@ func CollectContext(ctx context.Context, cs kubernetes.Interface, opts Options) 
 		})
 	})
 
+	// ReplicaSets again, this time with their templates: the dashboard reads
+	// them only to connect pods to Deployments, and the question here is the
+	// one the dashboard never asks — what did the last rollout change?
+	g.run("ReplicaSet", func() (bool, error) {
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+			l, err := cs.AppsV1().ReplicaSets(opts.Namespace).List(ctx, o)
+			if err != nil {
+				return "", err
+			}
+			revisions := make([]application.Revision, 0, len(l.Items))
+			for i := range l.Items {
+				if r, ok := fromReplicaSet(&l.Items[i]); ok {
+					revisions = append(revisions, r)
+				}
+			}
+			g.collect(func() { out.Revisions = append(out.Revisions, revisions...) })
+			return l.Continue, nil
+		})
+	})
+
 	gaps, _, err := g.wait()
 	if err != nil {
 		return application.Context{}, err
 	}
 	out.Gaps = gaps
+	out.Revisions = pruneRevisions(out.Revisions)
 	return out, nil
 }
 

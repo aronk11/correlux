@@ -39,6 +39,7 @@ const (
 	paletteScale            palette.ActionID = "scale"
 	paletteCordon           palette.ActionID = "node.cordon"
 	paletteRestart          palette.ActionID = "workload.restart"
+	paletteRollback         palette.ActionID = "workload.rollback"
 	paletteDelete           palette.ActionID = "delete"
 	paletteEdit             palette.ActionID = "edit"
 	paletteExec             palette.ActionID = "exec"
@@ -396,6 +397,20 @@ func (m *Model) rebuildCommands() {
 			Keywords: []string{"restart", "rollout", "roll", "bounce", "recreate", "redeploy"},
 			Shortcut: m.keys.Key(ActionRestart),
 			Weight:   82,
+			Enabled:  true,
+		})
+	}
+
+	if ref, ok := m.rollbackableTarget(); ok {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.rollback",
+			Action:   paletteRollback,
+			Title:    "Roll back " + ref.label(),
+			Subtitle: "to an earlier revision, after showing what it changes back",
+			Category: "Change",
+			Keywords: []string{"rollback", "roll back", "undo", "revert", "revision", "previous", "history"},
+			Shortcut: m.keys.Key(ActionRollback),
+			Weight:   80,
 			Enabled:  true,
 		})
 	}
@@ -763,7 +778,7 @@ func (m *Model) rebuildCommands() {
 		}
 		cmds = filtered
 	}
-	m.registry.Set(cmds)
+	m.registry.Set(m.withReadOnly(cmds))
 	m.cmdPal.Refresh()
 }
 
@@ -1167,6 +1182,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 	case paletteToggleDecode:
 		m.toggleObjectDecode()
 		return nil
+	case paletteRollback:
+		return m.rollbackTarget()
 	case paletteScale:
 		return m.scaleTarget()
 	case paletteCordon:

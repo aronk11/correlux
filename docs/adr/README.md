@@ -33,8 +33,9 @@ Michael Nygard's: context, decision, consequences.
 | [25](0025-explicit-troubleshooting-sessions.md) | Explicit troubleshooting identities and bounded lifetimes | accepted |
 | [26](0026-bounded-investigation-reports.md) | Bounded investigation reports with explicit evidence gaps | accepted |
 | [27](0027-air-gapped-operation.md) | Air-gapped operation is an explicit session policy | accepted |
+| [28](0028-read-only-contexts.md) | A read-only context is refused at the transport, not only in the UI | accepted |
+| [29](0029-rollout-revisions-answer-what-changed.md) | Rollout revisions answer "what changed?", and roll back through the gate | accepted |
 
-| [27](0027-air-gapped-operation.md) | Air-gapped operation is an explicit session policy | accepted |
 
 ## Adding one
 

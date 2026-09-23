@@ -332,11 +332,16 @@ type Model struct {
 	// promptAccept turns the typed value into the next step, usually a
 	// confirmation.
 	promptAccept func(*Model, string) tea.Cmd
+	// promptRefresh, when set, rewrites the note as the value is typed. Nil
+	// means the replica prompt's own note.
+	promptRefresh func(*Model)
 
 	// restartGen retires the answer to a restart's look-up. The document is
 	// read before the confirmation is offered, and one that arrives for an
 	// object nobody is pointing at any more must not open a gate.
 	restartGen uint64
+	// rollbackGen does the same for a rollback's look-up of the revisions.
+	rollbackGen uint64
 
 	// The document handed to the user's editor, and what it looked like before
 	// they touched it.

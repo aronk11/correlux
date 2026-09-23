@@ -177,6 +177,38 @@ type Safety struct {
 	// ProductionContexts are context names that are always production,
 	// regardless of the patterns above.
 	ProductionContexts []string `json:"productionContexts"`
+
+	// ReadOnly refuses every change in every context: nothing is scaled,
+	// edited, restarted, rolled back, deleted or cordoned, and no shell,
+	// debug container or port-forward is opened. It is what a team sets on the
+	// laptop that is allowed to look at production and not to touch it.
+	ReadOnly bool `json:"readOnly"`
+
+	// ReadOnlyProduction refuses every change in contexts classified as
+	// production, and leaves the others as they are.
+	ReadOnlyProduction bool `json:"readOnlyProduction"`
+
+	// ReadOnlyContexts are context names in which every change is refused,
+	// whatever their classification.
+	ReadOnlyContexts []string `json:"readOnlyContexts"`
+}
+
+// ReadOnlyIn reports whether changes are refused in a context, and why, in
+// words that can be put on screen: a refusal that does not say where it comes
+// from sends somebody hunting through RBAC for a rule that is not there.
+func (s Safety) ReadOnlyIn(contextName string, production bool) (string, bool) {
+	switch {
+	case s.ReadOnly:
+		return "this session is read-only", true
+	case s.ReadOnlyProduction && production:
+		return "production contexts are read-only", true
+	}
+	for _, name := range s.ReadOnlyContexts {
+		if name == contextName {
+			return contextName + " is configured read-only", true
+		}
+	}
+	return "", false
 }
 
 // DefaultProductionPatterns classify a context as production by name. They are

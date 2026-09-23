@@ -86,6 +86,7 @@ func (m *Model) headerData() components.HeaderData {
 	d := components.HeaderData{
 		Context:    m.contextName,
 		Production: kctx.Production,
+		ReadOnly:   m.readOnly(),
 		Scope:      m.scopeLabel(),
 		Version:    m.version(),
 		Update:     m.updateHeaderLabel(),
@@ -507,6 +508,7 @@ func (m *Model) statusData() components.StatusData {
 		})
 	}
 	hints = m.withoutNavigationDuplicates(hints)
+	hints = m.withoutWritingHints(hints)
 
 	switch m.overlay {
 	case overlayNone:
@@ -1034,6 +1036,11 @@ func (m *Model) changeHints() []components.KeyHint {
 			Group: components.HintView, Key: m.keys.Key(ActionRestart), Desc: "Restart", Priority: 80,
 		})
 	}
+	if _, ok := m.rollbackableTarget(); ok {
+		out = append(out, components.KeyHint{
+			Group: components.HintView, Key: m.keys.Key(ActionRollback), Desc: "Roll back", Priority: 79,
+		})
+	}
 	if _, ok := m.deletableTarget(); ok {
 		out = append(out, components.KeyHint{
 			Group: components.HintView, Key: m.keys.Key(ActionDelete), Desc: "Delete", Priority: 52,
@@ -1082,6 +1089,7 @@ func (m *Model) helpText() string {
 			{m.keys.Key(ActionScale), "Scale the selected workload, after confirming the blast radius"},
 			{m.keys.Key(ActionCordon), "Stop the node in hand taking new pods, or let it take them again"},
 			{m.keys.Key(ActionRestart), "Roll the selected workload: every pod replaced as the rollout allows"},
+			{m.keys.Key(ActionRollback), "Roll a Deployment back to an earlier revision, after showing what changes back"},
 			{m.keys.Key(ActionDelete), "Delete the selected object, and what Kubernetes deletes with it"},
 			{m.keys.Key(ActionEdit), "Edit the open object in $EDITOR, then review what changed"},
 			{m.keys.Key(ActionExec), "Open an interactive shell in the pod, or a running pod of the workload"},
