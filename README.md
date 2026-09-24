@@ -143,6 +143,10 @@ STATUS      APPLICATION  PODS   AGE    DETAIL
 ✓ healthy   frontend     6/6    9d
 ```
 
+Where the table leaves room, a **NEEDS ATTENTION** strip under it names each
+unhealthy application's leading finding and its cause — the WHY engine's first
+line, without opening anything. It never takes a line the table needs.
+
 Kubernetes has no application object, so Correlux infers one: pods are walked up
 their owner references to the controller that owns them, workloads sharing an
 `app.kubernetes.io/instance` label are one release, services join by selector
