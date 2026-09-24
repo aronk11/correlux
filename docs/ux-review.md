@@ -84,11 +84,12 @@ engineer in the middle of an incident.
 
 ## Follow-up priorities
 
-1. The dashboard leaves most of a tall terminal empty. SPEC 4's incidents
-   strip (the leading finding of each unhealthy application, under the table)
-   would use it without a second fetch, since the findings already exist.
-2. Palette entries without a shortcut show their category in the shortcut
-   column. Rendering the category in a separate, dimmer column would keep the
-   right-hand column meaning one thing.
-3. The usability study from the first review (80-column SSH session,
+1. The usability study from the first review (80-column SSH session,
    restricted RBAC, missing metrics) still has to happen with real engineers.
+
+## Implemented afterwards
+
+| Problem | Change | Operator benefit |
+| --- | --- | --- |
+| The dashboard left most of a tall terminal empty below a short table. | A NEEDS ATTENTION strip lists each unhealthy application's leading finding with its cause (SPEC 4), drawn only in room the table does not need and from findings already computed — no extra request. | What is wrong, and why, is readable from the first screen without opening anything. |
+| Palette entries without a shortcut showed their category in the shortcut column, in the same style as keys. | Keys are drawn in the key style; categories are lower-case words in the muted style. | The right-hand column never makes a category look like something to press, with or without colour. |

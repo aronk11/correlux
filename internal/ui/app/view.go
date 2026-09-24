@@ -598,7 +598,7 @@ func (m *Model) renderBody() string {
 	case viewTable:
 		content = screens.RenderTable(m.theme, m.frameTableFor(), body.Width, body.Height)
 	case viewApplications:
-		content = screens.RenderTable(m.theme, m.frameTableFor(), body.Width, body.Height)
+		content = m.renderDashboard(body.Width, body.Height)
 	case viewApplication:
 		content = screens.RenderApplication(m.theme, m.applicationData(), body.Width, body.Height)
 	case viewWhy:
