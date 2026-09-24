@@ -18,6 +18,10 @@ type Item struct {
 	Subtitle string
 	// Right is right-aligned metadata, e.g. "current" or a shortcut.
 	Right string
+	// RightIsKey marks Right as a keystroke. It is drawn in the key style used
+	// everywhere else, so a column that holds keys for some rows and a
+	// category for others never reads a category as something to press.
+	RightIsKey bool
 	// Badge is a short marker rendered before the title, e.g. "PROD".
 	Badge string
 	// BadgeStatus selects the badge's colour and glyph.
@@ -375,7 +379,11 @@ func (s *Selector) renderRow(t *theme.Theme, it Item, selected bool, width int) 
 	// exists to avoid.
 	body += row.Render(strings.Repeat(" ", max(width-rightWidth-used, 0)))
 	if rightWidth > 0 {
-		body += muted.Render(padLeft(right, rightWidth))
+		rightStyle := muted
+		if it.RightIsKey && !it.Disabled && !selected {
+			rightStyle = t.Key
+		}
+		body += rightStyle.Render(padLeft(right, rightWidth))
 	}
 	// A last clamp for the degenerate widths — a window narrower than the
 	// marker and the badge together. The row is one line, whatever happens.
