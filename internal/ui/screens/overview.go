@@ -135,8 +135,16 @@ func renderPanel(t *theme.Theme, p Panel, width int) string {
 		if f.Glyph {
 			value = t.Glyph(f.Status) + " " + value
 		}
-		value = fieldStyle.Render(truncateTo(value, max(inner-labelWidth-2, 4)))
-		b.WriteString(label + "  " + value)
+		// A value wraps under itself rather than being cut: the end of a path
+		// or of an application count is usually the part being looked for.
+		for i, line := range wrapText(value, max(inner-labelWidth-2, 4)) {
+			if i > 0 {
+				b.WriteString("\n" + strings.Repeat(" ", labelWidth))
+			} else {
+				b.WriteString(label)
+			}
+			b.WriteString("  " + fieldStyle.Render(line))
+		}
 	}
 	if p.Note != "" {
 		// Notes wrap rather than truncate: they exist to explain something, and

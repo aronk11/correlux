@@ -61,3 +61,34 @@ These remain product work, not claims made by this change:
 
 The regression suite covers 60×12, 80×24, 110×32 and 180×50 layouts, rendered
 palette position, mouse isolation, filtered action targets and log return paths.
+
+# Correlux UX review — 2026-09-23
+
+A second pass over the rendered frames (`task frames`, plus the object, logs,
+events, fleet and read-only screens driven from tests), read as an on-call
+engineer in the middle of an incident.
+
+## Implemented
+
+| Problem | Change | Operator benefit |
+| --- | --- | --- |
+| The help overlay cut descriptions off mid-word at 76 columns ("read-on", "and save" missing). | Descriptions wrap under themselves; the overlay may grow to 100 columns and 32 rows. | Every key's explanation is readable in full. |
+| The help mixed fleet-only keys into Navigate, listed `Ctrl+B` twice with two meanings, and put the keys that change a cluster among the ones that read it. | Sections regrouped: navigate, dashboard, inspect, change, logs, fleet, filtering. The change section says when the context refuses changes, and why. | The risky keys are in one place, and a refused key is explained where people look. |
+| Session panels truncated values ("2 down, 1 degraded, 2 healt", "config.yaml (no"). | Values wrap under their label. The Session panel states whether changes are allowed here. | The screen that answers "what am I connected to?" answers it whole. |
+| The dashboard's Detail column repeated the Pods column ("0 of 3 pods ready" next to `0/3`) whenever no pod state was named. | It shows the leading finding instead ("Service/payments has no ready endpoints"), and a paused rollout on a healthy row. | The row says what is wrong, not what is already beside it. |
+| WHY printed one identical evidence line per pod, which pushed "What to check" off an 80×32 screen. | Identical facts about several objects of one kind fold into one entry; Related is one wrapped line. | The commands to run are on the first screen. |
+| A second finding — typically what the last rollout changed — sat a screen below the first. | With several findings, WHY lists them all first; a rollout finding offers `U` to roll that Deployment back (not in read-only contexts). | "What changed?" is visible without scrolling, and the counter-move is one key away. |
+| The revision chain quoted two image references and was clipped at the terminal edge. | The chain names the field; the values stay in Evidence. | The breadcrumb fits. |
+| The object inspector printed a missing creation time as `0001-01-01T00:00:00Z`. | It reads "unknown". | No fact is invented from a zero value. |
+| Outside the fleet, the palette showed `Ctrl+O` beside "Scope the fleet to namespaces" — a key that switches this cluster's namespace there — and ranked fleet setup next to "Explain". "Choose the clusters in default" read like the namespace `default`. | Fleet setup ranks by what is typed outside the fleet, advertises its key only in the fleet, and names the fleet group as one. | The palette's key column is always true, and the investigation's commands lead. |
+
+## Follow-up priorities
+
+1. The dashboard leaves most of a tall terminal empty. SPEC 4's incidents
+   strip (the leading finding of each unhealthy application, under the table)
+   would use it without a second fetch, since the findings already exist.
+2. Palette entries without a shortcut show their category in the shortcut
+   column. Rendering the category in a separate, dimmer column would keep the
+   right-hand column meaning one thing.
+3. The usability study from the first review (80-column SSH session,
+   restricted RBAC, missing metrics) still has to happen with real engineers.

@@ -37,6 +37,7 @@ const (
 	ActionCordon          = "node.cordon"
 	ActionDelete          = "delete"
 	ActionRestart         = "workload.restart"
+	ActionRollback        = "workload.rollback"
 	ActionEdit            = "edit"
 	ActionExec            = "exec"
 	ActionCopy            = "copy"
@@ -85,6 +86,7 @@ var DefaultBindings = map[string]string{
 	ActionCordon:          "C",
 	ActionDelete:          "D",
 	ActionRestart:         "R",
+	ActionRollback:        "U",
 	ActionEdit:            "e",
 	ActionExec:            "x",
 	ActionCopy:            "c",

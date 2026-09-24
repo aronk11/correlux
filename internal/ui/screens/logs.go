@@ -125,6 +125,11 @@ func logLines(t *theme.Theme, d LogsData, width int) []string {
 	return out
 }
 
+// Wrap breaks prose at the given width, on spaces where it can and mid-word
+// where it must. It is what every screen above this package uses to fit a
+// sentence rather than clip it.
+func Wrap(text string, width int) []string { return wrapText(text, width) }
+
 // wrapText breaks a line at the given width, on spaces where it can and
 // mid-word where it must — a base64 blob has no spaces and still has to fit.
 func wrapText(text string, width int) []string {

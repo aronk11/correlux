@@ -248,7 +248,7 @@ func meta(kind string, m metav1.ObjectMeta) application.Meta {
 }
 
 func fromDeployment(d *appsv1.Deployment) application.Workload {
-	return application.Workload{
+	w := application.Workload{
 		Meta:       meta("Deployment", d.ObjectMeta),
 		Desired:    replicas(d.Spec.Replicas),
 		Ready:      d.Status.ReadyReplicas,
@@ -257,6 +257,16 @@ func fromDeployment(d *appsv1.Deployment) application.Workload {
 		Replicated: true,
 		Paused:     d.Spec.Paused,
 	}
+	// A condition from an earlier generation describes a template that is no
+	// longer the one being rolled out, so it is not quoted about this one.
+	if d.Status.ObservedGeneration >= d.Generation {
+		for _, c := range d.Status.Conditions {
+			if c.Type == appsv1.DeploymentProgressing && c.Status == corev1.ConditionFalse {
+				w.Stalled, w.StalledReason, w.StalledMessage = true, c.Reason, c.Message
+			}
+		}
+	}
+	return w
 }
 
 func fromStatefulSet(s *appsv1.StatefulSet) application.Workload {

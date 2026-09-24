@@ -54,7 +54,7 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 | `internal/domain/diff` | Line comparison, so an edit can be shown before it is applied. |
 | `internal/domain/usage` | Rolls a snapshot up per node and per application against requests, limits, capacity and whatever the metrics API said. Pure; keeps "no sample", "none set" and zero apart. |
 | `internal/domain/fleet` | The application model one level up: several clusters merged into one answer, with each cluster's own state kept ([ADR 19](adr/0019-fleet-overview.md)). |
-| `internal/domain/diagnosis` | Thirteen deterministic rules that turn evidence into a problem, a cause, the facts behind it and what to check next. Degrades with the evidence available ([ADR 18](adr/0018-evidence-on-demand.md)). |
+| `internal/domain/diagnosis` | Fifteen deterministic rules that turn evidence into a problem, a cause, the facts behind it and what to check next. Degrades with the evidence available ([ADR 18](adr/0018-evidence-on-demand.md)). |
 | `internal/ui/async` | `Value[T]`: lifecycle plus generation counter for every remote value. |
 | `internal/ui/layout` | Screen geometry, the resize debouncer and `Viewport` — the scrolling and selection rules every scrollable screen shares. Pure arithmetic. |
 | `internal/ui/theme` | Colours, glyphs, terminal capability detection. |

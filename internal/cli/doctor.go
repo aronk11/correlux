@@ -107,6 +107,10 @@ func runDoctor(ctx context.Context, flags globalFlags) []checkResult {
 		contextStatus = theme.StatusWarning
 	}
 	results = append(results, checkResult{name: "context", status: contextStatus, detail: contextDetail})
+	if reason, readOnly := s.cfg.Safety.ReadOnlyIn(s.context, kctx.Production); readOnly {
+		results = append(results, checkResult{name: "read-only", status: theme.StatusHealthy,
+			detail: reason + "; Correlux refuses every change, shell, debug container and port-forward here"})
+	}
 
 	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()

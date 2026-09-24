@@ -314,3 +314,44 @@ func TestPackagedAirGappedConfigLoads(t *testing.T) {
 		t.Fatal("packaged config does not configure offline operation")
 	}
 }
+
+func TestReadOnlyIsOffUntilItIsAskedFor(t *testing.T) {
+	cfg := Default()
+	if _, ro := cfg.Safety.ReadOnlyIn("prod-eu", true); ro {
+		t.Error("no context may be read-only by default")
+	}
+}
+
+func TestReadOnlyNamesItsReason(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	write(t, path, `
+dangerousActions:
+  readOnlyProduction: true
+  readOnlyContexts: [audit]
+`)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	cases := []struct {
+		context    string
+		production bool
+		want       bool
+		reason     string
+	}{
+		{"prod-eu", true, true, "production contexts are read-only"},
+		{"staging", false, false, ""},
+		{"audit", false, true, "audit is configured read-only"},
+	}
+	for _, c := range cases {
+		reason, ro := cfg.Safety.ReadOnlyIn(c.context, c.production)
+		if ro != c.want || reason != c.reason {
+			t.Errorf("ReadOnlyIn(%q, %v) = %q, %v; want %q, %v", c.context, c.production, reason, ro, c.reason, c.want)
+		}
+	}
+
+	cfg.Safety.ReadOnly = true
+	if reason, ro := cfg.Safety.ReadOnlyIn("staging", false); !ro || reason != "this session is read-only" {
+		t.Errorf("readOnly must cover every context, got %q, %v", reason, ro)
+	}
+}

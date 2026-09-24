@@ -323,7 +323,10 @@ tasks:
       # contributor on whatever they first downloaded.
       - '{{.TOOLS_DIR}}/goreleaser --version 2>/dev/null | grep -qF "GitVersion:    {{.GORELEASER_VERSION}}"'
     cmds:
-      - GOBIN={{.TOOLS_DIR}} go install github.com/goreleaser/goreleaser/v2@{{.GORELEASER_VERSION}}
+      # GoReleaser needs a newer Go than the one Correlux supports, and CI pins
+      # GOTOOLCHAIN=local. `auto` lets this one install fetch the toolchain the
+      # tool asks for; Correlux itself is still built with the Go in use.
+      - GOTOOLCHAIN=auto GOBIN={{.TOOLS_DIR}} go install github.com/goreleaser/goreleaser/v2@{{.GORELEASER_VERSION}}
 
   tools:kind:
     internal: true

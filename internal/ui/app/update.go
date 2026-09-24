@@ -186,6 +186,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case restartedMsg:
 		return m, m.applyRestarted(msg)
 
+	case rollbackPlannedMsg:
+		return m, m.applyRollbackPlan(&msg)
+
+	case rolledBackMsg:
+		return m, m.applyRolledBack(msg)
+
 	case execEndedMsg:
 		return m, m.applyExecEnded(msg)
 
@@ -857,6 +863,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if !ok {
 		return nil
 	}
+	if m.writesCluster(action) {
+		if cmd, refused := m.refuseReadOnly(); refused {
+			return cmd
+		}
+	}
 	switch action {
 	case ActionQuit:
 		m.quitting = true
@@ -953,6 +964,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.deleteTarget()
 	case ActionRestart:
 		return m.restartTarget()
+	case ActionRollback:
+		return m.rollbackTarget()
 	case ActionEdit:
 		if m.view == viewObject {
 			return m.editObject(m.objectTarget)

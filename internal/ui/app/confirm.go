@@ -33,7 +33,14 @@ type pendingAction struct {
 }
 
 // confirm opens the confirmation overlay for an action.
+//
+// It is also the last place a read-only context is enforced in the UI: every
+// change reaches the cluster through here, so whatever entry point forgot to
+// ask is still refused before anything is shown as confirmable.
 func (m *Model) confirm(action pendingAction) tea.Cmd {
+	if cmd, refused := m.refuseReadOnly(); refused {
+		return cmd
+	}
 	m.pending = &action
 	m.confirmInput.Reset()
 	m.overlay = overlayConfirm

@@ -4,6 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/aronk11/correlux/internal/config"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
+	"github.com/aronk11/correlux/internal/kube/kubeconfig"
 )
 
 func TestAirGappedStartupPrecedence(t *testing.T) {
@@ -39,5 +43,17 @@ func TestInvalidConfigCannotFallBackToOnlineStartup(t *testing.T) {
 	}
 	if s, err := prepare(globalFlags{configPath: path, kubeconfig: "../ui/app/testdata/kubeconfig.yaml"}); err == nil || s != nil {
 		t.Fatal("invalid configuration silently enabled online defaults")
+	}
+}
+
+func TestReadOnlyProductionLocksWhatTheHeaderCallsProduction(t *testing.T) {
+	classifier := kubeconfig.DefaultClassifier()
+	readOnly := readOnlyContexts(config.Safety{ReadOnlyProduction: true}, classifier)
+
+	if !readOnly(kubeclient.Identity{Context: "eu-1", Cluster: "prod-eu", Server: "https://api.example.com"}) {
+		t.Error("a context whose cluster is named prod is production, and must be locked")
+	}
+	if readOnly(kubeclient.Identity{Context: "staging", Cluster: "staging", Server: "https://api.staging.example.com"}) {
+		t.Error("staging is not production and must stay writable")
 	}
 }

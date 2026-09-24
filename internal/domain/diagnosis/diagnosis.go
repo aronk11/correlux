@@ -157,6 +157,8 @@ var rules = []rule{
 	serviceWithoutEndpoints,
 	ingressWithoutBackend,
 	rolloutPaused,
+	rolloutStalled,
+	rolloutChanged,
 }
 
 // Diagnose explains an application, worst first.

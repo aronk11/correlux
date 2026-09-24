@@ -86,6 +86,7 @@ func (m *Model) headerData() components.HeaderData {
 	d := components.HeaderData{
 		Context:    m.contextName,
 		Production: kctx.Production,
+		ReadOnly:   m.readOnly(),
 		Scope:      m.scopeLabel(),
 		Version:    m.version(),
 		Update:     m.updateHeaderLabel(),
@@ -507,6 +508,7 @@ func (m *Model) statusData() components.StatusData {
 		})
 	}
 	hints = m.withoutNavigationDuplicates(hints)
+	hints = m.withoutWritingHints(hints)
 
 	switch m.overlay {
 	case overlayNone:
@@ -762,6 +764,11 @@ func (m *Model) overviewData() screens.OverviewData {
 		{Label: "Namespaces", Value: m.namespacesSummary()},
 		{Label: "API kinds", Value: m.catalogSummary(), Status: m.catalogStatus()},
 	}
+	changes := screens.Field{Label: "Changes", Value: "allowed, each behind a confirmation"}
+	if reason, readOnly := m.readOnlyReason(); readOnly {
+		changes = screens.Field{Label: "Changes", Value: "refused: " + reason, Status: theme.StatusWarning}
+	}
+	session.Fields = append(session.Fields, changes)
 	session.Note = "Switching context here does not change your kubectl context."
 
 	environment := screens.Panel{Title: "Environment"}
@@ -1034,6 +1041,11 @@ func (m *Model) changeHints() []components.KeyHint {
 			Group: components.HintView, Key: m.keys.Key(ActionRestart), Desc: "Restart", Priority: 80,
 		})
 	}
+	if _, ok := m.rollbackableTarget(); ok {
+		out = append(out, components.KeyHint{
+			Group: components.HintView, Key: m.keys.Key(ActionRollback), Desc: "Roll back", Priority: 79,
+		})
+	}
 	if _, ok := m.deletableTarget(); ok {
 		out = append(out, components.KeyHint{
 			Group: components.HintView, Key: m.keys.Key(ActionDelete), Desc: "Delete", Priority: 52,
@@ -1047,6 +1059,14 @@ func (m *Model) changeHints() []components.KeyHint {
 // helpLines (which bounds how far that window may scroll) so the two can
 // never disagree about how long the page is.
 func (m *Model) helpText() string {
+	width, _ := m.overlayInnerSize()
+	return m.helpTextAt(width)
+}
+
+// helpTextAt lays the help out for a given width. A description that does not
+// fit wraps under itself instead of being cut off mid-word: help that loses
+// the end of its sentences is help that has to be guessed at.
+func (m *Model) helpTextAt(width int) string {
 	sections := []struct {
 		title string
 		rows  [][2]string
@@ -1055,11 +1075,14 @@ func (m *Model) helpText() string {
 			{m.keys.Key(ActionPalette), "Command palette — every action, by name"},
 			{m.keys.Key(ActionApplications), "Home: the application dashboard, from anywhere"},
 			{"Esc", "Back one step, or close what is open"},
-			{m.keys.Key(ActionFleet), "The fleet: every chosen cluster at once, read-only"},
-			{m.keys.Key(ActionEdit), "In the fleet: choose which clusters are in it, and save"},
-			{m.keys.Key(ActionResourcePicker), "In the fleet: browse one kind across every cluster"},
 			{m.keys.Key(ActionContextPicker), "Switch cluster"},
-			{m.keys.Key(ActionNamespacePicker), "Switch namespace — in the fleet, scope every cluster to a few"},
+			{m.keys.Key(ActionNamespacePicker), "Switch namespace"},
+			{m.keys.Key(ActionResourcePicker), "Browse resource kinds, including custom resources"},
+			{m.keys.Key(ActionUsage), "Where the pods are, and what CPU and memory they use"},
+			{m.keys.Key(ActionActivity), "Recent Kubernetes Events in the active scope"},
+			{m.keys.Key(ActionFleet), "The fleet: every chosen cluster at once, read-only"},
+			{m.keys.Key(ActionRefresh), "Refresh"},
+			{m.keys.Key(ActionAutoRefresh), "Refresh on a timer, until you turn it off"},
 		}},
 		{"In the application dashboard", [][2]string{
 			{"↑ ↓ / j k", "Move between applications"},
@@ -1067,32 +1090,34 @@ func (m *Model) helpText() string {
 			{m.keys.Key(ActionWhy), "Explain why it is unhealthy, from the cluster's own evidence"},
 			{m.keys.Key(ActionGrouping), "Show which signal grouped each object, and how sure it is"},
 		}},
-		{"Logs", [][2]string{
+		{"Inspect an application or an object", [][2]string{
+			{"↑ ↓ / j k", "Move between the objects; the page follows"},
+			{"Enter", "Open the object under the cursor, or follow the relation"},
+			{m.keys.Key(ActionYAML), "Show the document the server holds, and back"},
+			{m.keys.Key(ActionDecode), "Decode the base64 values in it — a Secret's, above all"},
 			{m.keys.Key(ActionLogs), "Read the logs of the pod, workload or application in hand"},
+			{m.keys.Key(ActionCopy), "Copy its namespace/name to the clipboard"},
+		}},
+		{m.changeSectionTitle(), [][2]string{
+			{m.keys.Key(ActionScale), "Scale the selected workload, after confirming the blast radius"},
+			{m.keys.Key(ActionRestart), "Roll the selected workload: every pod replaced as the rollout allows"},
+			{m.keys.Key(ActionRollback), "Roll a Deployment back to an earlier revision, after showing what changes back"},
+			{m.keys.Key(ActionEdit), "Edit the open object in $EDITOR, then review what changed"},
+			{m.keys.Key(ActionDelete), "Delete the selected object, and what Kubernetes deletes with it"},
+			{m.keys.Key(ActionCordon), "Stop the node in hand taking new pods, or let it take them again"},
+			{m.keys.Key(ActionExec), "Open an interactive shell in the pod, or a running pod of the workload"},
+		}},
+		{"Logs", [][2]string{
 			{m.keys.Key(ActionFollow), "Follow new output, or pause to read what is there"},
 			{m.keys.Key(ActionPrevious), "Read the previous run of a container that restarted"},
 			{m.keys.Key(ActionTimestamps), "Show the time each line was written"},
 			{m.keys.Key(ActionToggleWide), "Wrap long lines instead of cutting them"},
 		}},
-		{"In an application or an object", [][2]string{
-			{"↑ ↓ / j k", "Move between the objects; the page follows"},
-			{"Enter", "Open the object under the cursor, or follow the relation"},
-			{m.keys.Key(ActionYAML), "Show the document the server holds, and back"},
-			{m.keys.Key(ActionDecode), "Decode the base64 values in it — a Secret's, above all"},
-			{m.keys.Key(ActionScale), "Scale the selected workload, after confirming the blast radius"},
-			{m.keys.Key(ActionCordon), "Stop the node in hand taking new pods, or let it take them again"},
-			{m.keys.Key(ActionRestart), "Roll the selected workload: every pod replaced as the rollout allows"},
-			{m.keys.Key(ActionDelete), "Delete the selected object, and what Kubernetes deletes with it"},
-			{m.keys.Key(ActionEdit), "Edit the open object in $EDITOR, then review what changed"},
-			{m.keys.Key(ActionExec), "Open an interactive shell in the pod, or a running pod of the workload"},
-			{m.keys.Key(ActionCopy), "Copy its namespace/name to the clipboard"},
-		}},
-		{"Cluster", [][2]string{
-			{m.keys.Key(ActionResourcePicker), "Browse resource kinds, including custom resources"},
-			{m.keys.Key(ActionUsage), "Where the pods are, and what CPU and memory they use"},
-			{m.keys.Key(ActionActivity), "Recent Kubernetes Events in the active scope"},
-			{m.keys.Key(ActionRefresh), "Refresh"},
-			{m.keys.Key(ActionAutoRefresh), "Refresh on a timer, until you turn it off"},
+		{"In the fleet", [][2]string{
+			{m.keys.Key(ActionEdit), "Choose which clusters are in it, and save"},
+			{m.keys.Key(ActionNamespacePicker), "Scope every cluster to a few namespaces"},
+			{m.keys.Key(ActionResourcePicker), "Browse one kind across every cluster"},
+			{"Enter", "Leave the fleet for the cluster the row is about"},
 		}},
 		{"Filtering", [][2]string{
 			{m.keys.Key(ActionSearch), "Narrow the list on screen; type to filter, Esc to clear"},
@@ -1130,12 +1155,35 @@ func (m *Model) helpText() string {
 			if row[0] == "" {
 				continue
 			}
-			b.WriteString("\n  " + m.theme.Key.Render(padTo(row[0], 12)) + m.theme.KeyDesc.Render(row[1]))
+			lines := screens.Wrap(row[1], max(width-helpIndent, 16))
+			for i, line := range lines {
+				key := strings.Repeat(" ", helpKeyWidth)
+				if i == 0 {
+					key = padTo(row[0], helpKeyWidth)
+				}
+				b.WriteString("\n  " + m.theme.Key.Render(key) + m.theme.KeyDesc.Render(line))
+			}
 		}
 	}
 	b.WriteString("\n\n" + m.theme.Muted.Render("Keys are configurable in "+orNone(m.configPath)))
 	return b.String()
 }
+
+// changeSectionTitle heads the keys that change a cluster, and says so when
+// the context refuses them: the help is where somebody looks to learn why a
+// key did nothing.
+func (m *Model) changeSectionTitle() string {
+	if reason, readOnly := m.readOnlyReason(); readOnly {
+		return "Change the cluster — refused here: " + reason
+	}
+	return "Change the cluster — each behind a confirmation"
+}
+
+// The help's columns: two spaces, the key, then its description.
+const (
+	helpKeyWidth = 12
+	helpIndent   = 2 + helpKeyWidth
+)
 
 // helpLines is the height of the help overlay's full content, so a scroll
 // key knows how far down it may still go.

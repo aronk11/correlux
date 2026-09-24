@@ -39,6 +39,7 @@ const (
 	paletteScale            palette.ActionID = "scale"
 	paletteCordon           palette.ActionID = "node.cordon"
 	paletteRestart          palette.ActionID = "workload.restart"
+	paletteRollback         palette.ActionID = "workload.rollback"
 	paletteDelete           palette.ActionID = "delete"
 	paletteEdit             palette.ActionID = "edit"
 	paletteExec             palette.ActionID = "exec"
@@ -64,6 +65,25 @@ const (
 	paletteHelp             palette.ActionID = "help"
 	paletteQuit             palette.ActionID = "quit"
 )
+
+// fleetWeight keeps the commands that configure the fleet near the top where
+// the fleet is on screen, and out of the way of an investigation in one
+// cluster: they rank on the name typed, not on being next to "Explain".
+func (m *Model) fleetWeight(inFleet int) int {
+	if m.view == viewFleet || m.view == viewFleetResource {
+		return inFleet
+	}
+	return 40
+}
+
+// fleetShortcut shows a key beside a fleet command only where that key does
+// it: outside the fleet, Ctrl+O switches this cluster's namespace instead.
+func (m *Model) fleetShortcut(action string) string {
+	if m.view == viewFleet || m.view == viewFleetResource {
+		return m.keys.Key(action)
+	}
+	return ""
+}
 
 // allNamespacesID is the synthetic namespace-picker row for cluster-wide scope.
 const allNamespacesID = "__all_namespaces"
@@ -400,6 +420,20 @@ func (m *Model) rebuildCommands() {
 		})
 	}
 
+	if ref, ok := m.rollbackableTarget(); ok {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.rollback",
+			Action:   paletteRollback,
+			Title:    "Roll back " + ref.label(),
+			Subtitle: "to an earlier revision, after showing what it changes back",
+			Category: "Change",
+			Keywords: []string{"rollback", "roll back", "undo", "revert", "revision", "previous", "history"},
+			Shortcut: m.keys.Key(ActionRollback),
+			Weight:   80,
+			Enabled:  true,
+		})
+	}
+
 	// Weighted low on purpose: the one action here that cannot be undone
 	// should not be what a half-typed query lands on.
 	if ref, ok := m.deletableTarget(); ok {
@@ -436,11 +470,11 @@ func (m *Model) rebuildCommands() {
 		ID:       "cmd.fleet.choose",
 		Action:   paletteChooseFleet,
 		Arg:      m.fleetGroupLabel(),
-		Title:    "Choose the clusters in " + m.fleetGroupLabel(),
+		Title:    "Choose the clusters in fleet group " + m.fleetGroupLabel(),
 		Subtitle: chooseFleetSubtitle(len(m.groupContexts(m.activeFleetGroup))),
 		Category: "Navigate",
 		Keywords: []string{"fleet", "clusters", "choose", "pick", "edit", "add", "group"},
-		Weight:   93,
+		Weight:   m.fleetWeight(93),
 		Enabled:  len(m.kubeconfig.Contexts) > 0,
 	}, palette.Command{
 		ID:       "cmd.fleet.namespaces",
@@ -452,8 +486,8 @@ func (m *Model) rebuildCommands() {
 			"fleet", "namespace", "namespaces", "scope", "filter", "team",
 			"tenant", "only", "narrow",
 		},
-		Shortcut: m.keys.Key(ActionNamespacePicker),
-		Weight:   92,
+		Shortcut: m.fleetShortcut(ActionNamespacePicker),
+		Weight:   m.fleetWeight(92),
 		Enabled:  len(m.kubeconfig.Contexts) > 0,
 	}, palette.Command{
 		ID:       "cmd.fleet.group.new",
@@ -763,7 +797,7 @@ func (m *Model) rebuildCommands() {
 		}
 		cmds = filtered
 	}
-	m.registry.Set(cmds)
+	m.registry.Set(m.withReadOnly(cmds))
 	m.cmdPal.Refresh()
 }
 
@@ -1167,6 +1201,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 	case paletteToggleDecode:
 		m.toggleObjectDecode()
 		return nil
+	case paletteRollback:
+		return m.rollbackTarget()
 	case paletteScale:
 		return m.scaleTarget()
 	case paletteCordon:

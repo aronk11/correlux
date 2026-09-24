@@ -9,6 +9,7 @@ package client
 
 import (
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -47,6 +48,8 @@ type Factory struct {
 	raw     clientcmdapi.Config
 	rules   *clientcmd.ClientConfigLoadingRules
 	timeout time.Duration
+	// readOnly reports the contexts whose clients refuse every write.
+	readOnly func(Identity) bool
 
 	mu    sync.Mutex
 	cache map[string]*cached
@@ -62,6 +65,19 @@ type cached struct {
 type Options struct {
 	// Timeout bounds every individual API request. Zero means DefaultTimeout.
 	Timeout time.Duration
+	// ReadOnly, when set, names the contexts whose clients refuse every
+	// request that could change the cluster or open a session inside it
+	// (ErrReadOnly). Nil means none.
+	ReadOnly func(Identity) bool
+}
+
+// Identity is what a context is recognised by: the same three names the
+// production classifier matches, taken from the configuration the client is
+// actually built from rather than from a copy loaded earlier.
+type Identity struct {
+	Context string
+	Cluster string
+	Server  string
 }
 
 // New creates a Factory over an already-merged kubeconfig.
@@ -71,10 +87,11 @@ func New(raw clientcmdapi.Config, rules *clientcmd.ClientConfigLoadingRules, opt
 		timeout = DefaultTimeout
 	}
 	return &Factory{
-		raw:     raw,
-		rules:   rules,
-		timeout: timeout,
-		cache:   make(map[string]*cached),
+		raw:      raw,
+		rules:    rules,
+		timeout:  timeout,
+		readOnly: opts.ReadOnly,
+		cache:    make(map[string]*cached),
 	}
 }
 
@@ -138,12 +155,26 @@ func (f *Factory) build(contextName string) *cached {
 	// Never block the UI on an interactive auth prompt (exec plugins that want
 	// a TTY): the TUI owns the terminal.
 	restCfg.WarningHandler = rest.NoWarnings{}
+	if f.readOnly != nil && f.readOnly(f.identity(contextName, restCfg)) {
+		restCfg.Wrap(func(rt http.RoundTripper) http.RoundTripper { return readOnlyTransport{next: rt} })
+	}
 
 	cs, err := kubernetes.NewForConfig(restCfg)
 	if err != nil {
 		return &cached{restConfig: restCfg, err: fmt.Errorf("build client for %q: %w", contextName, err)}
 	}
 	return &cached{restConfig: restCfg, clientset: cs}
+}
+
+func (f *Factory) identity(contextName string, cfg *rest.Config) Identity {
+	id := Identity{Context: contextName, Server: cfg.Host}
+	if kctx, ok := f.raw.Contexts[contextName]; ok && kctx != nil {
+		id.Cluster = kctx.Cluster
+		if cluster, ok := f.raw.Clusters[kctx.Cluster]; ok && cluster != nil && cluster.Server != "" {
+			id.Server = cluster.Server
+		}
+	}
+	return id
 }
 
 // Invalidate drops the cached clients for a context, so the next call rebuilds
