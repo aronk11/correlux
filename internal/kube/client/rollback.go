@@ -158,12 +158,23 @@ func rollbackDeployment(ctx context.Context, cs kubernetes.Interface, plan *Roll
 		return err
 	}
 	_, err = cs.AppsV1().Deployments(plan.Namespace).Patch(ctx, plan.Name, types.JSONPatchType, patch, metav1.PatchOptions{})
+	if err != nil {
+		if IsStale(err) {
+			return fmt.Errorf("the deployment changed while rolling back (resourceVersion conflict); the rollout may have progressed; read the revisions again and retry: %w", err)
+		}
+		if IsTransient(err) {
+			return fmt.Errorf("rollback failed transiently (API server timeout or temporarily unavailable); retry in a moment: %w", err)
+		}
+	}
 	return err
 }
 
 // IsStale reports a change refused because the object moved on after it was
 // read: a failed JSON-patch test (the API server quotes the patch library's
 // own words) or an ordinary resourceVersion conflict.
+//
+// Cloud operators should retry a stale rollback after re-reading the current
+// state; the object may have stabilized.
 func IsStale(err error) bool {
 	if err == nil {
 		return false
