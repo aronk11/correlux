@@ -76,6 +76,9 @@ type ClusterInfo struct {
 // Probe checks whether the API server for a context is reachable and returns
 // its version. It is the cheapest possible call (/version needs no permissions)
 // so it works even for tightly scoped service accounts.
+//
+// Cloud operators use Probe to validate cluster connectivity before attempting
+// operations. The returned ClusterInfo includes latency and diagnostics.
 func (f *Factory) Probe(ctx context.Context, contextName string) ClusterInfo {
 	info := ClusterInfo{}
 	restCfg, err := f.RESTConfig(contextName)
