@@ -156,6 +156,9 @@ type Model struct {
 	fleetPort      layout.Viewport
 	fleetTablePort layout.Viewport
 	helpPort       layout.Viewport
+	// savedViewports saves scroll positions when leaving a view, restoring them
+	// on return: land where the user left off (ADR 25).
+	savedViewports map[viewKind]layout.Viewport
 	// fleetDraft is the membership being edited in the picker, and
 	// fleetDraftGroup the group it belongs to. It is held here rather than in
 	// the selector because the list is rebuilt from the filter on every
@@ -384,18 +387,19 @@ func New(opts Options) *Model {
 	keys, unknown := NewKeyMap(opts.Config.Keybindings)
 
 	m := &Model{
-		cfg:           opts.Config,
-		keys:          keys,
-		caps:          caps,
-		theme:         theme.New(caps, opts.Config.Theme),
-		kubeconfig:    opts.Kubeconfig,
-		factory:       opts.Factory,
-		classifier:    opts.Classifier,
-		contextName:   opts.ContextName,
-		namespace:     opts.Namespace,
-		allNamespaces: opts.AllNamespaces,
-		resize:        layout.NewDebouncer(layout.DefaultResizeDebounce),
-		registry:      palette.NewRegistry(),
+		cfg:            opts.Config,
+		keys:           keys,
+		caps:           caps,
+		theme:          theme.New(caps, opts.Config.Theme),
+		kubeconfig:     opts.Kubeconfig,
+		factory:        opts.Factory,
+		classifier:     opts.Classifier,
+		contextName:    opts.ContextName,
+		namespace:      opts.Namespace,
+		allNamespaces:  opts.AllNamespaces,
+		resize:         layout.NewDebouncer(layout.DefaultResizeDebounce),
+		registry:       palette.NewRegistry(),
+		savedViewports: make(map[viewKind]layout.Viewport),
 	}
 	// The first group is the one the session opens on. When a top-level fleet
 	// list is present that is the implicit "default", so a configuration that
@@ -513,6 +517,68 @@ func (m *Model) scopeLabel() string {
 
 // version renders the build version for the header.
 func (m *Model) version() string { return buildinfo.Get().Version }
+
+// saveViewportState persists the current viewport position so it can be restored
+// when returning to this view later.
+func (m *Model) saveViewportState(view viewKind) {
+	switch view {
+	case viewApplications:
+		m.savedViewports[view] = m.appPort
+	case viewApplication:
+		m.savedViewports[view] = m.detailPort
+	case viewWhy:
+		m.savedViewports[view] = m.whyPort
+	case viewObject:
+		m.savedViewports[view] = m.objectPort
+	case viewLogs:
+		m.savedViewports[view] = m.logPort
+	case viewFleet:
+		m.savedViewports[view] = m.fleetPort
+	case viewFleetResource:
+		m.savedViewports[view] = m.fleetTablePort
+	case viewOverview:
+		m.savedViewports[view] = m.helpPort
+	case viewTable:
+		m.savedViewports[view] = m.tablePort
+	case viewUsage:
+		m.savedViewports[view] = m.usagePort
+	case viewActivity:
+		m.savedViewports[view] = m.activityPort
+	}
+}
+
+// restoreViewportState restores the previously saved viewport position for a view,
+// allowing users to land where they left off.
+func (m *Model) restoreViewportState(view viewKind) {
+	saved, ok := m.savedViewports[view]
+	if !ok {
+		return
+	}
+	switch view {
+	case viewApplications:
+		m.appPort = saved
+	case viewApplication:
+		m.detailPort = saved
+	case viewWhy:
+		m.whyPort = saved
+	case viewObject:
+		m.objectPort = saved
+	case viewLogs:
+		m.logPort = saved
+	case viewFleet:
+		m.fleetPort = saved
+	case viewFleetResource:
+		m.fleetTablePort = saved
+	case viewOverview:
+		m.helpPort = saved
+	case viewTable:
+		m.tablePort = saved
+	case viewUsage:
+		m.usagePort = saved
+	case viewActivity:
+		m.activityPort = saved
+	}
+}
 
 // OpenResourceForTest opens a resource kind by its kubectl-style name. It
 // exists so integration tests can drive the application the way a user does,
