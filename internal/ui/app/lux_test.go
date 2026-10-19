@@ -12,8 +12,10 @@ func TestLuxSitsBesideTheVersionInTheHeader(t *testing.T) {
 	m := newTestModel(t)
 	loadApplicationsInto(m, testApplication("payments", application.Healthy, 3, 3))
 
+	// The glyph set depends on the platform's terminal detection (Windows
+	// consoles get ASCII), so the test asks the theme which owl it drew.
 	first := strings.SplitN(plainView(m), "\n", 2)[0]
-	if !strings.Contains(first, "{ʘ,ʘ}") {
+	if !strings.Contains(first, m.theme.Glyphs.Owl) {
 		t.Errorf("the header's first line must carry Lux:\n%s", first)
 	}
 }
