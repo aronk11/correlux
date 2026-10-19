@@ -1025,8 +1025,10 @@ func (m *Model) openResource(fullName string) tea.Cmd {
 		return m.expireNotice()
 	}
 
+	m.saveViewportState(m.view)
 	m.resource = res
 	m.view = viewTable
+	m.restoreViewportState(viewTable)
 	m.tablePort.Cursor = 0
 	m.tablePort.Offset = 0
 	m.loadingMore = false
@@ -1047,7 +1049,9 @@ func (m *Model) backToOverview() tea.Cmd {
 	if m.cancelTable != nil {
 		m.cancelTable()
 	}
+	m.saveViewportState(m.view)
 	m.view = viewOverview
+	m.restoreViewportState(viewOverview)
 	m.table.Reset()
 	m.rebuildCommands()
 	var cmds []tea.Cmd

@@ -59,8 +59,10 @@ func (m *Model) openApplication(name string) tea.Cmd {
 			if m.selectedApp != a.Key() {
 				m.detailPort.Offset, m.detailPort.Cursor = 0, 0
 			}
+			m.saveViewportState(m.view)
 			m.selectedApp = a.Key()
 			m.view = viewApplication
+			m.restoreViewportState(viewApplication)
 			m.rebuildCommands()
 			// Opening an application is the moment its evidence becomes worth
 			// fetching: the events belong on this screen, and the explanation
@@ -120,7 +122,9 @@ func (m *Model) backToApplications() tea.Cmd {
 	}
 	m.stopLogs()
 	m.stopFleet()
+	m.saveViewportState(m.view)
 	m.view = viewApplications
+	m.restoreViewportState(viewApplications)
 	m.detailPort.Offset = 0
 	// A filter typed against a resource table's or the fleet's columns means
 	// nothing against the dashboard's, and carrying it here would silently
