@@ -8,7 +8,7 @@
       name="description"
       content="Your cluster has drama. Get the plot. Correlux is an application-first Kubernetes terminal UI with evidence-backed diagnosis, fleet visibility and safe operations."
     />
-    <meta name="theme-color" content="#11151d" />
+    <meta name="theme-color" content="#ffd23f" />
     <meta
       property="og:title"
       content="Correlux — Less cluster. More clarity."
@@ -29,6 +29,41 @@
     <script type="module" src="assets/demo.js"></script>
   </head>
   <body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+      <symbol id="lux" viewBox="0 0 300 330" overflow="visible">
+        <circle class="lux-glow" cx="250" cy="212" r="66" fill="#fff3a6" opacity=".42" />
+        <path d="M84 74 62 16l56 40Z" fill="#7a5cf0" stroke="#1b1b1f" stroke-width="7" stroke-linejoin="round" />
+        <path d="M216 74 238 16l-56 40Z" fill="#7a5cf0" stroke="#1b1b1f" stroke-width="7" stroke-linejoin="round" />
+        <path d="M150 40c82 0 112 72 108 140-4 82-48 122-108 122S46 262 42 180C38 112 68 40 150 40Z" fill="#9b7bff" stroke="#1b1b1f" stroke-width="7" />
+        <path d="M150 156c50 0 72 46 64 90-6 34-32 48-64 48s-58-14-64-48c-8-44 14-90 64-90Z" fill="#fff4dc" stroke="#1b1b1f" stroke-width="5" />
+        <path d="M118 200l10 9 10-9m24 0 10 9 10-9m-44 26 10 9 10-9m-50 18 10 9 10-9m46 0 10 9 10-9" fill="none" stroke="#1b1b1f" stroke-width="4" stroke-linecap="round" />
+        <path d="M52 172c-32 28-28 80 12 96 6-36 6-66-12-96Z" fill="#7a5cf0" stroke="#1b1b1f" stroke-width="6" stroke-linejoin="round" />
+        <circle cx="106" cy="118" r="45" fill="#fff" stroke="#1b1b1f" stroke-width="7" />
+        <circle cx="194" cy="118" r="45" fill="#fff" stroke="#1b1b1f" stroke-width="7" />
+        <g class="lux-eyes">
+          <circle cx="110" cy="122" r="25" fill="#ffd23f" stroke="#1b1b1f" stroke-width="4" />
+          <circle cx="190" cy="122" r="25" fill="#ffd23f" stroke="#1b1b1f" stroke-width="4" />
+          <circle cx="112" cy="124" r="13" fill="#1b1b1f" />
+          <circle cx="188" cy="124" r="13" fill="#1b1b1f" />
+          <circle cx="117" cy="118" r="4.5" fill="#fff" />
+          <circle cx="193" cy="118" r="4.5" fill="#fff" />
+        </g>
+        <g class="lux-lids">
+          <circle cx="106" cy="118" r="45" fill="#9b7bff" stroke="#1b1b1f" stroke-width="7" />
+          <circle cx="194" cy="118" r="45" fill="#9b7bff" stroke="#1b1b1f" stroke-width="7" />
+        </g>
+        <path d="M137 152h26l-13 28Z" fill="#ff5a46" stroke="#1b1b1f" stroke-width="5" stroke-linejoin="round" />
+        <circle cx="64" cy="168" r="11" fill="#ff9ad5" />
+        <circle cx="236" cy="168" r="11" fill="#ff9ad5" />
+        <path d="M250 158v20" stroke="#1b1b1f" stroke-width="5" stroke-linecap="round" />
+        <path d="M236 182q14-18 28 0" fill="none" stroke="#1b1b1f" stroke-width="5" stroke-linecap="round" />
+        <rect x="230" y="184" width="40" height="50" rx="9" fill="#ffd23f" stroke="#1b1b1f" stroke-width="6" />
+        <path class="lux-flame" d="M250 196c9 11 9 22 0 28-9-6-9-17 0-28Z" fill="#ff5a46" stroke="#1b1b1f" stroke-width="3" />
+        <rect x="236" y="232" width="28" height="9" rx="4" fill="#1b1b1f" />
+        <path d="M246 170c22 4 38 20 40 40-18 2-34-10-42-26Z" fill="#7a5cf0" stroke="#1b1b1f" stroke-width="6" stroke-linejoin="round" />
+        <path d="M122 300l-10 16m20-14v16m10-16 10 16m26-18-10 16m20-14v16m10-16 10 16" stroke="#ff5a46" stroke-width="7" stroke-linecap="round" />
+      </symbol>
+    </svg>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
       <a class="brand" href="./" aria-label="Correlux home"
@@ -51,12 +86,11 @@
     </header>
     <main id="main">
       <section class="hero section-wrap">
-        <div class="hero-orbit" aria-hidden="true">
-          <div></div>
-          <div></div>
-          <div></div>
-          <span class="orbit-point"></span>
+        <div class="mascot" aria-hidden="true">
+          <p class="speech">Hey. It’s 3 a.m.<br />I’ve got you.</p>
+          <svg viewBox="0 0 300 330"><use href="#lux" /></svg>
         </div>
+        <div class="night-sky" aria-hidden="true"><span class="moon"></span><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
         <div class="hero-copy">
           <a
             class="eyebrow release-link"
@@ -183,6 +217,37 @@ Start the demo to explore the actual Correlux terminal interface.</pre>
         </div>
         <p class="demo-caption" id="demo-instructions"><span>Same Go interface. Same keys.</span> Click the terminal and use your keyboard; on a touch screen the on-screen keys below do the same. All changes stay in sample data. Shells and external editors require the installed app.</p>
       </section>
+      <section class="section-wrap strip-section" id="three-am" aria-labelledby="strip-title">
+        <div class="section-heading reveal">
+          <div>
+            <span class="eyebrow">00 / A TRUE STORY. PROBABLY YOURS.</span>
+            <h2 id="strip-title">03:07 a.m.<br /><span class="serif-accent">You are not alone.</span></h2>
+          </div>
+          <p>Every engineer on call knows this night.<br class="desktop-break" /> Lux was made for it.</p>
+        </div>
+        <ol class="comic-strip">
+          <li class="panel panel-alarm reveal">
+            <span class="panel-time">03:07</span>
+            <div class="panel-art" aria-hidden="true"><span class="sfx">BZZZT!</span></div>
+            <p class="panel-caption">The pager screams. <b>payments</b> is down. Your heart is louder than the phone.</p>
+          </li>
+          <li class="panel panel-chaos reveal">
+            <span class="panel-time">03:09</span>
+            <div class="panel-art" aria-hidden="true"><code>$ kubectl get pods<br />$ kubectl describe …<br />$ kubectl logs …<br />$ kubectl get events<br />$ ???</code></div>
+            <p class="panel-caption">Six terminals. Forty lines each. Nothing adds up.</p>
+          </li>
+          <li class="panel panel-lux reveal">
+            <span class="panel-time">03:10</span>
+            <div class="panel-art" aria-hidden="true"><svg viewBox="0 0 300 330"><use href="#lux" /></svg><span class="panel-bubble">3 pods restart in a loop. Memory limit. Here’s the proof.</span></div>
+            <p class="panel-caption">You press <kbd>Ctrl+W</kbd>. Lux has already read the events, the pods and the nodes.</p>
+          </li>
+          <li class="panel panel-sleep reveal">
+            <span class="panel-time">03:14</span>
+            <div class="panel-art" aria-hidden="true"><span class="sfx sfx-sleep">Zzz…</span></div>
+            <p class="panel-caption">You raise the limit. You go back to bed. Lux keeps watch.</p>
+          </li>
+        </ol>
+      </section>
       <div class="principles-strip">
         <div class="section-wrap">
           <span>YOUR KUBECONFIG.</span><span>NO AGENT.</span
@@ -235,7 +300,7 @@ Start the demo to explore the actual Correlux terminal interface.</pre>
             </div>
             <h3>Evidence. Not vibes.</h3>
             <p>
-              13 deterministic rules trace failures to what your cluster
+              16 deterministic rules trace failures to what your cluster
               actually reported. No model. No invented root cause. No API key.
             </p>
             <a class="card-link" href="docs/guide.html#why-is-it-broken"
@@ -312,20 +377,19 @@ Start the demo to explore the actual Correlux terminal interface.</pre>
       </section>
       <section class="manifesto reveal">
         <div class="section-wrap">
-          <span class="eyebrow">BUILT FOR THE HUMAN ON CALL</span>
+          <span class="eyebrow">MEET LUX</span>
           <h2>
-            At 3 a.m., you need context.<br /><span class="serif-accent"
-              >Not another dashboard.</span
-            >
+            A night owl<br /><span class="serif-accent">for the human on call.</span>
           </h2>
           <p>
-            Correlux runs locally against your existing kubeconfig. Context
-            switches stay in your session. Your other terminal stays exactly
-            where you left it.
+            Lux is the calm part of Correlux. It reads what your cluster already
+            knows, quotes it word for word, and says out loud what it cannot
+            know. No AI. No guessing. Just a friend with a lantern, running
+            locally against your existing kubeconfig.
           </p>
           <div class="manifesto-facts">
             <span><b>0</b> cluster components to install</span
-            ><span><b>13</b> evidence-driven diagnosis rules</span
+            ><span><b>16</b> evidence-driven diagnosis rules</span
             ><span><b>100%</b> open source · Apache 2.0</span>
           </div>
         </div>
@@ -555,7 +619,7 @@ Start the demo to explore the actual Correlux terminal interface.</pre>
               Is the WHY engine powered by AI?<span aria-hidden="true">+</span>
             </summary>
             <p>
-              No. Thirteen deterministic rules inspect evidence from your
+              No. Sixteen deterministic rules inspect evidence from your
               cluster. Findings include the evidence, confidence and what to
               check next. When the evidence cannot establish a cause, Correlux
               says so.
@@ -639,13 +703,14 @@ Start the demo to explore the actual Correlux terminal interface.</pre>
           height="28"
           alt=""
         />correlux<span class="brand-dot">_</span></a
-      ><span>Less cluster. More clarity.</span>
+      ><span>Lux keeps watch. You get some sleep.</span>
       <nav aria-label="Footer">
         <a href="docs/contributing.html">Contribute</a
         ><a href="https://github.com/aronk11/correlux/issues">Issues</a
         ><a href="https://github.com/aronk11/correlux/blob/main/LICENSE"
           >Apache 2.0</a
-        >
+        ><a href="docs/legal.html">Impressum</a
+        ><a href="docs/privacy.html">Datenschutz</a>
       </nav>
       <span class="footer-note">Made for your terminal. And your sanity.</span>
     </footer>

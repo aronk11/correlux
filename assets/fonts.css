@@ -54,3 +54,17 @@
   font-display: swap;
   src: url(fonts/correlux-font-7.ttf) format("truetype");
 }
+@font-face {
+  font-family: "Bangers";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/Bangers-Regular.ttf) format("truetype");
+}
+@font-face {
+  font-family: "Comic Neue";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(fonts/ComicNeue-Bold.ttf) format("truetype");
+}
