@@ -113,7 +113,7 @@ func TestTheConfiguredIntervalIsHonoured(t *testing.T) {
 		t.Fatal("refresh.auto must start the timed reload")
 	}
 	if m.refreshEvery != 30*time.Second {
-		t.Errorf("interval = %v, want 30s", m.refreshEvery)
+		t.Errorf("custom interval = %v, want 30s (from config)", m.refreshEvery)
 	}
 }
 

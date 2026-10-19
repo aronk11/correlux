@@ -141,10 +141,10 @@ const (
 	// overlay is open, and it backs off exponentially once a cluster starts
 	// failing. Somebody who wants it cheaper sets `refresh.every`, and
 	// somebody who wants it off presses the key.
-	DefaultRefreshInterval = 2 * time.Second
+	DefaultRefreshInterval = 500 * time.Millisecond
 	// MinRefreshInterval stops a mistyped config from turning Correlux into a
-	// load generator.
-	MinRefreshInterval = 2 * time.Second
+	// load generator. 200ms allows responsive pod status updates.
+	MinRefreshInterval = 200 * time.Millisecond
 )
 
 // Interval reports how often to reload. A malformed value is reported rather
