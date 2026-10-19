@@ -59,8 +59,10 @@ func (m *Model) openApplication(name string) tea.Cmd {
 			if m.selectedApp != a.Key() {
 				m.detailPort.Offset, m.detailPort.Cursor = 0, 0
 			}
+			m.saveViewportState(m.view)
 			m.selectedApp = a.Key()
 			m.view = viewApplication
+			m.restoreViewportState(viewApplication)
 			m.rebuildCommands()
 			// Opening an application is the moment its evidence becomes worth
 			// fetching: the events belong on this screen, and the explanation
@@ -120,7 +122,9 @@ func (m *Model) backToApplications() tea.Cmd {
 	}
 	m.stopLogs()
 	m.stopFleet()
+	m.saveViewportState(m.view)
 	m.view = viewApplications
+	m.restoreViewportState(viewApplications)
 	m.detailPort.Offset = 0
 	// A filter typed against a resource table's or the fleet's columns means
 	// nothing against the dashboard's, and carrying it here would silently
@@ -387,6 +391,16 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 	d.HealthGlyph = m.theme.Glyph(status)
 	d.HealthStatus = status
 	d.Summary = a.Summary
+	now := time.Now()
+	if a.CreatedAt != (time.Time{}) {
+		d.Notes = append(d.Notes, "Created "+formatAge(a.CreatedAt, now)+" ago")
+	}
+	if a.Restarts > 0 {
+		d.Notes = append(d.Notes, itoa(int(a.Restarts))+" total restarts")
+	}
+	if problemSummary := a.ProblemSummary(); problemSummary != "" {
+		d.Notes = append(d.Notes, "Problems: "+problemSummary)
+	}
 	if incident := m.incidentLabel(&a); incident != "" {
 		d.Notes = append(d.Notes, incident)
 	}
@@ -394,23 +408,34 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		d.Notes = append(d.Notes, gapSummary(gaps))
 	}
 
-	now := time.Now()
 	workloads := detailSection{
 		Title:   "Workloads",
-		Columns: []string{"Kind", "Name", "Ready", "Age"},
+		Columns: []string{"Kind", "Name", "Ready", "Updated", "Status", "Age"},
 		Empty:   "no workload owns these pods",
 	}
 	for i := range a.Workloads {
 		w := &a.Workloads[i]
 		ready := "—"
+		updated := "—"
+		status := ""
 		if w.Replicated {
 			ready = itoa(int(w.Ready)) + "/" + itoa(int(w.Desired))
+			updated = itoa(int(w.Updated)) + "/" + itoa(int(w.Desired))
+		}
+		if w.Paused {
+			status = "⏸ Paused"
+		} else if w.Suspended {
+			status = "⏸ Suspended"
+		} else if w.Stalled {
+			status = "⛔ Stalled"
 		}
 		row := detailRow{
-			Cells: []string{w.Kind, w.Name, ready, formatAge(w.CreatedAt, now)},
+			Cells: []string{w.Kind, w.Name, ready, updated, status, formatAge(w.CreatedAt, now)},
 			Ref:   objectRef{Kind: w.Kind, Name: w.Name, Namespace: w.Namespace},
 		}
 		switch {
+		case w.Stalled:
+			row.Status = theme.StatusCritical
 		case w.Replicated && w.Desired > 0 && w.Ready == 0:
 			row.Status = theme.StatusCritical
 		case w.Replicated && w.Ready < w.Desired:
@@ -421,18 +446,52 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 
 	pods := detailSection{
 		Title:   "Pods",
-		Columns: []string{"Name", "Phase", "Ready", "Restarts", "Node", "State"},
+		Columns: []string{"Name", "Phase", "Ready", "Restarts", "Node", "Image", "Age", "State"},
 		Empty:   "no pods",
 	}
 	for i := range a.Pods {
 		p := &a.Pods[i]
+		state := orNone(p.Reason)
+		if p.Reason == "Terminating" {
+			state = "⏳ Replacing"
+		}
+		if !p.Scheduled {
+			if p.ScheduledReason != "" {
+				state = "📍 " + p.ScheduledReason
+			} else {
+				state = "📍 Unscheduled"
+			}
+		}
+		images := "—"
+		if len(p.Containers) > 0 {
+			imageList := make([]string, 0, len(p.Containers))
+			for _, c := range p.Containers {
+				if !c.Init {
+					img := c.Image
+					if idx := strings.LastIndex(img, "/"); idx >= 0 {
+						img = img[idx+1:]
+					}
+					imageList = append(imageList, img)
+				}
+			}
+			if len(imageList) > 0 {
+				images = strings.Join(imageList, ", ")
+				if len(images) > 30 {
+					images = images[:27] + "…"
+				}
+			}
+		}
 		row := detailRow{
 			Cells: []string{
-				p.Name, p.Phase, readyLabel(p.Ready), itoa(int(p.Restarts)), orNone(p.Node), orNone(p.Reason),
+				p.Name, p.Phase, readyLabel(p.Ready), itoa(int(p.Restarts)), orNone(p.Node), images, formatAge(p.CreatedAt, now), state,
 			},
 			Ref: objectRef{Kind: "Pod", Name: p.Name, Namespace: p.Namespace},
 		}
 		switch {
+		case !p.Scheduled:
+			row.Status = theme.StatusWarning
+		case p.Reason == "Terminating":
+			row.Status = theme.StatusWarning
 		case p.Reason != "" && !p.Terminal():
 			row.Status = theme.StatusCritical
 		case !p.Ready && !p.Terminal():
@@ -466,24 +525,41 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 
 	network := detailSection{
 		Title:   "Network",
-		Columns: []string{"Kind", "Name", "Detail"},
+		Columns: []string{"Kind", "Name", "Type/Host", "Ports/Backends", "ClusterIP/Selector"},
 		Empty:   "no service or ingress belongs to this application",
 	}
 	for i := range a.Services {
 		s := &a.Services[i]
-		detail := s.Type
-		if len(s.Ports) > 0 {
-			detail += "  " + strings.Join(s.Ports, ",")
+		ports := strings.Join(s.Ports, ", ")
+		if ports == "" {
+			ports = "—"
+		}
+		selector := "—"
+		if len(s.Selector) > 0 {
+			selectorStrs := make([]string, 0, len(s.Selector))
+			for k, v := range s.Selector {
+				selectorStrs = append(selectorStrs, k+"="+v)
+			}
+			sort.Strings(selectorStrs)
+			selector = strings.Join(selectorStrs, ", ")
 		}
 		network.Rows = append(network.Rows, detailRow{
-			Cells: []string{"Service", s.Name, detail},
+			Cells: []string{"Service", s.Name, s.Type, ports, s.ClusterIP + " | " + selector},
 			Ref:   objectRef{Kind: "Service", Name: s.Name, Namespace: s.Namespace},
 		})
 	}
-	for _, i := range a.Ingresses {
+	for _, ing := range a.Ingresses {
+		hosts := strings.Join(ing.Hosts, ", ")
+		if hosts == "" {
+			hosts = "—"
+		}
+		backends := strings.Join(ing.Backends, ", ")
+		if backends == "" {
+			backends = "—"
+		}
 		network.Rows = append(network.Rows, detailRow{
-			Cells: []string{"Ingress", i.Name, strings.Join(i.Hosts, ", ")},
-			Ref:   objectRef{Kind: "Ingress", Name: i.Name, Namespace: i.Namespace},
+			Cells: []string{"Ingress", ing.Name, hosts, backends, "—"},
+			Ref:   objectRef{Kind: "Ingress", Name: ing.Name, Namespace: ing.Namespace},
 		})
 	}
 

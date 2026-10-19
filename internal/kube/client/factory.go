@@ -179,6 +179,9 @@ func (f *Factory) identity(contextName string, cfg *rest.Config) Identity {
 
 // Invalidate drops the cached clients for a context, so the next call rebuilds
 // them (used after the kubeconfig is reloaded).
+//
+// Cloud operators can call this when they know credentials have changed or a
+// cluster's API server has moved.
 func (f *Factory) Invalidate(contextName string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -186,6 +189,9 @@ func (f *Factory) Invalidate(contextName string) {
 }
 
 // Reset drops every cached client.
+//
+// Cloud operators typically call this after loading a new kubeconfig, or when
+// the environment changes (e.g., network connectivity restored).
 func (f *Factory) Reset() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
