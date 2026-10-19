@@ -70,6 +70,9 @@ type WhyData struct {
 	// never a hint for a keystroke that would do nothing here.
 	Next   []WhyAction
 	Offset int
+	// Intro is one calm line in Lux's voice above the findings. It is tone, not
+	// content: nothing in it may be needed to understand a finding.
+	Intro string
 	// Empty is shown when there is nothing to explain, which is its own answer.
 	Empty         string
 	Message       string
@@ -133,6 +136,10 @@ func whyLines(t *theme.Theme, d WhyData, width int) []string {
 
 	if len(d.Findings) == 0 {
 		return append(lines, "", muted(truncateTo(orDefault(d.Empty, "Nothing to explain."), width)))
+	}
+
+	if d.Intro != "" {
+		lines = append(lines, "", muted(truncateTo(d.Intro, width)))
 	}
 
 	// NEXT leads rather than trails: with several findings stacked below, a

@@ -83,12 +83,13 @@ func RenderHeader(t *theme.Theme, d HeaderData, width int) string {
 	}
 
 	left := strings.Join([]string{badge, scope, conn}, t.Muted.Render("  "+t.Glyphs.Bullet+"  "))
-	right := t.Muted.Render(d.Version)
+	version := t.Key.Render(t.Glyphs.Owl) + t.Muted.Render(" "+d.Version)
+	right := version
 	switch {
 	case d.Auto != "":
-		right = t.Info.Render(d.Auto) + t.Muted.Render("  "+d.Version)
+		right = t.Info.Render(d.Auto) + t.Muted.Render("  ") + version
 	case d.Freshness != "":
-		right = t.Muted.Render(d.Freshness) + t.Muted.Render("  "+d.Version)
+		right = t.Muted.Render(d.Freshness+"  ") + version
 	}
 	if d.Update != "" {
 		right += t.Style(theme.StatusWarning).Render(" " + d.Update)

@@ -147,6 +147,7 @@ var rules = []rule{
 	crashLoop,
 	imagePull,
 	containerConfig,
+	stuckCreating,
 	outOfMemory,
 	unschedulable,
 	nodeUnhealthy,

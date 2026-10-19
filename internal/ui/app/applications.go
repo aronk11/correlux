@@ -422,11 +422,12 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 			ready = itoa(int(w.Ready)) + "/" + itoa(int(w.Desired))
 			updated = itoa(int(w.Updated)) + "/" + itoa(int(w.Desired))
 		}
-		if w.Paused {
+		switch {
+		case w.Paused:
 			status = "⏸ Paused"
-		} else if w.Suspended {
+		case w.Suspended:
 			status = "⏸ Suspended"
-		} else if w.Stalled {
+		case w.Stalled:
 			status = "⛔ Stalled"
 		}
 		row := detailRow{

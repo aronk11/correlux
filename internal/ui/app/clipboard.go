@@ -2,6 +2,7 @@ package app
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -40,6 +41,16 @@ func (m *Model) copyTarget() (label, value string, ok bool) {
 		row := rows[m.tablePort.Cursor]
 		ns := rowNamespace(row.Namespace, m.resource.Namespaced, m.namespace, m.allNamespaces)
 		return row.Name, copyRef(objectRef{Name: row.Name, Namespace: ns}), true
+	case viewWhy:
+		app, ok := m.currentApplication()
+		if !ok {
+			return "", "", false
+		}
+		findings := m.findingsFor(app.Key())
+		if len(findings) == 0 {
+			return "", "", false
+		}
+		return "the diagnosis of " + app.Name, m.diagnosisReport(&app, findings, time.Now()), true
 	case viewLogs:
 		if len(m.logLines) == 0 {
 			return "", "", false

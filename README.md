@@ -4,6 +4,13 @@
 
 **Site:** <https://aronk11.github.io/correlux/>
 
+```
+   ,_,
+  {ʘ,ʘ}   Meet Lux, the night owl in Correlux.
+  /)__)   It reads the evidence at 3 a.m. so you don't have to guess.
+ --"-"--
+```
+
 Correlux is a terminal-native Kubernetes operations UI for macOS, Linux and
 Windows. It runs against your existing kubeconfig — no server, no agent, no CRD,
 no container, no browser.

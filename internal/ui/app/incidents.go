@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 
+	"github.com/aronk11/correlux/internal/domain/application"
 	"github.com/aronk11/correlux/internal/domain/diagnosis"
 	"github.com/aronk11/correlux/internal/ui/screens"
 )
@@ -24,6 +25,10 @@ func (m *Model) renderDashboard(width, height int) string {
 	spare := height - tableHeight - 1
 	incidents := m.incidentLines(width, spare)
 	if len(incidents) == 0 {
+		if spare >= 1 && m.allQuiet() {
+			return table(tableHeight) + "\n\n" + m.theme.Muted.Render(clipTo(
+				m.theme.Glyphs.Owl+" All quiet. Lux is keeping watch, so you don't have to.", width, 1))
+		}
 		return table(height)
 	}
 	return table(tableHeight) + "\n\n" + strings.Join(incidents, "\n")
@@ -76,4 +81,20 @@ func (m *Model) incidentLines(width, height int) []string {
 		lines = append(lines, m.theme.Style(severityStatus(e.status)).Render(clipTo(e.text, width, 1)))
 	}
 	return lines
+}
+
+// allQuiet reports a dashboard with nothing to say: every application visible
+// is healthy once its findings are folded in. A list that is still loading, or
+// that has a single unknown, is not quiet, it is unread.
+func (m *Model) allQuiet() bool {
+	apps := m.visibleApplications()
+	if len(apps) == 0 {
+		return false
+	}
+	for i := range apps {
+		if diagnosedHealth(apps[i].Health, m.findingsFor(apps[i].Key())) != application.Healthy {
+			return false
+		}
+	}
+	return true
 }

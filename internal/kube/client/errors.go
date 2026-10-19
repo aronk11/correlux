@@ -86,13 +86,7 @@ func isNetworkTransient(err error) bool {
 // isConnectionTransient detects connection-level errors that indicate a
 // transient condition (as opposed to misconfiguration).
 func isConnectionTransient(err error) bool {
-	// Temporary connection states
-	switch {
-	case errors.Is(err, net.ErrClosed):
-		return true
-	}
-
-	return false
+	return errors.Is(err, net.ErrClosed)
 }
 
 // IsAuthentication reports whether err represents an auth failure that won't

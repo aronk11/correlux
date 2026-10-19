@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -146,7 +147,9 @@ func (m *Model) whyData() screens.WhyData {
 	d.HealthStatus = status
 	d.Summary = app.Summary
 	d.Notes = m.evidenceNotes()
-	d.Empty = "Nothing is wrong with " + app.Name + " that Correlux can see."
+	owl := m.theme.Glyphs.Owl
+	d.Empty = owl + " Lux looked everywhere. Nothing is wrong with " + app.Name + " that Correlux can see."
+	d.Intro = owl + " Breathe. This is what the cluster itself said, and what it could not say."
 
 	now := time.Now()
 	for _, f := range findings {
@@ -272,6 +275,52 @@ func (m *Model) whyFinding(f diagnosis.Diagnosis, now time.Time) screens.WhyFind
 		out.Suggestions = append(out.Suggestions, screens.WhySuggestion{Text: s.Text, Command: s.Command})
 	}
 	return out
+}
+
+// diagnosisReport renders an explanation as plain text, for pasting into an
+// incident channel or a ticket: the same findings, evidence and read-only
+// commands the WHY view shows, without any styling.
+func (m *Model) diagnosisReport(app *application.Application, findings []diagnosis.Diagnosis, now time.Time) string {
+	var b strings.Builder
+	health := diagnosedHealth(app.Health, findings)
+	b.WriteString("Correlux diagnosis: " + copyRef(objectRef{Name: app.Name, Namespace: app.Namespace}) +
+		" is " + health.String() + "\n")
+	if m.contextName != "" {
+		b.WriteString("Context: " + m.contextName + "\n")
+	}
+	b.WriteString("Observed: " + now.UTC().Format(time.RFC3339) + "\n")
+	for i, f := range findings {
+		b.WriteString("\n" + strconv.Itoa(i+1) + ". [" + f.Severity.String() + "] " + f.Problem + "\n")
+		if f.Cause != "" {
+			b.WriteString("   Cause: " + f.Cause + " (confidence " + f.Confidence.String() + ")\n")
+		}
+		if len(f.Chain) > 0 {
+			b.WriteString("   Path: " + strings.Join(f.Chain, " → ") + "\n")
+		}
+		if f.Unknown != "" {
+			b.WriteString("   Unknown: " + f.Unknown + "\n")
+		}
+		if len(f.Evidence) > 0 {
+			b.WriteString("   Evidence:\n")
+			for _, e := range f.Evidence {
+				line := "     - " + e.Kind + "/" + e.Name + ": " + e.Detail
+				if !e.At.IsZero() {
+					line += " (" + formatAge(e.At, now) + " ago)"
+				}
+				b.WriteString(line + "\n")
+			}
+		}
+		if len(f.Suggestions) > 0 {
+			b.WriteString("   Next:\n")
+			for _, s := range f.Suggestions {
+				b.WriteString("     - " + s.Text + "\n")
+				if s.Command != "" {
+					b.WriteString("       $ " + s.Command + "\n")
+				}
+			}
+		}
+	}
+	return b.String()
 }
 
 // severityStatus maps a finding's severity onto the theme's states.

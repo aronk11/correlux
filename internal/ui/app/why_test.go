@@ -370,3 +370,40 @@ func TestEventsAppearOnTheApplicationDetail(t *testing.T) {
 		}
 	}
 }
+
+func TestCopyInTheExplanationTakesTheWholeReport(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, brokenApplication())
+	press(t, m, "ctrl+w")
+
+	label, report, ok := m.copyTarget()
+	if !ok {
+		t.Fatal("an explanation with findings must have something to copy")
+	}
+	if !strings.Contains(label, "diagnosis of payments") {
+		t.Errorf("label = %q", label)
+	}
+	for _, want := range []string{
+		"Correlux diagnosis:",
+		"is down",
+		"Context: staging",
+		"1. [critical]",
+		"Cause:",
+		"memory limit",
+		"Path: Deployment/payments",
+		"Evidence:",
+		"reason OOMKilled, exit code 137",
+		"Next:",
+		"$ kubectl logs",
+	} {
+		if !strings.Contains(report, want) {
+			t.Errorf("report must contain %q:\n%s", want, report)
+		}
+	}
+	if strings.Contains(report, "\x1b[") {
+		t.Errorf("a report meant for pasting must carry no terminal styling:\n%s", report)
+	}
+	if !strings.Contains(plainView(m), "Copy report") {
+		t.Error("the footer must say that c copies the report here")
+	}
+}

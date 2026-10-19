@@ -1,6 +1,7 @@
 package diagnosis
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -179,8 +180,30 @@ func replicasMissing(in *Input) []Diagnosis {
 		cause, confidence := "the controller has not created every pod yet, which is normal during a rollout", Low
 		events := warningsAbout(in, application.ObjectRef{Kind: w.Kind, Name: w.Name, UID: w.UID},
 			"FailedCreate", "FailedGet")
+		if w.Kind == "Deployment" {
+			// A Deployment does not create pods; its ReplicaSets do, and that is
+			// where quota and admission rejections are recorded.
+			events = append(events, replicaSetFailures(in, w)...)
+			sort.SliceStable(events, func(i, j int) bool { return events[i].LastSeen.After(events[j].LastSeen) })
+		}
+		suggestions := []Suggestion{
+			{Text: "Check the controller's events for quota, limit ranges or admission webhooks",
+				Command: describeCommand(w.Kind, w.Namespace, w.Name)},
+		}
 		if len(events) > 0 {
 			cause, confidence = events[0].Message, High
+			message := strings.ToLower(events[0].Message)
+			switch {
+			case strings.Contains(message, "exceeded quota"):
+				suggestions = append([]Suggestion{{Text: "Compare the namespace's quota with what is already used",
+					Command: "kubectl describe resourcequota -n " + w.Namespace}}, suggestions...)
+			case strings.Contains(message, "admission webhook"):
+				suggestions = append([]Suggestion{{Text: "Find the webhook that rejected the pod",
+					Command: "kubectl get validatingwebhookconfigurations,mutatingwebhookconfigurations"}}, suggestions...)
+			case strings.Contains(message, "limitrange") || strings.Contains(message, "maximum") || strings.Contains(message, "minimum"):
+				suggestions = append([]Suggestion{{Text: "Compare the pod's requests with the namespace's limit ranges",
+					Command: "kubectl describe limitrange -n " + w.Namespace}}, suggestions...)
+			}
 		}
 
 		severity := Warning
@@ -188,17 +211,14 @@ func replicasMissing(in *Input) []Diagnosis {
 			severity = Critical
 		}
 		d := Diagnosis{
-			Rule:       "workload.replicas",
-			Severity:   severity,
-			Subject:    application.ObjectRef{Kind: w.Kind, Name: w.Name, UID: w.UID},
-			Problem:    w.Kind + "/" + w.Name + " is missing " + strconv.Itoa(missing) + " of " + strconv.Itoa(int(w.Desired)) + " pods",
-			Cause:      cause,
-			Confidence: confidence,
-			Chain:      chain(&in.App, "ReplicaSet", "pods not created"),
-			Suggestions: []Suggestion{
-				{Text: "Check the controller's events for quota, limit ranges or admission webhooks",
-					Command: describeCommand(w.Kind, w.Namespace, w.Name)},
-			},
+			Rule:        "workload.replicas",
+			Severity:    severity,
+			Subject:     application.ObjectRef{Kind: w.Kind, Name: w.Name, UID: w.UID},
+			Problem:     w.Kind + "/" + w.Name + " is missing " + strconv.Itoa(missing) + " of " + strconv.Itoa(int(w.Desired)) + " pods",
+			Cause:       cause,
+			Confidence:  confidence,
+			Chain:       chain(&in.App, "ReplicaSet", "pods not created"),
+			Suggestions: suggestions,
 			Evidence: []Evidence{{
 				Kind: w.Kind, Name: w.Name,
 				Detail: strconv.Itoa(int(w.Ready)) + " of " + strconv.Itoa(int(w.Desired)) +
@@ -210,6 +230,23 @@ func replicasMissing(in *Input) []Diagnosis {
 			d.Evidence = append(d.Evidence, eventEvidence(&quoted[i]))
 		}
 		out = append(out, d)
+	}
+	return out
+}
+
+// replicaSetFailures returns the FailedCreate warnings of a Deployment's
+// ReplicaSets, recognised by the name the Deployment gives them:
+// "<deployment>-<pod-template-hash>", the hash never containing a dash.
+func replicaSetFailures(in *Input, w *application.Workload) []application.Event {
+	prefix := w.Name + "-"
+	var out []application.Event
+	for i := range in.Context.Events {
+		e := &in.Context.Events[i]
+		if e.Type == "Warning" && e.Reason == "FailedCreate" && e.About.Kind == "ReplicaSet" &&
+			strings.HasPrefix(e.About.Name, prefix) && !strings.Contains(e.About.Name[len(prefix):], "-") &&
+			e.Namespace == w.Namespace {
+			out = append(out, *e)
+		}
 	}
 	return out
 }

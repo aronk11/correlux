@@ -53,6 +53,12 @@ func crashLoop(in *Input) []Diagnosis {
 	}
 
 	cause, confidence, unknown := crashCause(hits)
+	probe := probeKills(in, hits)
+	if probe != nil && !anyOOM(hits) {
+		cause = "the " + probeKind(probe.Message) + " probe fails, so the kubelet kills the container and restarts it: " +
+			strings.TrimSpace(probe.Message[strings.Index(probe.Message, ":")+1:])
+		confidence, unknown = High, ""
+	}
 	first := hits[0]
 	d := Diagnosis{
 		Rule:       "pod.crashloop",
@@ -62,7 +68,7 @@ func crashLoop(in *Input) []Diagnosis {
 		Cause:      cause,
 		Unknown:    unknown,
 		Confidence: confidence,
-		Chain:      chain(&in.App, "Pods", "CrashLoopBackOff", crashChainTail(hits)),
+		Chain:      chain(&in.App, "Pods", "CrashLoopBackOff", crashChainTail(hits, probe)),
 		Suggestions: []Suggestion{
 			{
 				Text:    "Read the logs of the run that failed, not of the one waiting to start",
@@ -81,11 +87,100 @@ func crashLoop(in *Input) []Diagnosis {
 			Detail: containerOf(h.container) + " " + lastRun(h.container) + ", restarted " + strconv.Itoa(int(h.container.Restarts)) + " times",
 		})
 	}
+	if probe != nil && !anyOOM(hits) {
+		d.Suggestions = append(d.Suggestions, Suggestion{
+			Text: "Compare the probe's path, port and timeouts with how long the container takes to answer",
+			Command: "kubectl get events -n " + first.pod.Namespace +
+				" --field-selector involvedObject.name=" + probe.About.Name + ",reason=Unhealthy",
+		})
+	}
 	quoted := limitEvents(warningsAbout(in, podRef(first.pod)))
 	for i := range quoted {
 		d.Evidence = append(d.Evidence, eventEvidence(&quoted[i]))
 	}
 	return []Diagnosis{d}
+}
+
+// probeKills returns the newest event saying a liveness or startup probe
+// failed for one of the restarting pods. Those restarts are the kubelet's
+// doing, not the process's, and the exit code alone (137, 143) hides that.
+func probeKills(in *Input, hits []affected) *application.Event {
+	var newest *application.Event
+	seen := map[string]bool{}
+	for _, h := range hits {
+		if seen[h.pod.Name] {
+			continue
+		}
+		seen[h.pod.Name] = true
+		events := warningsAbout(in, podRef(h.pod), "Unhealthy")
+		for i := range events {
+			if probeKind(events[i].Message) == "" {
+				continue
+			}
+			if newest == nil || events[i].LastSeen.After(newest.LastSeen) {
+				e := events[i]
+				newest = &e
+			}
+			break
+		}
+	}
+	return newest
+}
+
+// probeKind names the probe an Unhealthy event is about, when it is one that
+// restarts the container. A failing readiness probe never does.
+func probeKind(message string) string {
+	switch {
+	case strings.HasPrefix(message, "Liveness probe failed"):
+		return "liveness"
+	case strings.HasPrefix(message, "Startup probe failed"):
+		return "startup"
+	}
+	return ""
+}
+
+func anyOOM(hits []affected) bool {
+	for _, h := range hits {
+		if h.container.OOMKilled {
+			return true
+		}
+	}
+	return false
+}
+
+// exitMeaning reads an exit code by the POSIX convention every container
+// runtime follows: 126 and 127 come from the shell, and 128+n means the
+// process was ended by signal n. It says nothing about the program itself.
+func exitMeaning(code int32) string {
+	switch code {
+	case 126:
+		return "the entrypoint exists but cannot be executed (permissions or wrong architecture)"
+	case 127:
+		return "the entrypoint or a command it runs was not found in the image"
+	case 134:
+		return "the process aborted itself (SIGABRT)"
+	case 137:
+		return "the process was killed with SIGKILL, by the kernel, the kubelet or a failed probe"
+	case 139:
+		return "the process crashed with a segmentation fault (SIGSEGV)"
+	case 143:
+		return "the process was stopped with SIGTERM"
+	}
+	if code > 128 && code < 160 {
+		return "the process was ended by signal " + strconv.Itoa(int(code-128))
+	}
+	return ""
+}
+
+func exitCause(code int32, reason string) string {
+	cause := "the container exits with code " + strconv.Itoa(int(code)) + " shortly after starting"
+	if reason != "" && reason != "Error" {
+		cause += " (" + reason + ")"
+	}
+	if meaning := exitMeaning(code); meaning != "" {
+		cause += ": " + meaning
+	}
+	return cause
 }
 
 // crashCause reads the previous run. Only the cluster's own numbers are used:
@@ -101,23 +196,13 @@ func crashCause(hits []affected) (cause string, confidence Confidence, unknown s
 	}
 	for _, h := range hits {
 		if h.container.LastExitCode > 0 {
-			cause := "the container exits with code " + strconv.Itoa(int(h.container.LastExitCode)) +
-				" shortly after starting"
-			if h.container.LastReason != "" && h.container.LastReason != "Error" {
-				cause += " (" + h.container.LastReason + ")"
-			}
-			return cause, High,
+			return exitCause(h.container.LastExitCode, h.container.LastReason), High,
 				"Kubernetes does not know why the process exited with this code; that is determined by the application, not the cluster."
 		}
 	}
 	for _, h := range hits {
 		if h.container.ExitCode > 0 {
-			cause := "the container exits with code " + strconv.Itoa(int(h.container.ExitCode)) +
-				" shortly after starting"
-			if h.container.Reason != "" && h.container.Reason != "Error" {
-				cause += " (" + h.container.Reason + ")"
-			}
-			return cause, High,
+			return exitCause(h.container.ExitCode, h.container.Reason), High,
 				"Kubernetes does not know why the process exited with this code; that is determined by the application, not the cluster."
 		}
 	}
@@ -129,11 +214,12 @@ func crashCause(hits []affected) (cause string, confidence Confidence, unknown s
 	return "", Medium, "Kubernetes has not recorded why the previous run ended: there is no exit code or reason to read."
 }
 
-func crashChainTail(hits []affected) string {
-	for _, h := range hits {
-		if h.container.OOMKilled {
-			return "OOMKilled"
-		}
+func crashChainTail(hits []affected, probe *application.Event) string {
+	if anyOOM(hits) {
+		return "OOMKilled"
+	}
+	if probe != nil {
+		return probeKind(probe.Message) + " probe failing"
 	}
 	for _, h := range hits {
 		if h.container.LastExitCode != 0 {
@@ -482,6 +568,111 @@ func notReady(in *Input) []Diagnosis {
 		d.Evidence = append(d.Evidence, eventEvidence(&shown[i]))
 	}
 	return []Diagnosis{d}
+}
+
+// creatingReasons are the kubelet's complaints about a pod it was given and
+// cannot set up: its volumes or its network sandbox.
+var creatingReasons = []string{"FailedMount", "FailedAttachVolume", "FailedMapVolume", "FailedCreatePodSandBox"}
+
+// stuckCreating reports pods the kubelet has accepted and cannot start, which
+// the pod itself shows only as "ContainerCreating" — the same word it shows
+// for the two seconds a healthy pod takes. The events are what tell them apart,
+// so the rule fires only when the kubelet has complained.
+func stuckCreating(in *Input) []Diagnosis {
+	var (
+		pods   []*application.Pod
+		events []application.Event
+	)
+	for _, p := range sortedNames(livePods(&in.App)) {
+		if p.Phase != "Pending" || !p.Scheduled || !creating(p) {
+			continue
+		}
+		complaints := warningsAbout(in, podRef(p), creatingReasons...)
+		if len(complaints) == 0 {
+			continue
+		}
+		pods = append(pods, p)
+		events = append(events, complaints[0])
+	}
+	if len(pods) == 0 {
+		return nil
+	}
+
+	first := pods[0]
+	cause, suggestions := creatingCause(&events[0], first)
+	d := Diagnosis{
+		Rule:     "pod.creating",
+		Severity: Critical,
+		Subject:  podRef(first),
+		Problem: podsPhrase(len(pods)) + agree(len(pods), " is", " are") +
+			" stuck creating " + agree(len(pods), "its", "their") + " containers",
+		Cause:       cause,
+		Confidence:  High,
+		Chain:       chain(&in.App, "Pods", "ContainerCreating", events[0].Reason),
+		Suggestions: suggestions,
+	}
+	for _, p := range limitPods(pods) {
+		d.Evidence = append(d.Evidence, Evidence{Kind: "Pod", Name: p.Name, Detail: "Pending on " + orUnknown(p.Node) + ", containers not created"})
+	}
+	shown := limitEvents(events)
+	for i := range shown {
+		d.Evidence = append(d.Evidence, eventEvidence(&shown[i]))
+	}
+	return []Diagnosis{d}
+}
+
+func creating(p *application.Pod) bool {
+	for i := range p.Containers {
+		c := &p.Containers[i]
+		if c.State == "waiting" && (c.Reason == "ContainerCreating" || c.Reason == "PodInitializing") {
+			return true
+		}
+	}
+	return false
+}
+
+// creatingCause reads the kubelet's message. The cases separated here are the
+// ones whose fix lives in a different place: the manifest, the storage driver,
+// the network plugin.
+func creatingCause(e *application.Event, p *application.Pod) (string, []Suggestion) {
+	message := strings.ToLower(e.Message)
+	describe := Suggestion{Text: "Read the pod's events in full", Command: describeCommand("pod", p.Namespace, p.Name)}
+	switch {
+	case e.Reason == "FailedMount" && strings.Contains(message, "configmap") && strings.Contains(message, "not found"):
+		return "a ConfigMap the pod mounts does not exist: " + e.Message, []Suggestion{
+			{Text: "List the ConfigMaps in the namespace and compare the names", Command: "kubectl get configmaps -n " + p.Namespace},
+			describe,
+		}
+	case e.Reason == "FailedMount" && strings.Contains(message, "secret") && strings.Contains(message, "not found"):
+		return "a Secret the pod mounts does not exist: " + e.Message, []Suggestion{
+			{Text: "List the Secrets in the namespace and compare the names", Command: "kubectl get secrets -n " + p.Namespace},
+			describe,
+		}
+	case strings.Contains(message, "multi-attach"):
+		return "the volume is still attached to another node, and a ReadWriteOnce volume can only be attached to one: " + e.Message, []Suggestion{
+			{Text: "Find which node still holds the volume attachment", Command: "kubectl get volumeattachments"},
+			describe,
+		}
+	case e.Reason == "FailedCreatePodSandBox" && (strings.Contains(message, "assign an ip") ||
+		strings.Contains(message, "no available ip") || strings.Contains(message, "ipam")):
+		return "the network plugin could not give the pod an IP address; the node or subnet may have run out: " + e.Message, []Suggestion{
+			{Text: "Check the CNI pods on the node the pod was placed on",
+				Command: "kubectl get pods -n kube-system -o wide --field-selector spec.nodeName=" + p.Node},
+			describe,
+		}
+	case e.Reason == "FailedCreatePodSandBox":
+		return "the node could not set up the pod's network sandbox: " + e.Message, []Suggestion{
+			{Text: "Check the CNI pods on the node the pod was placed on",
+				Command: "kubectl get pods -n kube-system -o wide --field-selector spec.nodeName=" + p.Node},
+			describe,
+		}
+	case e.Reason == "FailedAttachVolume":
+		return "the storage driver could not attach the volume to the node: " + e.Message, []Suggestion{
+			{Text: "Check the volume attachments and the CSI driver's pods", Command: "kubectl get volumeattachments"},
+			describe,
+		}
+	}
+	return "the kubelet cannot mount the pod's volumes: " + e.Message, []Suggestion{describe}
 }
 
 // countPods counts distinct pods behind a set of failing containers.

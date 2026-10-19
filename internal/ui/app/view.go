@@ -423,11 +423,17 @@ func (m *Model) statusData() components.StatusData {
 		app = append(app, m.changeHints()...)
 		hints = append(app, hints...)
 	case viewWhy:
-		hints = append([]components.KeyHint{
+		why := []components.KeyHint{
 			{Key: "↑↓", Desc: "Scroll", Priority: 70},
 			{Key: "Enter", Desc: "Objects", Priority: 72},
 			{Group: components.HintView, Key: m.keys.Key(ActionLogs), Desc: "Logs", Priority: 87},
-		}, hints...)
+		}
+		if _, _, ok := m.copyTarget(); ok {
+			why = append(why, components.KeyHint{
+				Group: components.HintView, Key: m.keys.Key(ActionCopy), Desc: "Copy report", Priority: 85,
+			})
+		}
+		hints = append(why, hints...)
 	case viewFleet:
 		hints = append([]components.KeyHint{
 			{Key: "↑↓", Desc: "Clusters", Priority: 70},
@@ -1148,7 +1154,10 @@ func (m *Model) helpTextAt(width int) string {
 	}
 
 	var b strings.Builder
-	b.WriteString(m.theme.OverlayTitle.Render("Keyboard shortcuts"))
+	for _, line := range luxArt(m.theme.Glyphs.Owl) {
+		b.WriteString(m.theme.Key.Render(line) + "\n")
+	}
+	b.WriteString("\n" + m.theme.OverlayTitle.Render("Keyboard shortcuts"))
 	for _, s := range sections {
 		b.WriteString("\n\n" + m.theme.Muted.Render(s.title))
 		for _, row := range s.rows {
@@ -1356,4 +1365,16 @@ func terminalLabel(caps theme.Capabilities, screen layout.Screen) string {
 		return label + ", unicode"
 	}
 	return label + ", ascii"
+}
+
+// luxArt is the owl at the top of the help: four lines, each under thirty
+// columns so it fits the narrowest overlay, drawn with the face the terminal
+// can render.
+func luxArt(face string) []string {
+	return []string{
+		"   ,_,",
+		"  " + face + "   Lux keeps watch.",
+		"  /)__)   You read the evidence.",
+		` --"-"--  Nobody guesses.`,
+	}
 }
