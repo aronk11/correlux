@@ -391,6 +391,16 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 	d.HealthGlyph = m.theme.Glyph(status)
 	d.HealthStatus = status
 	d.Summary = a.Summary
+	now := time.Now()
+	if a.CreatedAt != (time.Time{}) {
+		d.Notes = append(d.Notes, "Created "+formatAge(a.CreatedAt, now)+" ago")
+	}
+	if a.Restarts > 0 {
+		d.Notes = append(d.Notes, itoa(int(a.Restarts))+" total restarts")
+	}
+	if problemSummary := a.ProblemSummary(); problemSummary != "" {
+		d.Notes = append(d.Notes, "Problems: "+problemSummary)
+	}
 	if incident := m.incidentLabel(&a); incident != "" {
 		d.Notes = append(d.Notes, incident)
 	}
@@ -398,7 +408,6 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 		d.Notes = append(d.Notes, gapSummary(gaps))
 	}
 
-	now := time.Now()
 	workloads := detailSection{
 		Title:   "Workloads",
 		Columns: []string{"Kind", "Name", "Ready", "Age"},
@@ -425,18 +434,24 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 
 	pods := detailSection{
 		Title:   "Pods",
-		Columns: []string{"Name", "Phase", "Ready", "Restarts", "Node", "State"},
+		Columns: []string{"Name", "Phase", "Ready", "Restarts", "Node", "Age", "State"},
 		Empty:   "no pods",
 	}
 	for i := range a.Pods {
 		p := &a.Pods[i]
+		state := orNone(p.Reason)
+		if p.Reason == "Terminating" {
+			state = "⏳ Replacing"
+		}
 		row := detailRow{
 			Cells: []string{
-				p.Name, p.Phase, readyLabel(p.Ready), itoa(int(p.Restarts)), orNone(p.Node), orNone(p.Reason),
+				p.Name, p.Phase, readyLabel(p.Ready), itoa(int(p.Restarts)), orNone(p.Node), formatAge(p.CreatedAt, now), state,
 			},
 			Ref: objectRef{Kind: "Pod", Name: p.Name, Namespace: p.Namespace},
 		}
 		switch {
+		case p.Reason == "Terminating":
+			row.Status = theme.StatusWarning
 		case p.Reason != "" && !p.Terminal():
 			row.Status = theme.StatusCritical
 		case !p.Ready && !p.Terminal():
