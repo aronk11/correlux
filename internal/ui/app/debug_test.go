@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/aronk11/correlux/internal/domain/application"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	"github.com/aronk11/correlux/internal/kube/debug"
 	"github.com/aronk11/correlux/internal/kube/resources"
 )
@@ -54,11 +55,52 @@ func TestDebugRequiresExplicitNamespaceInAllNamespacesView(t *testing.T) {
 	m := newTestModel(t)
 	m.allNamespaces = true
 	m.view = viewApplications
-	if cmd := m.openDebug("toolbox"); cmd != nil {
-		t.Fatal("unexpected async operation")
+	// The only thing that may start is listing namespaces to choose from.
+	m.openDebug("toolbox")
+	if m.pending != nil {
+		t.Fatal("nothing may be created before a namespace is chosen")
 	}
-	if m.overlay != overlayPrompt || m.promptTitle != "Namespace for troubleshooting" {
+	if m.overlay != overlayNamespaces || m.nsPicker.Title != "Namespace for troubleshooting" {
 		t.Fatal("silently selected a namespace")
+	}
+}
+
+func loadNamespaceList(m *Model, names ...string) {
+	m.Update(namespacesLoadedMsg{gen: m.namespaces.Generation(), list: kubeclient.NamespaceList{Names: names}})
+}
+
+func TestTheTroubleshootingNamespaceIsPickedFromTheList(t *testing.T) {
+	m := newTestModel(t)
+	m.allNamespaces = true
+	m.view = viewApplications
+	m.openDebug("dns")
+	loadNamespaceList(m, "kube-system", "payments", "shop")
+
+	if hasTitle(m.nsPicker.Items(), "All namespaces") {
+		t.Fatal("one namespace is needed; offering all of them is offering nothing")
+	}
+	typeInto(t, m, "shp")
+	if item, ok := m.nsPicker.Selected(); !ok || item.ID != "shop" {
+		t.Fatalf("a fuzzy filter must find shop from shp, got %+v", item)
+	}
+	press(t, m, "enter")
+	if m.overlay != overlayPrompt || !strings.Contains(m.promptNote, "shop") || !m.allNamespaces {
+		t.Fatalf("overlay %v, note %q, scope must not change (all=%v)", m.overlay, m.promptNote, m.allNamespaces)
+	}
+}
+
+func TestCancellingAChoiceLeavesTheScopeSwitcherAsItWas(t *testing.T) {
+	m := newTestModel(t)
+	m.allNamespaces = true
+	m.openDebug("toolbox")
+	press(t, m, "esc")
+	if m.nsChoice != nil || m.nsPicker.Title != "Namespaces" {
+		t.Fatalf("choice %v, title %q", m.nsChoice, m.nsPicker.Title)
+	}
+	m.openOverlay(overlayNamespaces)
+	loadNamespaceList(m, "shop")
+	if !hasTitle(m.nsPicker.Items(), "All namespaces") {
+		t.Fatal("the scope switcher must still offer all namespaces")
 	}
 }
 
@@ -162,5 +204,110 @@ func TestAirGappedMirrorPrefillsReviewedDebugImage(t *testing.T) {
 	m.promptAccept(m, "app")
 	if m.promptInput.Value() != want {
 		t.Fatalf("ephemeral prompt image = %q", m.promptInput.Value())
+	}
+}
+
+func runningPodObject(t *testing.T, m *Model) {
+	t.Helper()
+	m.view = viewObject
+	m.objectTarget = objectRef{Kind: "Pod", Name: "payments-0", Namespace: "shop", Resource: "pods"}
+	raw := []byte(`{"kind":"Pod","metadata":{"name":"payments-0","namespace":"shop","uid":"u1","resourceVersion":"7"},
+		"spec":{"containers":[{"name":"payments","image":"registry/payments:1.4"}]},"status":{"phase":"Running"}}`)
+	loadObjectInto(m, &resources.Object{Kind: "Pod", Name: "payments-0", Namespace: "shop", Raw: raw})
+}
+
+func TestChecksFromAPodAreOfferedOnThePod(t *testing.T) {
+	m := newTestModel(t)
+	runningPodObject(t, m)
+	titles := map[string]bool{}
+	for _, c := range m.debugCommands() {
+		titles[c.Title] = true
+	}
+	for _, want := range []string{"Check DNS from this pod", "Check TCP from this pod", "Check HTTP from this pod", "Inspect a TLS certificate from this pod", "Inspect a TLS certificate"} {
+		if !titles[want] {
+			t.Errorf("missing %q in %v", want, titles)
+		}
+	}
+}
+
+func TestACheckFromAPodIsConfirmedWithItsIdentityAndCommand(t *testing.T) {
+	m := newTestModel(t)
+	runningPodObject(t, m)
+	if cmd := m.openDebug("probe:tls"); cmd != nil {
+		t.Fatal("nothing may run before the destination is entered")
+	}
+	if m.overlay != overlayPrompt || m.promptInput.Value() != "https://" {
+		t.Fatalf("overlay %v, prefill %q", m.overlay, m.promptInput.Value())
+	}
+	if cmd := m.promptAccept(m, "http://insecure.example"); cmd != nil || m.promptError == "" {
+		t.Fatal("a TLS check needs an https URL")
+	}
+	if cmd := m.promptAccept(m, "https://pay.example.com"); cmd != nil {
+		t.Fatal("the check ran before confirmation")
+	}
+	if m.pending == nil || m.overlay != overlayConfirm {
+		t.Fatal("missing confirmation")
+	}
+	text := strings.Join(m.pending.Lines, " ")
+	for _, want := range []string{"curl", "--verbose", "https://pay.example.com", "pod payments-0 (shop)", "NetworkPolicies", "curlimages/curl"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("confirmation must say %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestAProbeOpensItsOwnOutput(t *testing.T) {
+	m := newTestModel(t)
+	runningPodObject(t, m)
+	m.logPrevious = true
+	m.Update(probeStartedMsg{cluster: m.contextName, ref: m.objectTarget, name: "correlux-probe-abc"})
+	if m.view != viewLogs || len(m.logTargets) != 1 || m.logTargets[0].Container != "correlux-probe-abc" || m.logPrevious {
+		t.Fatalf("view %v, targets %+v, previous %v", m.view, m.logTargets, m.logPrevious)
+	}
+}
+
+func nodeShellTarget(m *Model) {
+	m.view = viewObject
+	m.objectTarget = objectRef{Kind: "Node", Name: "node-1", Resource: "nodes"}
+	loadObjectInto(m, &resources.Object{Kind: "Node", Name: "node-1", Raw: []byte(`{"kind":"Node","metadata":{"name":"node-1"}}`)})
+}
+
+func TestTheNodeShellIsOffUntilTheConfigurationEnablesIt(t *testing.T) {
+	m := newTestModel(t)
+	nodeShellTarget(m)
+	for _, c := range m.debugCommands() {
+		if c.Arg == "node" {
+			t.Fatal("a root shell on a node must be opt-in")
+		}
+	}
+	if cmd := m.openDebug("node"); cmd != nil || m.overlay != overlayNone {
+		t.Fatal("the action must do nothing while disabled")
+	}
+
+	m.cfg.Debug.NodeShell = true
+	found := false
+	for _, c := range m.debugCommands() {
+		found = found || c.Arg == "node"
+	}
+	if !found {
+		t.Fatal("enabled, it must be offered on a node")
+	}
+	m.openDebug("node")
+	loadNamespaceList(m, "default", "kube-system")
+	if m.overlay != overlayNamespaces {
+		t.Fatalf("overlay %v, want the namespace picker", m.overlay)
+	}
+	if item, ok := m.nsPicker.Selected(); !ok || item.ID != "kube-system" {
+		t.Fatalf("kube-system must be suggested, got %+v", item)
+	}
+	press(t, m, "enter")
+	if m.pending == nil {
+		t.Fatal("picking the namespace must lead to the confirmation")
+	}
+	text := strings.Join(m.pending.Lines, " ")
+	for _, want := range []string{"PRIVILEGED", "root on node-1", "/host", "chroot /host", "30 minutes"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("confirmation must say %q:\n%s", want, text)
+		}
 	}
 }

@@ -255,6 +255,17 @@ type Model struct {
 	// findings are the diagnoses per application key, computed once per load
 	// rather than on every frame: View must stay a cheap pure function.
 	findings map[string][]diagnosis.Diagnosis
+	// lastHealth is each application's health at the previous refresh, for
+	// one cluster; recovered names the ones that went from broken to healthy
+	// since, which Lux says out loud once.
+	lastHealth        map[string]application.Health
+	lastHealthContext string
+	recovered         []string
+	// now is the clock Lux's time-of-day lines read; nil means time.Now.
+	now func() time.Time
+	// executable is the binary an update would replace; empty means the
+	// running one.
+	executable string
 
 	// The resource browser.
 	view        viewKind
@@ -354,8 +365,11 @@ type Model struct {
 	fleetPicker   *components.Selector
 	fleetNSPicker *components.Selector
 	nsPicker      *components.Selector
-	resPicker     *components.Selector
-	sortPicker    *components.Selector
+	// nsChoice, when set, turns the namespace picker into a chooser for one
+	// purpose: Enter hands the name to it instead of switching the scope.
+	nsChoice   *namespaceChoice
+	resPicker  *components.Selector
+	sortPicker *components.Selector
 
 	// The filter over whatever list is on screen.
 	search    components.Input

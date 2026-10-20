@@ -99,7 +99,8 @@ func (m *Model) filterNamespaces(query string) []components.Item {
 	// typing something else: pressing Enter after a filter must never hit a row
 	// the query did not ask for.
 	query = strings.TrimSpace(query)
-	if query == "" || strings.HasPrefix(allNamespacesLabel, strings.ToLower(query)) {
+	choosing := m.nsChoice != nil
+	if !choosing && (query == "" || strings.HasPrefix(allNamespacesLabel, strings.ToLower(query))) {
 		row := components.Item{ID: allNamespacesID, Title: "All namespaces"}
 		if m.allNamespaces {
 			row.Right = "active"
@@ -155,7 +156,10 @@ func (m *Model) filterNamespaces(query string) []components.Item {
 		if highlights != nil {
 			item.Highlight = highlights[i]
 		}
-		if !m.allNamespaces && name == m.namespace {
+		switch {
+		case choosing && name == m.nsChoice.prefer:
+			item.Right = "suggested"
+		case !choosing && !m.allNamespaces && name == m.namespace:
 			item.Right = "active"
 		}
 		items = append(items, item)

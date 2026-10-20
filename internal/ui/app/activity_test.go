@@ -12,7 +12,7 @@ func TestRecentActivityIsNewestFirstAndNamesItsLimits(t *testing.T) {
 	m := newTestModel(t)
 	press(t, m, "E")
 	now := time.Now()
-	loadEvidenceInto(m, application.Context{Events: []application.Event{
+	loadEvidenceInto(m, &application.Context{Events: []application.Event{
 		{Meta: application.Meta{Namespace: "shop"}, Type: "Normal", Reason: "Scheduled", Message: "older", About: application.ObjectRef{Kind: "Pod", Name: "payments-0"}, LastSeen: now.Add(-time.Minute)},
 		{Meta: application.Meta{Namespace: "shop"}, Type: "Warning", Reason: "BackOff", Message: "newer", About: application.ObjectRef{Kind: "Pod", Name: "payments-0"}, LastSeen: now},
 	}})
@@ -30,7 +30,7 @@ func TestActivityEventOpensTheObjectItNames(t *testing.T) {
 	m := newTestModel(t)
 	loadCatalogInto(m, testCatalog())
 	press(t, m, "E")
-	loadEvidenceInto(m, application.Context{Events: []application.Event{{
+	loadEvidenceInto(m, &application.Context{Events: []application.Event{{
 		Meta: application.Meta{Namespace: "default"}, Type: "Warning", Reason: "BackOff",
 		About: application.ObjectRef{Kind: "Pod", Name: "payments-0"}, LastSeen: time.Now(),
 	}}})
@@ -48,7 +48,7 @@ func TestClickingAnActivityRowSelectsItAndClickingItAgainOpensIt(t *testing.T) {
 	m := newTestModel(t)
 	loadCatalogInto(m, testCatalog())
 	press(t, m, "E")
-	loadEvidenceInto(m, application.Context{Events: []application.Event{{
+	loadEvidenceInto(m, &application.Context{Events: []application.Event{{
 		Meta: application.Meta{Namespace: "default"}, Type: "Warning", Reason: "BackOff",
 		About: application.ObjectRef{Kind: "Pod", Name: "payments-0"}, LastSeen: time.Now(),
 	}}})
@@ -79,7 +79,7 @@ func TestOpeningLogsFromAnActivityRow(t *testing.T) {
 	m := newTestModel(t)
 	loadCatalogInto(m, testCatalog())
 	press(t, m, "E")
-	loadEvidenceInto(m, application.Context{Events: []application.Event{{
+	loadEvidenceInto(m, &application.Context{Events: []application.Event{{
 		Meta: application.Meta{Namespace: "default"}, Type: "Warning", Reason: "BackOff",
 		About: application.ObjectRef{Kind: "Pod", Name: "payments-0"}, LastSeen: time.Now(),
 	}}})
@@ -102,7 +102,7 @@ func TestOpeningLogsFromAnActivityRow(t *testing.T) {
 func TestEventsScrollSurvivesReturningToTheSameScope(t *testing.T) {
 	m := newTestModel(t)
 	press(t, m, "E")
-	loadEvidenceInto(m, application.Context{Events: []application.Event{{
+	loadEvidenceInto(m, &application.Context{Events: []application.Event{{
 		Meta: application.Meta{Namespace: "default"}, Type: "Warning", Reason: "BackOff",
 		About: application.ObjectRef{Kind: "Pod", Name: "payments-0"}, LastSeen: time.Now(),
 	}}})

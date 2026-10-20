@@ -300,7 +300,7 @@ func (d *BrowserDemo) hydrate(force bool) {
 	commands := m.registry.Commands()
 	for i := range commands {
 		switch commands[i].Action {
-		case paletteExec, paletteEdit, paletteCopy, paletteCopyYAML, paletteCopyJSON, paletteCopyKubectl, paletteCopyLogs, paletteCopyTable, paletteReloadConfig, paletteCheckUpdate:
+		case paletteExec, paletteEdit, paletteCopy, paletteCopyYAML, paletteCopyJSON, paletteCopyKubectl, paletteCopyLogs, paletteCopyTable, paletteReloadConfig, paletteCheckUpdate, paletteInstallUpdate:
 			commands[i].Enabled = false
 			commands[i].DisabledReason = "requires installed app"
 		}

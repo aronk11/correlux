@@ -107,10 +107,12 @@ func TestDumpFrames(t *testing.T) {
 			}
 		case "application":
 			m.openApplication("payments")
-			loadEvidenceInto(m, dumpEvidence())
+			ev := dumpEvidence()
+			loadEvidenceInto(m, &ev)
 		case "why":
 			m.openApplication("payments")
-			loadEvidenceInto(m, dumpEvidence())
+			ev := dumpEvidence()
+			loadEvidenceInto(m, &ev)
 			m.explain()
 		case "usage":
 			press(t, m, "u")

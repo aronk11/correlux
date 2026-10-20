@@ -242,6 +242,12 @@ func (m *Model) loadEvidence() tea.Cmd {
 	if !m.allNamespaces {
 		opts.Namespace = m.namespace
 	}
+	apps := m.applications()
+	for i := range apps {
+		if apps[i].Manager.Tool == "Flux" {
+			opts.GitOpsNamespaces = append(opts.GitOpsNamespaces, apps[i].Manager.Namespace)
+		}
+	}
 
 	return func() tea.Msg {
 		defer cancel()

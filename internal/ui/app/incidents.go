@@ -26,8 +26,11 @@ func (m *Model) renderDashboard(width, height int) string {
 	incidents := m.incidentLines(width, spare)
 	if len(incidents) == 0 {
 		if spare >= 1 && m.allQuiet() {
-			return table(tableHeight) + "\n\n" + m.theme.Muted.Render(clipTo(
-				m.theme.Glyphs.Owl+" All quiet. Lux is keeping watch, so you don't have to.", width, 1))
+			line := " All quiet. Lux is keeping watch, so you don't have to."
+			if lateNight(m.clock()) {
+				line = " All quiet. Go back to sleep, Lux keeps watch."
+			}
+			return table(tableHeight) + "\n\n" + m.theme.Muted.Render(clipTo(m.theme.Glyphs.Owl+line, width, 1))
 		}
 		return table(height)
 	}

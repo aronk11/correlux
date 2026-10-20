@@ -11,7 +11,7 @@ question:
 | File | What it is |
 | --- | --- |
 | `checksums.txt` | SHA-256 of every archive in the release |
-| `checksums.txt.sig`, `checksums.txt.pem` | a keyless cosign signature over that list, and the certificate it was made with |
+| `checksums.txt.sigstore.json` | a keyless cosign signature over that list: signature, certificate and transparency-log proof in one Sigstore bundle |
 | `correlux_<version>_<os>_<arch>.tar.gz.sbom.json` | an SPDX SBOM of what is inside that archive |
 
 plus a build provenance attestation, stored by GitHub rather than in the
@@ -42,13 +42,12 @@ Verify the file you are about to install, not the one you meant to download.
 
 `cosign` does not depend on the GitHub CLI or on GitHub's attestation API, and
 it checks a different thing: the signature over the release's checksum list.
-Download `checksums.txt`, `checksums.txt.sig` and `checksums.txt.pem` from the
-release, then:
+Download `checksums.txt` and `checksums.txt.sigstore.json` from the release,
+then:
 
 ```bash
 cosign verify-blob checksums.txt \
-  --signature checksums.txt.sig \
-  --certificate checksums.txt.pem \
+  --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp '^https://github\.com/aronk11/correlux/\.github/workflows/release\.yml@refs/tags/v' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
 ```

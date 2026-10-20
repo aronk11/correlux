@@ -86,6 +86,10 @@ type Debug struct {
 	NetworkImage     string   `json:"networkImage"`
 	ImagePullSecrets []string `json:"imagePullSecrets"`
 	ImagePullPolicy  string   `json:"imagePullPolicy"`
+	// NodeShell enables a privileged troubleshooting pod on a chosen node,
+	// with the host's filesystem at /host. It is off by default because it is
+	// root on that node, whatever RBAC otherwise allows inside the cluster.
+	NodeShell bool `json:"nodeShell"`
 }
 
 // FleetGroup is one explicitly named set of kubeconfig contexts.

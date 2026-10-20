@@ -6,7 +6,8 @@
 // answer cached on disk, and one line of configuration switches it off for
 // good. Nothing about the user, their clusters or their session is sent — the
 // request carries the version `correlux version` already prints and nothing
-// else, and the answer is a version number and a link.
+// else, and the answer is a version number and a link. Downloading a release
+// happens only in Install, only after the user said yes (install.go).
 //
 // A failed check is not an error the user has to deal with. A laptop on a
 // train, a proxy that refuses, an air-gapped cluster: none of them are

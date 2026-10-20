@@ -62,6 +62,7 @@ const (
 	paletteAutoRefresh      palette.ActionID = "refresh.auto"
 	paletteReloadConfig     palette.ActionID = "reload.kubeconfig"
 	paletteCheckUpdate      palette.ActionID = "update.check"
+	paletteInstallUpdate    palette.ActionID = "update.install"
 	paletteHelp             palette.ActionID = "help"
 	paletteQuit             palette.ActionID = "quit"
 )
@@ -305,6 +306,19 @@ func (m *Model) rebuildCommands() {
 				Enabled:  true,
 			})
 		}
+	}
+
+	if v := m.newerVersion(); v != "" {
+		cmds = append(cmds, palette.Command{
+			ID:       "cmd.update.install",
+			Action:   paletteInstallUpdate,
+			Title:    "Install Correlux " + v,
+			Subtitle: m.installSubtitle(),
+			Category: "Help",
+			Keywords: []string{"update", "upgrade", "install", "version", "release", "newer"},
+			Weight:   26,
+			Enabled:  true,
+		})
 	}
 
 	if (m.view == viewTable || m.view == viewApplications) && m.wideToggleMatters() {
@@ -1251,6 +1265,8 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.toggleAutoRefresh()
 	case paletteCheckUpdate:
 		return m.checkUpdateNow()
+	case paletteInstallUpdate:
+		return m.offerInstall()
 	case paletteReloadConfig:
 		m.notice("Reloading kubeconfig…", theme.StatusUnknown)
 		return m.reloadKubeconfig()

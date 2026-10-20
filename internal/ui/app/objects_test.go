@@ -472,7 +472,7 @@ func TestPageKeysMoveTheApplicationView(t *testing.T) {
 func TestEverythingBelowTheLastSelectableRowIsReachable(t *testing.T) {
 	m := newTestModel(t)
 	openLongApplication(t, m)
-	loadEvidenceInto(m, application.Context{})
+	loadEvidenceInto(m, &application.Context{})
 
 	// The events sit below the last row that can be selected; pressing down
 	// past it must keep moving the page.
@@ -566,6 +566,7 @@ func TestADecodedValueThatIsNotTextIsSummarisedRatherThanDumped(t *testing.T) {
 	m := newTestModel(t)
 	openSecret(t, m)
 
+	press(t, m, "y")
 	press(t, m, "b")
 	out := plainView(m)
 	if !strings.Contains(out, "keystore.jks: <binary, 38 bytes>") {
@@ -578,14 +579,24 @@ func TestADecodedValueThatIsNotTextIsSummarisedRatherThanDumped(t *testing.T) {
 	}
 }
 
-func TestDecodingReachesForTheDocumentItDecodes(t *testing.T) {
+func TestASecretsKeysAreListedAndItsValuesStayMaskedUntilDecoded(t *testing.T) {
 	m := newTestModel(t)
 	openSecret(t, m)
 
-	// The details are on screen, and the encoded values are not part of them.
+	out := plainView(m)
+	for _, want := range []string{"DATA", "password", "7 B", "username", "keystore.jks", "decode to show them"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the details must show %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "hunter2") {
+		t.Fatalf("a value must not be on screen before it is asked for:\n%s", out)
+	}
+
 	press(t, m, "b")
-	if !m.objectYAML {
-		t.Error("asking for the values decoded must show the document that holds them")
+	out = plainView(m)
+	if m.objectYAML || !strings.Contains(out, "hunter2") || !strings.Contains(out, "binary") {
+		t.Errorf("decoding reveals the values where the reader already is (yaml=%v):\n%s", m.objectYAML, out)
 	}
 }
 

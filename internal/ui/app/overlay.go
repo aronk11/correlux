@@ -86,7 +86,32 @@ func (m *Model) openOverlay(kind overlayKind) tea.Cmd {
 }
 
 func (m *Model) closeOverlay() {
+	if m.overlay == overlayNamespaces && m.nsChoice != nil {
+		m.nsChoice = nil
+		m.nsPicker.Title, m.nsPicker.Footer = "Namespaces", ""
+	}
 	m.overlay = overlayNone
+}
+
+// namespaceChoice is what the namespace picker is choosing a namespace for.
+type namespaceChoice struct {
+	prefer string
+	accept func(*Model, string) tea.Cmd
+}
+
+// chooseNamespace asks for one namespace with the same list, fuzzy filter and
+// "use this name" fallback as the scope switcher — a list to pick from rather
+// than a field to type into, because a namespace somebody has to remember and
+// spell correctly at 3 a.m. is a namespace they get wrong.
+func (m *Model) chooseNamespace(title, note, prefer string, accept func(*Model, string) tea.Cmd) tea.Cmd {
+	cmd := m.openOverlay(overlayNamespaces)
+	m.nsChoice = &namespaceChoice{prefer: prefer, accept: accept}
+	m.nsPicker.Title, m.nsPicker.Footer = title, note
+	m.nsPicker.Reset()
+	if prefer != "" {
+		m.nsPicker.SelectID(prefer)
+	}
+	return cmd
 }
 
 // handleOverlayKey routes a keystroke to the open overlay. It returns
@@ -192,7 +217,14 @@ func (m *Model) confirmSelection() tea.Cmd {
 		m.closeOverlay()
 		return m.switchContext(item.ID)
 	case overlayNamespaces:
+		choice := m.nsChoice
 		m.closeOverlay()
+		if choice != nil {
+			if item.ID == allNamespacesID || item.ID == "" {
+				return nil
+			}
+			return choice.accept(m, item.ID)
+		}
 		return m.switchNamespace(item.ID)
 	case overlaySort:
 		m.closeOverlay()

@@ -58,6 +58,14 @@ func Command(mode, destination string, seconds int64) ([]string, error) {
 			return nil, errors.New("TCP port must be between 1 and 65535")
 		}
 		return []string{"nc", "-v", "-z", "-w", "10", host, port}, nil
+	case "tls":
+		u, err := url.Parse(destination)
+		if err != nil || u.Hostname() == "" || u.Scheme != "https" || u.User != nil || strings.ContainsAny(destination, "\r\n") {
+			return nil, errors.New("enter an https:// URL without embedded credentials")
+		}
+		// curl prints the server certificate's subject, issuer and dates on
+		// stderr in verbose mode, and refuses an invalid one with the reason.
+		return []string{"curl", "--silent", "--show-error", "--verbose", "--head", "--connect-timeout", "10", "--max-time", "30", "--output", "/dev/null", "--", destination}, nil
 	case "http":
 		u, err := url.Parse(destination)
 		if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || strings.ContainsAny(destination, "\r\n") {
@@ -106,4 +114,60 @@ func Job(opts Options) (*batchv1.Job, error) {
 // SecurityContext drops privileges for both standalone and ephemeral toolboxes.
 func SecurityContext() *corev1.SecurityContext {
 	return &corev1.SecurityContext{AllowPrivilegeEscalation: ptr.To(false), ReadOnlyRootFilesystem: ptr.To(true), RunAsNonRoot: ptr.To(true), RunAsUser: ptr.To[int64](1000), Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}, SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}}
+}
+
+// NodeOptions describes a privileged troubleshooting pod on one node.
+type NodeOptions struct {
+	Node             string
+	Namespace        string
+	Image            string
+	ImagePullSecrets []string
+	ImagePullPolicy  corev1.PullPolicy
+	Seconds          int64
+}
+
+// NodeJob builds the one deliberately privileged toolbox: a pod pinned to a
+// node, in the host's PID and network namespaces, with the host filesystem at
+// /host — what `chroot /host` needs to read kubelet and runtime logs, check a
+// full disk or inspect containers. It tolerates every taint, because a node
+// that is unhealthy is exactly the one that has them.
+func NodeJob(opts NodeOptions) (*batchv1.Job, error) {
+	if _, err := PullPolicy(string(opts.ImagePullPolicy)); err != nil {
+		return nil, err
+	}
+	if len(validation.IsDNS1123Subdomain(opts.Node)) != 0 {
+		return nil, errors.New("select a valid node")
+	}
+	if len(validation.IsDNS1123Label(opts.Namespace)) != 0 {
+		return nil, errors.New("select one valid namespace for the node pod")
+	}
+	if opts.Image == "" || strings.ContainsAny(opts.Image, " \t\r\n") {
+		return nil, errors.New("enter a container image reference")
+	}
+	if opts.Seconds < 1 || opts.Seconds > 3600 {
+		return nil, errors.New("debug runtime must be between 1 and 3600 seconds")
+	}
+	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{GenerateName: "correlux-node-", Namespace: opts.Namespace, Labels: map[string]string{Label: "true"},
+		Annotations: map[string]string{"correlux.dev/debug-mode": "node", "correlux.dev/debug-destination": opts.Node}}, Spec: batchv1.JobSpec{
+		BackoffLimit: ptr.To[int32](0), ActiveDeadlineSeconds: ptr.To(opts.Seconds), TTLSecondsAfterFinished: ptr.To[int32](600),
+		Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{Label: "true"}}, Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever, AutomountServiceAccountToken: ptr.To(false),
+			NodeName: opts.Node, HostPID: true, HostNetwork: true, HostIPC: true,
+			Tolerations: []corev1.Toleration{{Operator: corev1.TolerationOpExists}},
+			Volumes:     []corev1.Volume{{Name: "host", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: "/"}}}},
+			Containers: []corev1.Container{{Name: "node", Image: opts.Image, ImagePullPolicy: opts.ImagePullPolicy,
+				Command:         []string{"/bin/sh", "-c", "sleep " + strconv.FormatInt(opts.Seconds, 10)},
+				SecurityContext: &corev1.SecurityContext{Privileged: ptr.To(true), RunAsUser: ptr.To[int64](0)},
+				VolumeMounts:    []corev1.VolumeMount{{Name: "host", MountPath: "/host"}},
+				Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("10m"), corev1.ResourceMemory: resource.MustParse("32Mi")},
+					Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("200m"), corev1.ResourceMemory: resource.MustParse("256Mi")}}}},
+		}},
+	}}
+	for _, name := range opts.ImagePullSecrets {
+		if len(validation.IsDNS1123Subdomain(name)) != 0 {
+			return nil, errors.New("invalid debug imagePullSecret name")
+		}
+		job.Spec.Template.Spec.ImagePullSecrets = append(job.Spec.Template.Spec.ImagePullSecrets, corev1.LocalObjectReference{Name: name})
+	}
+	return job, nil
 }

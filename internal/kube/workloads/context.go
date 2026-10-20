@@ -122,6 +122,8 @@ func CollectContext(ctx context.Context, cs kubernetes.Interface, opts Options) 
 		})
 	})
 
+	collectEcosystem(ctx, &g, cs, opts, &out)
+
 	gaps, _, err := g.wait()
 	if err != nil {
 		return application.Context{}, err

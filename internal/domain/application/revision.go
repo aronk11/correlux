@@ -37,7 +37,7 @@ func (r *Revision) Owner() string {
 }
 
 // RevisionsOf returns a Deployment's revisions, newest first.
-func (c Context) RevisionsOf(uid string) []Revision {
+func (c *Context) RevisionsOf(uid string) []Revision {
 	if uid == "" {
 		return nil
 	}

@@ -61,6 +61,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case autoRefreshTickMsg:
 		return m, m.handleAutoRefreshTick(msg)
 
+	case updateInstalledMsg:
+		return m, m.applyUpdateInstalled(msg)
+
 	case updateCheckedMsg:
 		return m, m.applyUpdateCheck(msg)
 	case clusterProbedMsg:
@@ -80,6 +83,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rebuildCommands()
 		}
 		m.nsPicker.Refresh()
+		// A list that arrives after the chooser opened must still land on the
+		// suggestion, or Enter picks whatever happens to sort first.
+		if m.overlay == overlayNamespaces && m.nsChoice != nil && m.nsChoice.prefer != "" && m.nsPicker.Query() == "" {
+			m.nsPicker.SelectID(m.nsChoice.prefer)
+		}
 		return m, nil
 
 	case catalogLoadedMsg:
@@ -149,6 +157,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.applyForwardEvent(msg)
 	case debugCreatedMsg:
 		return m, m.applyDebugCreated(&msg)
+	case probeStartedMsg:
+		return m, m.applyProbeStarted(&msg)
+
 	case ephemeralAddedMsg:
 		return m, m.applyEphemeralAdded(&msg)
 	case helmChangedMsg:
@@ -445,6 +456,7 @@ func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
 	m.refreshFailures = 0
 	m.keepCursorOnApplication(previous)
 	m.rediagnose()
+	cheer := m.cheerRecoveries()
 	// The usage view is built on this snapshot; a reload of one is a reload of
 	// the other.
 	m.recomputeUsage()
@@ -454,14 +466,14 @@ func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
 		// Chosen in the fleet view, before this cluster had answered.
 		name := m.pendingApplication
 		m.pendingApplication = ""
-		return m.openApplication(name)
+		return tea.Batch(cheer, m.openApplication(name))
 	}
 	if !m.pendingObject.empty() {
 		ref := m.pendingObject
 		m.pendingObject = objectRef{}
-		return m.openObject(ref)
+		return tea.Batch(cheer, m.openObject(ref))
 	}
-	return nil
+	return cheer
 }
 
 // tableRows returns the rows currently loaded.

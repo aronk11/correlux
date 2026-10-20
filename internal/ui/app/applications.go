@@ -549,7 +549,8 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 			Ref:   objectRef{Kind: "Service", Name: s.Name, Namespace: s.Namespace},
 		})
 	}
-	for _, ing := range a.Ingresses {
+	for i := range a.Ingresses {
+		ing := &a.Ingresses[i]
 		hosts := strings.Join(ing.Hosts, ", ")
 		if hosts == "" {
 			hosts = "—"
@@ -611,7 +612,8 @@ func (m *Model) groupingSection(a *application.Application) detailSection {
 		s := &a.Services[i]
 		add("Service", s.Name, s.Namespace, s.GroupedBy)
 	}
-	for _, ing := range a.Ingresses {
+	for i := range a.Ingresses {
+		ing := &a.Ingresses[i]
 		add("Ingress", ing.Name, ing.Namespace, ing.GroupedBy)
 	}
 	return section

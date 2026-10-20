@@ -80,6 +80,11 @@ type Workload struct {
 	Stalled        bool
 	StalledReason  string
 	StalledMessage string
+	// Failed is a Job the controller has given up on, in its own words:
+	// BackoffLimitExceeded, DeadlineExceeded.
+	Failed        bool
+	FailedReason  string
+	FailedMessage string
 	// GroupedBy is why this workload belongs to its application, captured at
 	// grouping time so it never has to be recomputed to answer for itself.
 	GroupedBy Reason
@@ -109,6 +114,11 @@ type Pod struct {
 	// Claims are the PersistentVolumeClaims the pod mounts, in the order the
 	// spec lists them.
 	Claims []string
+	// DeletingSince is when the pod was asked to go away, zero while it is not
+	// being deleted; Finalizers are what may be holding it.
+	DeletingSince time.Time
+	Grace         time.Duration
+	Finalizers    []string
 	// GroupedBy is why this pod belongs to its application, captured at
 	// grouping time so it never has to be recomputed to answer for itself.
 	GroupedBy Reason
@@ -151,6 +161,17 @@ type Container struct {
 	// beside the regular containers rather than before them, so its request
 	// adds to the pod's instead of being absorbed by the init-phase maximum.
 	Sidecar bool
+	// Ports are the ports the spec declares. Declaring a port is documentation
+	// to Kubernetes — a process may listen on one it never declared — except
+	// for a Service's named targetPort, which only resolves against these.
+	Ports []ContainerPort
+}
+
+// ContainerPort is one declared container port.
+type ContainerPort struct {
+	Name     string
+	Port     int32
+	Protocol string
 }
 
 // Amounts is the CPU and memory of one container or one rollup: millicores and
@@ -206,9 +227,21 @@ type Service struct {
 	ClusterIP string
 	Selector  map[string]string
 	Ports     []string
+	// Targets is each port with where it sends traffic, which is what a
+	// "connection refused" behind a healthy service usually comes down to.
+	Targets []ServicePort
 	// GroupedBy is why this service belongs to its application, captured at
 	// grouping time so it never has to be recomputed to answer for itself.
 	GroupedBy Reason
+}
+
+// ServicePort is one port of a Service. TargetPort is either a number or the
+// name of a container port, exactly as the spec wrote it.
+type ServicePort struct {
+	Name       string
+	Port       int32
+	TargetPort string
+	Protocol   string
 }
 
 // Ingress is one ingress and the services it routes to.
@@ -216,6 +249,8 @@ type Ingress struct {
 	Meta
 	Hosts    []string
 	Backends []string
+	// TLSSecrets are the Secrets the ingress serves certificates from.
+	TLSSecrets []string
 	// GroupedBy is why this ingress belongs to its application, captured at
 	// grouping time so it never has to be recomputed to answer for itself.
 	GroupedBy Reason
@@ -308,12 +343,149 @@ type Context struct {
 	// Revisions are the Deployments' ReplicaSets with their pod templates,
 	// which is what answers "what changed?" (see Revision).
 	Revisions []Revision
-	Gaps      []Gap
-	FetchedAt time.Time
+	// Policies are the NetworkPolicies in scope, Certificates the
+	// cert-manager certificates, GitOps the Flux objects that manage the
+	// applications, and Releases the latest revision of each Helm release.
+	// Each is empty when its API is not installed, which is not a gap.
+	Policies     []NetworkPolicy
+	Autoscalers  []Autoscaler
+	Budgets      []DisruptionBudget
+	Certificates []Certificate
+	GitOps       []GitOpsObject
+	Releases     []HelmRelease
+	Gaps         []Gap
+	FetchedAt    time.Time
+}
+
+// NetworkPolicy is the part of a policy that decides whether traffic to a
+// pod is allowed at all. A selector with match expressions is recorded as
+// such rather than evaluated half-way.
+type NetworkPolicy struct {
+	Meta
+	MatchLabels    map[string]string
+	HasExpressions bool
+	// Ingress and Egress say whether the policy restricts that direction;
+	// the rule counts say how many allow rules it has. A restricted
+	// direction with no rules denies everything.
+	Ingress      bool
+	IngressRules int
+	Egress       bool
+	EgressRules  int
+}
+
+// Selects reports whether the policy applies to a pod with these labels, and
+// whether that answer is known at all.
+func (n *NetworkPolicy) Selects(labels map[string]string) (selects, known bool) {
+	if n.HasExpressions {
+		return false, false
+	}
+	for k, v := range n.MatchLabels {
+		if labels[k] != v {
+			return false, true
+		}
+	}
+	return true, true
+}
+
+// Autoscaler is a HorizontalPodAutoscaler and what it says about itself.
+type Autoscaler struct {
+	Meta
+	TargetKind string
+	TargetName string
+	Min        int32
+	Max        int32
+	Current    int32
+	Desired    int32
+	// Conditions are the controller's own: AbleToScale, ScalingActive and
+	// ScalingLimited, keyed by type.
+	Conditions map[string]Condition
+}
+
+// Condition is one status condition, quoted.
+type Condition struct {
+	Status  string
+	Reason  string
+	Message string
+}
+
+// DisruptionBudget is a PodDisruptionBudget: how many of the pods it covers
+// may be evicted right now.
+type DisruptionBudget struct {
+	Meta
+	MatchLabels    map[string]string
+	HasExpressions bool
+	// NoSelector is a budget without a selector, which covers no pods at all
+	// — unlike an empty selector, which covers every pod in the namespace.
+	NoSelector         bool
+	DisruptionsAllowed int32
+	CurrentHealthy     int32
+	DesiredHealthy     int32
+	ExpectedPods       int32
+}
+
+// Selects reports whether the budget covers a pod with these labels, and
+// whether that is known.
+func (b *DisruptionBudget) Selects(labels map[string]string) (selects, known bool) {
+	if b.HasExpressions {
+		return false, false
+	}
+	if b.NoSelector {
+		return false, true
+	}
+	if len(b.MatchLabels) == 0 {
+		// An empty selector in policy/v1 selects every pod in the namespace.
+		return true, true
+	}
+	for k, v := range b.MatchLabels {
+		if labels[k] != v {
+			return false, true
+		}
+	}
+	return true, true
+}
+
+// Certificate is a cert-manager Certificate, reduced to its own verdict.
+type Certificate struct {
+	Meta
+	SecretName string
+	DNSNames   []string
+	Issuer     string
+	// Ready is the Ready condition; ReadyKnown is false when the controller
+	// has not reported one yet.
+	Ready      bool
+	ReadyKnown bool
+	Reason     string
+	Message    string
+	NotAfter   time.Time
+}
+
+// GitOpsObject is a Flux Kustomization or HelmRelease with its Ready
+// condition, in the controller's own words.
+type GitOpsObject struct {
+	Meta
+	Ready      bool
+	ReadyKnown bool
+	Reason     string
+	Message    string
+	Suspended  bool
+	// Revision is the source revision last applied.
+	Revision string
+}
+
+// HelmRelease is the newest revision Helm recorded for one release, read
+// from the labels on its storage Secret — never from the Secret's contents.
+type HelmRelease struct {
+	Name      string
+	Namespace string
+	Revision  int
+	// Status is Helm's own word: deployed, failed, pending-install,
+	// pending-upgrade, pending-rollback, superseded, uninstalling.
+	Status    string
+	UpdatedAt time.Time
 }
 
 // Node returns the node with the given name.
-func (c Context) Node(name string) (Node, bool) {
+func (c *Context) Node(name string) (Node, bool) {
 	for _, n := range c.Nodes {
 		if n.Name == name {
 			return n, true
@@ -323,7 +495,7 @@ func (c Context) Node(name string) (Node, bool) {
 }
 
 // EndpointsFor returns the endpoint counts of one service.
-func (c Context) EndpointsFor(namespace, service string) (EndpointSet, bool) {
+func (c *Context) EndpointsFor(namespace, service string) (EndpointSet, bool) {
 	for _, e := range c.Endpoints {
 		if e.Namespace == namespace && e.Service == service {
 			return e, true
@@ -333,7 +505,7 @@ func (c Context) EndpointsFor(namespace, service string) (EndpointSet, bool) {
 }
 
 // ClaimByName returns one PersistentVolumeClaim.
-func (c Context) ClaimByName(namespace, name string) (Claim, bool) {
+func (c *Context) ClaimByName(namespace, name string) (Claim, bool) {
 	for _, claim := range c.Claims {
 		if claim.Namespace == namespace && claim.Name == name {
 			return claim, true
@@ -343,7 +515,7 @@ func (c Context) ClaimByName(namespace, name string) (Claim, bool) {
 }
 
 // EventsAbout returns the events about one object, newest first.
-func (c Context) EventsAbout(uid, name string) []Event {
+func (c *Context) EventsAbout(uid, name string) []Event {
 	var out []Event
 	for i := range c.Events {
 		e := &c.Events[i]

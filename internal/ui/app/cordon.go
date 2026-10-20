@@ -136,7 +136,8 @@ func (m *Model) cordonState(ref objectRef) (cordoned, known bool) {
 		}
 	}
 	if m.evidence.State() == async.Ready {
-		if node, ok := m.evidence.Get().Node(ref.Name); ok {
+		evidence := m.evidence.Get()
+		if node, ok := evidence.Node(ref.Name); ok {
 			return node.Unschedulable, true
 		}
 	}

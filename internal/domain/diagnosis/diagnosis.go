@@ -160,6 +160,15 @@ var rules = []rule{
 	rolloutPaused,
 	rolloutStalled,
 	rolloutChanged,
+	servicePorts,
+	networkIsolated,
+	certificates,
+	gitOps,
+	helmRelease,
+	autoscaling,
+	disruptionBudget,
+	jobFailed,
+	stuckTerminating,
 }
 
 // Diagnose explains an application, worst first.

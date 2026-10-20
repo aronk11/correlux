@@ -41,7 +41,59 @@ func (m *Model) rediagnose() {
 		}
 	}
 	m.findings = findings
+	m.trackRecoveries(apps)
 }
+
+// trackRecoveries remembers every application's health and notes the ones
+// that just recovered. The first reading of a cluster recovers nothing: an
+// application that was healthy before Correlux looked has not been fixed.
+func (m *Model) trackRecoveries(apps []application.Application) {
+	if m.lastHealthContext != m.contextName || m.lastHealth == nil {
+		m.lastHealthContext = m.contextName
+		m.lastHealth = make(map[string]application.Health, len(apps))
+		for i := range apps {
+			m.lastHealth[apps[i].Key()] = diagnosedHealth(apps[i].Health, m.findings[apps[i].Key()])
+		}
+		return
+	}
+	for i := range apps {
+		key := apps[i].Key()
+		now := diagnosedHealth(apps[i].Health, m.findings[key])
+		before, seen := m.lastHealth[key]
+		if seen && now == application.Healthy && (before == application.Down || before == application.Degraded) {
+			m.recovered = append(m.recovered, apps[i].Name)
+		}
+		m.lastHealth[key] = now
+	}
+}
+
+// cheerRecoveries turns the recoveries since the last refresh into one short
+// notice, unless something more important is already on the status line.
+func (m *Model) cheerRecoveries() tea.Cmd {
+	names := m.recovered
+	m.recovered = nil
+	if len(names) == 0 || m.message != "" {
+		return nil
+	}
+	owl := m.theme.Glyphs.Owl
+	text := owl + " " + names[0] + " is healthy again. Nice work."
+	if len(names) > 1 {
+		text = owl + " " + strconv.Itoa(len(names)) + " applications are healthy again. Nice work."
+	}
+	m.notice(text, theme.StatusHealthy)
+	return m.expireNotice()
+}
+
+func (m *Model) clock() time.Time {
+	if m.now != nil {
+		return m.now()
+	}
+	return time.Now()
+}
+
+// lateNight is the stretch of the day when whoever is looking at a quiet
+// dashboard should probably be asleep.
+func lateNight(t time.Time) bool { return t.Hour() >= 22 || t.Hour() < 6 }
 
 // findingsFor returns the diagnoses of one application.
 func (m *Model) findingsFor(key string) []diagnosis.Diagnosis { return m.findings[key] }
@@ -148,8 +200,14 @@ func (m *Model) whyData() screens.WhyData {
 	d.Summary = app.Summary
 	d.Notes = m.evidenceNotes()
 	owl := m.theme.Glyphs.Owl
-	d.Empty = owl + " Lux looked everywhere. Nothing is wrong with " + app.Name + " that Correlux can see."
+	d.Empty = "Nothing is wrong with " + app.Name + " that Correlux can see."
+	if m.evidence.State() == async.Ready {
+		d.Empty = owl + " Lux looked everywhere. " + d.Empty
+	}
 	d.Intro = owl + " Breathe. This is what the cluster itself said, and what it could not say."
+	if health != application.Down {
+		d.Intro = owl + " Nothing is down. Here is what is degraded, in the cluster's own words."
+	}
 
 	now := time.Now()
 	for _, f := range findings {
