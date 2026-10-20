@@ -65,6 +65,13 @@ func runUpdate(ctx context.Context, out io.Writer, in io.Reader, interactive, ch
 	if release.Err != nil {
 		return fmt.Errorf("could not reach the release feed: %w", release.Err)
 	}
+	if !update.Rankable(current) {
+		// A local or `go install` build has no release version to compare,
+		// and calling it current would be a guess dressed as an answer.
+		fmt.Fprintln(out, "This build ("+current+") has no release version, so it cannot be compared; the latest release is "+
+			release.Version+". "+release.URL)
+		return nil
+	}
 	if !update.Newer(current, release.Version) {
 		fmt.Fprintln(out, "Correlux "+current+" is up to date.")
 		return nil

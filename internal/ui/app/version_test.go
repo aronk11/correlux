@@ -238,3 +238,12 @@ func TestAFailedInstallSaysNothingWasReplaced(t *testing.T) {
 		t.Errorf("message %q (%v)", m.message, m.messageStatus)
 	}
 }
+
+func TestAnExplicitCheckOnADevBuildDoesNotClaimItIsCurrent(t *testing.T) {
+	withVersion(t, "dev")
+	m := newTestModel(t)
+	learned(m, update.Release{Version: "v0.11.0"}, true)
+	if strings.Contains(m.message, "up to date") || !strings.Contains(m.message, "cannot be compared") {
+		t.Errorf("message = %q", m.message)
+	}
+}

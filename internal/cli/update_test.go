@@ -70,3 +70,15 @@ func TestUpdatePointsManagedInstallsAtTheirTool(t *testing.T) {
 		t.Errorf("installed %v, output:\n%s", *installed, out.String())
 	}
 }
+
+func TestADevBuildIsNeverCalledCurrent(t *testing.T) {
+	installed := fakeFeed(t, "v99.0.0")
+	buildinfo.Version = "dev"
+	var out bytes.Buffer
+	if err := runUpdate(context.Background(), &out, strings.NewReader("y\n"), true, false, "/home/me/bin/correlux"); err != nil {
+		t.Fatal(err)
+	}
+	if *installed || strings.Contains(out.String(), "up to date") || !strings.Contains(out.String(), "cannot be compared") {
+		t.Errorf("installed %v, output:\n%s", *installed, out.String())
+	}
+}

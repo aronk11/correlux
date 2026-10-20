@@ -199,6 +199,8 @@ func (m *Model) noticeForUpdate(release update.Release) (string, theme.Status) {
 	switch {
 	case release.Err != nil:
 		return "Could not reach the release feed: " + shortError(release.Err), theme.StatusWarning
+	case !update.Rankable(buildinfo.Get().Version):
+		return "This build (" + buildinfo.Get().Version + ") cannot be compared with releases; the latest is " + release.Version, theme.StatusUnknown
 	case update.Newer(buildinfo.Get().Version, release.Version):
 		return release.Version + " is available — " + release.URL, theme.StatusWarning
 	default:

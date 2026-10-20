@@ -3,6 +3,7 @@ package workloads
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"sort"
 	"strconv"
@@ -78,42 +79,63 @@ func collectEcosystem(ctx context.Context, g *group, cs kubernetes.Interface, op
 	}
 
 	g.run("Certificate", func() (bool, error) {
-		var list itemList[certificateItem]
-		found, err := getJSON(ctx, rc, collectionPath("/apis/cert-manager.io/v1", opts.Namespace, "certificates"), nil, &list)
-		if err != nil || !found {
-			return false, err
-		}
-		g.collect(func() {
-			for i := range list.Items {
-				out.Certificates = append(out.Certificates, list.Items[i].toCertificate())
+		path := collectionPath("/apis/cert-manager.io/v1", opts.Namespace, "certificates")
+		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+			var list itemList[certificateItem]
+			found, err := getJSON(ctx, rc, path, nil, o, &list)
+			if err != nil || !found {
+				return "", err
 			}
+			g.collect(func() {
+				for i := range list.Items {
+					out.Certificates = append(out.Certificates, list.Items[i].toCertificate())
+				}
+			})
+			return list.Metadata.Continue, nil
 		})
-		return false, nil
 	})
 
 	for _, ns := range gitOpsScopes(opts) {
 		g.run("Kustomization", func() (bool, error) {
-			return false, readFlux(ctx, g, rc, out, ns, "Kustomization",
+			return readFlux(ctx, g, rc, opts, out, ns, "Kustomization",
 				[]string{"/apis/kustomize.toolkit.fluxcd.io/v1"}, "kustomizations")
 		})
 		g.run("HelmRelease", func() (bool, error) {
-			return false, readFlux(ctx, g, rc, out, ns, "HelmRelease",
+			return readFlux(ctx, g, rc, opts, out, ns, "HelmRelease",
 				[]string{"/apis/helm.toolkit.fluxcd.io/v2", "/apis/helm.toolkit.fluxcd.io/v2beta2"}, "helmreleases")
 		})
 	}
 
 	g.run("Helm release", func() (bool, error) {
-		var list itemList[metadataItem]
+		var items []metadataItem
+		path := collectionPath("/api/v1", opts.Namespace, "secrets")
 		query := map[string]string{"labelSelector": "owner=helm"}
-		found, err := getMetadata(ctx, rc, collectionPath("/api/v1", opts.Namespace, "secrets"), query, &list)
-		if err != nil || !found {
+		truncated, err := page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+			var list itemList[metadataItem]
+			found, err := getMetadata(ctx, rc, path, query, o, &list)
+			if err != nil || !found {
+				return "", err
+			}
+			items = append(items, list.Items...)
+			return list.Metadata.Continue, nil
+		})
+		if err != nil {
 			return false, err
 		}
-		releases := latestReleases(list.Items)
+		if truncated {
+			// The newest revision of a release may be on a page that was not
+			// read; a verdict from the older ones would be a wrong verdict.
+			return true, errReleasesTruncated
+		}
+		releases := latestReleases(items)
 		g.collect(func() { out.Releases = append(out.Releases, releases...) })
 		return false, nil
 	})
 }
+
+// errReleasesTruncated turns an incomplete read of Helm's storage into a gap
+// rather than into findings computed from part of it.
+var errReleasesTruncated = errors.New("more Helm release revisions than one pass reads; narrow the scope to a namespace")
 
 // gitOpsScopes is where Flux objects are looked for: the scope itself, plus
 // every namespace an application's Flux labels name — flux-system, usually,
@@ -133,24 +155,32 @@ func gitOpsScopes(opts Options) []string {
 	return out
 }
 
-func readFlux(ctx context.Context, g *group, rc rest.Interface, out *application.Context, ns, kind string, versions []string, resource string) error {
+func readFlux(ctx context.Context, g *group, rc rest.Interface, opts Options, out *application.Context, ns, kind string, versions []string, resource string) (bool, error) {
 	for _, version := range versions {
-		var list itemList[fluxItem]
-		found, err := getJSON(ctx, rc, collectionPath(version, ns, resource), nil, &list)
-		if err != nil {
-			return err
-		}
-		if !found {
-			continue
-		}
-		g.collect(func() {
-			for i := range list.Items {
-				out.GitOps = append(out.GitOps, list.Items[i].toGitOps(kind))
+		path := collectionPath(version, ns, resource)
+		served := true
+		truncated, err := page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+			var list itemList[fluxItem]
+			found, err := getJSON(ctx, rc, path, nil, o, &list)
+			if err != nil {
+				return "", err
 			}
+			if !found {
+				served = false
+				return "", nil
+			}
+			g.collect(func() {
+				for i := range list.Items {
+					out.GitOps = append(out.GitOps, list.Items[i].toGitOps(kind))
+				}
+			})
+			return list.Metadata.Continue, nil
 		})
-		return nil
+		if err != nil || served {
+			return truncated, err
+		}
 	}
-	return nil
+	return false, nil
 }
 
 // restOf returns the clientset's REST client, or nil when there is none —
@@ -173,22 +203,23 @@ func collectionPath(prefix, namespace, resource string) string {
 	return prefix + "/namespaces/" + namespace + "/" + resource
 }
 
-const readLimit = "500"
-
 // getJSON reads one page of a collection. found is false when the API is not
 // served at all.
-func getJSON(ctx context.Context, rc rest.Interface, path string, query map[string]string, into any) (bool, error) {
-	return get(ctx, rc, path, query, "", into)
+func getJSON(ctx context.Context, rc rest.Interface, path string, query map[string]string, o metav1.ListOptions, into any) (bool, error) {
+	return get(ctx, rc, path, query, o, "", into)
 }
 
 // getMetadata reads only the metadata of a collection, which for Secrets is
 // the difference between reading labels and reading credentials.
-func getMetadata(ctx context.Context, rc rest.Interface, path string, query map[string]string, into any) (bool, error) {
-	return get(ctx, rc, path, query, "application/json;as=PartialObjectMetadataList;g=meta.k8s.io;v=v1", into)
+func getMetadata(ctx context.Context, rc rest.Interface, path string, query map[string]string, o metav1.ListOptions, into any) (bool, error) {
+	return get(ctx, rc, path, query, o, "application/json;as=PartialObjectMetadataList;g=meta.k8s.io;v=v1", into)
 }
 
-func get(ctx context.Context, rc rest.Interface, path string, query map[string]string, accept string, into any) (bool, error) {
-	req := rc.Get().AbsPath(path).Param("limit", readLimit)
+func get(ctx context.Context, rc rest.Interface, path string, query map[string]string, o metav1.ListOptions, accept string, into any) (bool, error) {
+	req := rc.Get().AbsPath(path).Param("limit", strconv.FormatInt(o.Limit, 10))
+	if o.Continue != "" {
+		req = req.Param("continue", o.Continue)
+	}
 	for k, v := range query {
 		req = req.Param(k, v)
 	}
@@ -206,6 +237,9 @@ func get(ctx context.Context, rc rest.Interface, path string, query map[string]s
 }
 
 type itemList[T any] struct {
+	Metadata struct {
+		Continue string `json:"continue"`
+	} `json:"metadata"`
 	Items []T `json:"items"`
 }
 

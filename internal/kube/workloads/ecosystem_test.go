@@ -67,3 +67,56 @@ func TestTheEvidencePassReadsTheEcosystemAndSkipsWhatIsNotInstalled(t *testing.T
 		t.Errorf("policies = %+v", out.Policies)
 	}
 }
+
+func helmPages(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != "/api/v1/namespaces/shop/secrets" {
+			_, _ = w.Write([]byte(`{"items":[]}`))
+			return
+		}
+		if r.URL.Query().Get("continue") == "" {
+			_, _ = w.Write([]byte(`{"metadata":{"continue":"page-2"},"items":[
+				{"metadata":{"name":"sh.helm.release.v1.payments.v7","namespace":"shop","labels":{"name":"payments","status":"pending-upgrade","version":"7"}}}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"items":[
+			{"metadata":{"name":"sh.helm.release.v1.payments.v8","namespace":"shop","labels":{"name":"payments","status":"deployed","version":"8"}}}]}`))
+	}))
+}
+
+func TestHelmRevisionsAreReadAcrossPages(t *testing.T) {
+	srv := helmPages(t)
+	defer srv.Close()
+	cs, _ := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+
+	out, err := CollectContext(context.Background(), cs, Options{Namespace: "shop"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Releases) != 1 || out.Releases[0].Revision != 8 || out.Releases[0].Status != "deployed" {
+		t.Errorf("the newest revision is on the second page: %+v", out.Releases)
+	}
+}
+
+func TestAnIncompleteHelmReadIsAGapNotAVerdict(t *testing.T) {
+	srv := helmPages(t)
+	defer srv.Close()
+	cs, _ := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+
+	out, err := CollectContext(context.Background(), cs, Options{Namespace: "shop", MaxPages: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Releases) != 0 {
+		t.Errorf("a partial read must not produce a release verdict: %+v", out.Releases)
+	}
+	found := false
+	for _, g := range out.Gaps {
+		found = found || g.Kind == "Helm release" && strings.Contains(g.Reason, "narrow the scope")
+	}
+	if !found {
+		t.Errorf("the incomplete read must be visible: %+v", out.Gaps)
+	}
+}
