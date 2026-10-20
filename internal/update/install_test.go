@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -77,7 +78,8 @@ func TestAnUpdateReplacesTheBinaryOnlyWhenTheChecksumMatches(t *testing.T) {
 	if string(got) != "new build" || res.SignatureVerified || res.Archive != "correlux_0.20.0_linux_amd64.tar.gz" {
 		t.Errorf("binary %q, result %+v", got, res)
 	}
-	if info, _ := os.Stat(exe); info.Mode().Perm()&0o100 == 0 {
+	// Windows has no execute bit; the extension is what makes it runnable.
+	if info, _ := os.Stat(exe); runtime.GOOS != "windows" && info.Mode().Perm()&0o100 == 0 {
 		t.Error("the new binary must be executable")
 	}
 	leftovers, _ := filepath.Glob(filepath.Join(filepath.Dir(exe), ".correlux-update-*"))
