@@ -35,6 +35,11 @@ type Section struct {
 
 // Object describes any object, using whatever the document actually contains.
 func Object(kind string, raw []byte) []Section {
+	return ObjectWith(kind, raw, Options{})
+}
+
+// ObjectWith is Object with options, such as revealing a Secret's values.
+func ObjectWith(kind string, raw []byte, opts Options) []Section {
 	var doc map[string]any
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil
@@ -56,10 +61,49 @@ func Object(kind string, raw []byte) []Section {
 		sections = describeNode(doc)
 	case "PersistentVolumeClaim":
 		sections = describeClaim(doc)
+	case "ConfigMap":
+		sections = describeConfigMap(doc)
+	case "Secret":
+		sections = describeSecret(doc, opts)
+	case "ServiceAccount":
+		sections = describeServiceAccount(doc)
+	case "Role", "ClusterRole":
+		sections = describeRole(doc)
+	case "RoleBinding", "ClusterRoleBinding":
+		sections = describeBinding(doc)
+	case "NetworkPolicy":
+		sections = describeNetworkPolicy(doc)
+	case "HorizontalPodAutoscaler":
+		sections = describeAutoscaler(doc)
+	case "PodDisruptionBudget":
+		sections = describeBudget(doc)
+	case "PersistentVolume":
+		sections = describeVolume(doc)
+	case "StorageClass":
+		sections = describeStorageClass(doc)
+	case "Namespace":
+		sections = describeNamespace(doc)
+	case "ResourceQuota":
+		sections = describeQuota(doc)
+	case "LimitRange":
+		sections = describeLimitRange(doc)
+	case "EndpointSlice":
+		sections = describeEndpointSlice(doc)
+	case "CustomResourceDefinition":
+		sections = describeCRD(doc)
 	default:
 		// A kind with no rules of its own is still described: whatever its
-		// author put in its status is what they wanted anybody to see.
-		sections = append(sections, genericSection(doc))
+		// author put in its status is what they wanted anybody to see, and
+		// when it has no status, what its spec sets.
+		status := genericSection(doc)
+		sections = append(sections, status)
+		switch {
+		case len(status.Rows) > 0:
+		case len(child(doc, "spec")) > 0:
+			sections = []Section{specSection(doc)}
+		default:
+			sections = []Section{topLevelSection(doc)}
+		}
 	}
 
 	if gitops.Identifies(str(doc, "apiVersion"), kind) {

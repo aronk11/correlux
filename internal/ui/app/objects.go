@@ -163,20 +163,15 @@ func (m *Model) toggleObjectYAML() {
 	m.rebuildCommands()
 }
 
-// toggleObjectDecode switches the document between the values the server stores
-// and what they decode to.
-//
-// It reaches for the document as well, because asking to read a Secret's values
-// while the details are on screen can only mean one thing. Pressing the key on
+// toggleObjectDecode switches between the values the server stores and what
+// they decode to, in whichever view is on screen: a Secret's Data section in
+// the details, and the document in the YAML view. Pressing the key on
 // an object with nothing to decode still toggles — objectView says so inline —
 // because a key that sometimes does nothing at all, silently, is worse than one
 // that explains itself; objectDecodable is what keeps the key from being
 // advertised there in the first place (SPEC 17: never a confusing keystroke).
 func (m *Model) toggleObjectDecode() {
 	m.objectDecode = !m.objectDecode
-	if m.objectDecode {
-		m.objectYAML = true
-	}
 	m.objectPort.Offset = 0
 	m.rebuildCommands()
 }
@@ -240,7 +235,7 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 	d.Namespace = obj.Namespace
 	d.Subtitle = strings.TrimSpace(groupVersionOf(obj) + "   age " + formatAge(obj.CreatedAt, now))
 	d.YAML = splitDocument(obj.YAML)
-	if m.objectDecode && m.objectYAML {
+	if m.objectDecode {
 		document, values := decode.Document(obj.Raw)
 		if values > 0 {
 			d.YAML = splitDocument(document)
@@ -266,7 +261,7 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 	}
 	// What the object itself reports, read out of the document rather than out
 	// of a type Correlux was compiled with.
-	for _, section := range describe.Object(obj.Kind, obj.Raw) {
+	for _, section := range describe.ObjectWith(obj.Kind, obj.Raw, describe.Options{Reveal: m.objectDecode}) {
 		sections = append(sections, screens.DetailSection{
 			Title:   section.Title,
 			Columns: section.Columns,
@@ -319,6 +314,16 @@ func (m *Model) identitySection(obj *resources.Object) screens.DetailSection {
 	for _, key := range sortedLabelKeys(obj.Labels) {
 		section.Rows = append(section.Rows, screens.DetailRow{
 			Cells: []string{"Label " + key, obj.Labels[key]}, Target: -1,
+		})
+	}
+	for _, key := range sortedLabelKeys(obj.Annotations) {
+		// kubectl's copy of the whole last-applied manifest is the YAML view
+		// again, one line long; it says nothing a row can show.
+		if key == "kubectl.kubernetes.io/last-applied-configuration" {
+			continue
+		}
+		section.Rows = append(section.Rows, screens.DetailRow{
+			Cells: []string{"Annotation " + key, clipTo(strings.ReplaceAll(obj.Annotations[key], "\n", " "), 120, 1)}, Target: -1,
 		})
 	}
 	return section

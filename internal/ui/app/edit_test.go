@@ -181,6 +181,7 @@ func TestAnEditSendsTheServersDocumentEvenWhileTheValuesAreDecoded(t *testing.T)
 	m := newTestModel(t)
 	openSecret(t, m)
 
+	press(t, m, "y")
 	press(t, m, "b")
 	if out := plainView(m); !strings.Contains(out, "password: hunter2") {
 		t.Fatalf("the decoded document must be on screen for this to prove anything:\n%s", out)
