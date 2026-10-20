@@ -263,10 +263,21 @@ model anywhere near it:</p>
       kubectl logs -n shop payments-7d8f-0 -c payments --previous
   confidence: high
 </code></pre>
-<p>Fifteen rules cover crash loops, image pulls, missing config, OOM kills,
-unschedulable pods, failing probes, missing replicas, stalled rollouts,
-services without endpoints, ingresses without a backend, unhealthy nodes,
-unbound volumes — and what the last rollout changed.
+<p>Twenty-five rules cover crash loops (including the liveness probe that causes
+them), image pulls (including registry rate limits), missing config, pods stuck
+creating their containers or stuck terminating, OOM kills, unschedulable pods,
+failing probes, missing replicas and the quota that blocks them, failed Jobs,
+stalled rollouts, autoscalers that cannot read their metrics or are at their
+maximum, PodDisruptionBudgets that block node drains, services without
+endpoints or with a targetPort nothing listens on, NetworkPolicies that cut an
+application off, ingresses without a backend, unhealthy nodes, unbound volumes
+— and what the last rollout changed.</p>
+<p>The tools most clusters run are read when they are there and skipped when they
+are not, with nothing to configure: cert-manager certificates that cannot be
+issued or are about to expire, Flux Kustomizations and HelmReleases that fail
+to reconcile or are suspended, and Helm releases that failed or are stuck in
+<code>pending-upgrade</code> (&quot;another operation is in progress&quot;). Helm&#39;s status is read
+from the labels on its release Secrets, never from their contents.
 Each one reads what the cluster reported and stops there: where the cluster did
 not say why, Correlux says so and lowers its confidence rather than inventing a
 plausible cause. Every finding carries the evidence it rests on, attributed to
@@ -671,7 +682,9 @@ controller conditions tell you whether the requested reconciliation completed.</
 See <a href="0024-helm-and-flux-operations.html">ADR 24</a> for boundaries and rationale.</p>
 <h3 id="troubleshooting-sessions">Troubleshooting sessions</h3>
 <p>From <code>Ctrl+P</code>, choose <strong>Launch temporary toolbox</strong>, <strong>Check DNS resolution</strong>,
-<strong>Check TCP connectivity</strong>, or <strong>Check HTTP / TLS connectivity</strong>. Select a
+<strong>Check TCP connectivity</strong>, <strong>Check HTTP / TLS connectivity</strong> or <strong>Inspect a
+TLS certificate</strong> (subject, issuer, validity dates and whether verification
+passes). Select a
 namespace when the current view covers all namespaces, enter the destination,
 and review the image and creation confirmation. Each probe runs in a new pod;
 its policy selection and identity can differ from your application&#39;s.</p>
@@ -687,6 +700,18 @@ image. It shares that pod&#39;s network. Refresh until the debug container is
 running, then choose its named shell from the palette. The container exits
 after 15 minutes, but Kubernetes retains its ephemeral-container entry until
 the pod is deleted.</p>
+<p><strong>Check DNS / TCP / HTTP from this pod</strong> and <strong>Inspect a TLS certificate from
+this pod</strong> answer the question an incident actually asks: can <em>this</em> pod reach
+it? The check runs as a short-lived ephemeral container inside the pod, with
+its IP, labels and therefore its NetworkPolicies, and its output opens in the
+log view as soon as it starts. A check from a new pod cannot tell you that an
+egress policy blocks the application; this one can.</p>
+<p>With <code>debug.nodeShell: true</code>, a Node offers <strong>Open a root shell on this node</strong>:
+a privileged pod pinned to that node, in the host&#39;s PID and network namespaces,
+with the node&#39;s filesystem at <code>/host</code> (<code>chroot /host</code> to use its own tools —
+<code>journalctl -u kubelet</code>, <code>crictl ps</code>, <code>df -h</code>). It tolerates every taint,
+lives 30 minutes, needs a namespace whose Pod Security admission allows
+privileged pods, and is off by default because it is root on that node.</p>
 <p><strong>Port-forward from this pod</strong> takes <code>local:remote</code> ports (<code>0:80</code> chooses an
 available local port). It binds only to <code>127.0.0.1</code>. The palette lists each
 forward&#39;s actual port, original cluster and pod, with a command to stop it.
@@ -697,6 +722,7 @@ Forwards end when Correlux exits; switching context never retargets them.</p>
   curlImage: curlimages/curl:8.21.0
   networkImage: nicolaka/netshoot:v0.16
   imagePullSecrets: []
+  nodeShell: false # true offers a root shell on a node; off by default
 </code></pre>
 <p>For a shared registry mirror or proxy, use <code>debug.registryMirror</code> instead of
 repeating full references for every default image:</p>
@@ -793,6 +819,22 @@ saying it did not happen, because a check that cannot run must never read as
 <code>update.check</code> setting says, unless air-gapped mode is enabled. <code>correlux version</code> prints what the last
 check learned without ever performing one, so it cannot hang in a script.
 (<a href="0021-update-check.html">ADR 21</a>)</p>
+<p>When a newer release is known, the palette offers <strong>Install Correlux vX</strong>, and
+<code>correlux update</code> does the same from a shell (<code>--check</code> only reports). Both
+always ask first — there is deliberately no <code>--yes</code> — and then:</p>
+<ul>
+<li>leave a copy that Homebrew, krew or a system package installed to that tool,
+and print the command to run instead (<code>brew upgrade correlux</code>,
+<code>kubectl krew upgrade correlux</code>, your package manager);</li>
+<li>download the archive for this OS and architecture from the GitHub release and
+refuse it unless it matches <code>checksums.txt</code>;</li>
+<li>when <code>cosign</code> is on <code>PATH</code>, also verify the checksum list&#39;s signature against
+this repository&#39;s release workflow at exactly that tag, and refuse on failure;</li>
+<li>replace the binary in one rename next to it, so an interrupted update leaves
+the old one in place.</li>
+</ul>
+<p>The running session is not restarted; the new version starts next time.
+Air-gapped mode disables updates entirely.</p>
 <h3 id="switching-context-is-session-local">Switching context is session-local</h3>
 <p>Correlux <strong>never writes to your kubeconfig</strong>. Changing cluster or namespace
 inside Correlux affects Correlux only; the <code>kubectl</code> in your other terminal
