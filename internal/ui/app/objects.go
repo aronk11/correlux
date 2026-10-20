@@ -443,7 +443,8 @@ func (m *Model) objectEventsSection(obj *resources.Object, now time.Time) screen
 		return section
 	}
 
-	events := m.evidence.Get().EventsAbout(obj.UID, obj.Name)
+	evidence := m.evidence.Get()
+	events := evidence.EventsAbout(obj.UID, obj.Name)
 	if len(events) == 0 {
 		section.Empty = "none"
 		return section

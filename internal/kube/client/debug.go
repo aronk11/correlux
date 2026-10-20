@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -38,7 +39,50 @@ func (f *Factory) DebugSessions(ctx context.Context, cluster, namespace, continu
 
 // AddDebugContainer adds one reviewed container while retaining the pod's
 // concurrency token. Ephemeral entries cannot be removed afterward.
+// AddDebugContainer adds a toolbox the user can open a shell in.
 func (f *Factory) AddDebugContainer(ctx context.Context, cluster, namespace, podName, uid, version, image, target string, pullPolicy corev1.PullPolicy) (string, error) {
+	return f.addEphemeral(ctx, cluster, namespace, podName, uid, version, image, target, pullPolicy, "correlux-debug-", []string{"/bin/sh", "-c", "sleep 900"})
+}
+
+// AddProbeContainer runs one bounded check inside the pod, with the pod's own
+// network identity: its IP, its labels and therefore its NetworkPolicies.
+func (f *Factory) AddProbeContainer(ctx context.Context, cluster, namespace, podName, uid, version, image, target string, pullPolicy corev1.PullPolicy, command []string) (string, error) {
+	return f.addEphemeral(ctx, cluster, namespace, podName, uid, version, image, target, pullPolicy, "correlux-probe-", command)
+}
+
+// WaitForEphemeral waits until an ephemeral container has started or already
+// finished, which is when its logs can be read.
+func (f *Factory) WaitForEphemeral(ctx context.Context, cluster, namespace, podName, name string) error {
+	cs, err := f.Clientset(cluster)
+	if err != nil {
+		return err
+	}
+	for {
+		pod, err := cs.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		for i := range pod.Status.EphemeralContainerStatuses {
+			s := &pod.Status.EphemeralContainerStatuses[i]
+			if s.Name != name {
+				continue
+			}
+			switch {
+			case s.State.Running != nil, s.State.Terminated != nil:
+				return nil
+			case s.State.Waiting != nil && s.State.Waiting.Reason != "" && s.State.Waiting.Reason != "ContainerCreating" && s.State.Waiting.Reason != "PodInitializing":
+				return fmt.Errorf("%s is waiting: %s %s", name, s.State.Waiting.Reason, s.State.Waiting.Message)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%s did not start in time: %w", name, ctx.Err())
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+func (f *Factory) addEphemeral(ctx context.Context, cluster, namespace, podName, uid, version, image, target string, pullPolicy corev1.PullPolicy, prefix string, command []string) (string, error) {
 	if _, err := debug.PullPolicy(string(pullPolicy)); err != nil {
 		return "", err
 	}
@@ -69,8 +113,8 @@ func (f *Factory) AddDebugContainer(ctx context.Context, cluster, namespace, pod
 	if !found {
 		return "", fmt.Errorf("container %q does not exist in this pod", target)
 	}
-	name := "correlux-debug-" + rand.String(8)
-	pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, corev1.EphemeralContainer{EphemeralContainerCommon: corev1.EphemeralContainerCommon{Name: name, Image: image, ImagePullPolicy: pullPolicy, Command: []string{"/bin/sh", "-c", "sleep 900"}, SecurityContext: debug.SecurityContext()}, TargetContainerName: target})
+	name := prefix + rand.String(8)
+	pod.Spec.EphemeralContainers = append(pod.Spec.EphemeralContainers, corev1.EphemeralContainer{EphemeralContainerCommon: corev1.EphemeralContainerCommon{Name: name, Image: image, ImagePullPolicy: pullPolicy, Command: command, SecurityContext: debug.SecurityContext()}, TargetContainerName: target})
 	_, err = cs.CoreV1().Pods(namespace).UpdateEphemeralContainers(ctx, podName, pod, metav1.UpdateOptions{FieldManager: "correlux"})
 	return name, err
 }

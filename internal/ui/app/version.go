@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -202,4 +204,77 @@ func (m *Model) noticeForUpdate(release update.Release) (string, theme.Status) {
 	default:
 		return "Correlux is up to date", theme.StatusHealthy
 	}
+}
+
+// installer replaces the running binary; tests swap it out.
+var installer = update.Install
+
+type updateInstalledMsg struct {
+	result update.Result
+	err    error
+}
+
+func (m *Model) installPlan() update.Plan {
+	exe := m.executable
+	if exe == "" {
+		exe, _ = os.Executable()
+	}
+	return update.PlanFor(exe)
+}
+
+func (m *Model) installSubtitle() string {
+	if plan := m.installPlan(); plan.Method != update.SelfReplace {
+		return "managed elsewhere: " + plan.Hint
+	}
+	return "asks first, verifies the checksum, then replaces this binary"
+}
+
+// offerInstall asks before replacing the binary. It is not a cluster change,
+// so read-only mode does not refuse it; it is still never done without a yes.
+func (m *Model) offerInstall() tea.Cmd {
+	version := m.newerVersion()
+	if version == "" {
+		return nil
+	}
+	plan := m.installPlan()
+	if plan.Method != update.SelfReplace {
+		m.notice("This copy is managed by another tool. To update it, run: "+plan.Hint, theme.StatusUnknown)
+		return m.expireNotice()
+	}
+	verification := "cosign is not installed: only the published checksum is checked"
+	if update.CosignAvailable() {
+		verification = "Checksum and release signature are verified with cosign"
+	}
+	m.pending = &pendingAction{
+		Title: "Install Correlux " + version,
+		Lines: []string{
+			"Replaces " + plan.Executable + " (" + buildinfo.Get().Version + " → " + version + ").",
+			"Downloads " + update.ArchiveName(version, runtime.GOOS, runtime.GOARCH) + " from the GitHub release.",
+			verification + ".",
+			"This session keeps running; the new version starts next time.",
+		},
+		Run: func(m *Model) tea.Cmd {
+			m.notice("Installing "+version+"…", theme.StatusUnknown)
+			return func() tea.Msg {
+				res, err := installer(context.Background(), plan, version, runtime.GOOS, runtime.GOARCH)
+				return updateInstalledMsg{result: res, err: err}
+			}
+		},
+	}
+	m.confirmInput.Reset()
+	m.overlay = overlayConfirm
+	return nil
+}
+
+func (m *Model) applyUpdateInstalled(msg updateInstalledMsg) tea.Cmd {
+	if msg.err != nil {
+		m.notice("Update failed, nothing was replaced: "+shortError(msg.err), theme.StatusCritical)
+		return m.expireNotice()
+	}
+	verified := "checksum verified"
+	if msg.result.SignatureVerified {
+		verified = "checksum and signature verified"
+	}
+	m.notice(m.theme.Glyphs.Owl+" Updated to "+msg.result.Version+" ("+verified+"). Restart Correlux to use it.", theme.StatusHealthy)
+	return m.expireNotice()
 }

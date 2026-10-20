@@ -196,10 +196,22 @@ model anywhere near it:
   confidence: high
 ```
 
-Fifteen rules cover crash loops, image pulls, missing config, OOM kills,
-unschedulable pods, failing probes, missing replicas, stalled rollouts,
-services without endpoints, ingresses without a backend, unhealthy nodes,
-unbound volumes — and what the last rollout changed.
+Twenty-five rules cover crash loops (including the liveness probe that causes
+them), image pulls (including registry rate limits), missing config, pods stuck
+creating their containers or stuck terminating, OOM kills, unschedulable pods,
+failing probes, missing replicas and the quota that blocks them, failed Jobs,
+stalled rollouts, autoscalers that cannot read their metrics or are at their
+maximum, PodDisruptionBudgets that block node drains, services without
+endpoints or with a targetPort nothing listens on, NetworkPolicies that cut an
+application off, ingresses without a backend, unhealthy nodes, unbound volumes
+— and what the last rollout changed.
+
+The tools most clusters run are read when they are there and skipped when they
+are not, with nothing to configure: cert-manager certificates that cannot be
+issued or are about to expire, Flux Kustomizations and HelmReleases that fail
+to reconcile or are suspended, and Helm releases that failed or are stuck in
+`pending-upgrade` ("another operation is in progress"). Helm's status is read
+from the labels on its release Secrets, never from their contents.
 Each one reads what the cluster reported and stops there: where the cluster did
 not say why, Correlux says so and lowers its confidence rather than inventing a
 plausible cause. Every finding carries the evidence it rests on, attributed to
@@ -710,7 +722,9 @@ See [ADR 24](docs/adr/0024-helm-and-flux-operations.md) for boundaries and ratio
 ### Troubleshooting sessions
 
 From `Ctrl+P`, choose **Launch temporary toolbox**, **Check DNS resolution**,
-**Check TCP connectivity**, or **Check HTTP / TLS connectivity**. Select a
+**Check TCP connectivity**, **Check HTTP / TLS connectivity** or **Inspect a
+TLS certificate** (subject, issuer, validity dates and whether verification
+passes). Select a
 namespace when the current view covers all namespaces, enter the destination,
 and review the image and creation confirmation. Each probe runs in a new pod;
 its policy selection and identity can differ from your application's.
@@ -729,6 +743,20 @@ running, then choose its named shell from the palette. The container exits
 after 15 minutes, but Kubernetes retains its ephemeral-container entry until
 the pod is deleted.
 
+**Check DNS / TCP / HTTP from this pod** and **Inspect a TLS certificate from
+this pod** answer the question an incident actually asks: can *this* pod reach
+it? The check runs as a short-lived ephemeral container inside the pod, with
+its IP, labels and therefore its NetworkPolicies, and its output opens in the
+log view as soon as it starts. A check from a new pod cannot tell you that an
+egress policy blocks the application; this one can.
+
+With `debug.nodeShell: true`, a Node offers **Open a root shell on this node**:
+a privileged pod pinned to that node, in the host's PID and network namespaces,
+with the node's filesystem at `/host` (`chroot /host` to use its own tools —
+`journalctl -u kubelet`, `crictl ps`, `df -h`). It tolerates every taint,
+lives 30 minutes, needs a namespace whose Pod Security admission allows
+privileged pods, and is off by default because it is root on that node.
+
 **Port-forward from this pod** takes `local:remote` ports (`0:80` chooses an
 available local port). It binds only to `127.0.0.1`. The palette lists each
 forward's actual port, original cluster and pod, with a command to stop it.
@@ -742,6 +770,7 @@ debug:
   curlImage: curlimages/curl:8.21.0
   networkImage: nicolaka/netshoot:v0.16
   imagePullSecrets: []
+  nodeShell: false # true offers a root shell on a node; off by default
 ```
 
 For a shared registry mirror or proxy, use `debug.registryMirror` instead of
@@ -864,6 +893,23 @@ update:
 `update.check` setting says, unless air-gapped mode is enabled. `correlux version` prints what the last
 check learned without ever performing one, so it cannot hang in a script.
 ([ADR 21](docs/adr/0021-update-check.md))
+
+When a newer release is known, the palette offers **Install Correlux vX**, and
+`correlux update` does the same from a shell (`--check` only reports). Both
+always ask first — there is deliberately no `--yes` — and then:
+
+- leave a copy that Homebrew, krew or a system package installed to that tool,
+  and print the command to run instead (`brew upgrade correlux`,
+  `kubectl krew upgrade correlux`, your package manager);
+- download the archive for this OS and architecture from the GitHub release and
+  refuse it unless it matches `checksums.txt`;
+- when `cosign` is on `PATH`, also verify the checksum list's signature against
+  this repository's release workflow at exactly that tag, and refuse on failure;
+- replace the binary in one rename next to it, so an interrupted update leaves
+  the old one in place.
+
+The running session is not restarted; the new version starts next time.
+Air-gapped mode disables updates entirely.
 
 ### Switching context is session-local
 

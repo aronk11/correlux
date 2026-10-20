@@ -11,7 +11,7 @@ import (
 func TestOverviewAggregatesApplicationsNodesAndGenericWarningEvents(t *testing.T) {
 	m := newTestModel(t)
 	loadApplicationsInto(m, brokenApplication())
-	loadEvidenceInto(m, application.Context{
+	loadEvidenceInto(m, &application.Context{
 		Nodes: []application.Node{{
 			Meta:  application.Meta{Kind: "Node", Name: "worker-1"},
 			Ready: false,
@@ -53,7 +53,7 @@ func TestExplicitFailureReasonsAreCriticalEvenOnNormalEvents(t *testing.T) {
 func TestOverviewSaysWhenTheBoundedScanFoundNothing(t *testing.T) {
 	m := newTestModel(t)
 	loadApplicationsInto(m, testApplication("api", application.Healthy, 1, 1))
-	loadEvidenceInto(m, application.Context{})
+	loadEvidenceInto(m, &application.Context{})
 	m.view = viewOverview
 
 	if out := plainView(m); !strings.Contains(out, "no known problems") {

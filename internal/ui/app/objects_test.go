@@ -472,7 +472,7 @@ func TestPageKeysMoveTheApplicationView(t *testing.T) {
 func TestEverythingBelowTheLastSelectableRowIsReachable(t *testing.T) {
 	m := newTestModel(t)
 	openLongApplication(t, m)
-	loadEvidenceInto(m, application.Context{})
+	loadEvidenceInto(m, &application.Context{})
 
 	// The events sit below the last row that can be selected; pressing down
 	// past it must keep moving the page.

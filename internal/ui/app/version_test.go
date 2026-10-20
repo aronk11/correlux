@@ -1,12 +1,14 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/aronk11/correlux/internal/buildinfo"
+	"github.com/aronk11/correlux/internal/ui/theme"
 	"github.com/aronk11/correlux/internal/update"
 )
 
@@ -175,5 +177,64 @@ func TestAirGappedModeBlocksAutomaticAndForcedUpdates(t *testing.T) {
 	out := plainView(m)
 	if !strings.Contains(out, "air-gapped") || strings.Contains(out, "v99.0.0") || strings.Contains(out, "update.check: true") {
 		t.Fatalf("misleading offline session details:\n%s", out)
+	}
+}
+
+func TestANewerReleaseCanBeInstalledButOnlyAfterAYes(t *testing.T) {
+	withVersion(t, "v0.10.0")
+	m := newTestModel(t)
+	m.executable = "/home/me/bin/correlux"
+	m.cfg.Safety.ReadOnly = true // a local install is not a cluster change
+	learned(m, update.Release{Version: "v0.11.0", URL: "https://example.com"}, false)
+
+	found := false
+	for _, c := range m.registry.Commands() {
+		found = found || c.Action == paletteInstallUpdate && strings.Contains(c.Title, "v0.11.0")
+	}
+	if !found {
+		t.Fatal("a newer release must be installable from the palette")
+	}
+
+	var installed string
+	restore := installer
+	installer = func(_ context.Context, plan update.Plan, tag, _, _ string) (update.Result, error) {
+		installed = plan.Executable + "@" + tag
+		return update.Result{Version: tag}, nil
+	}
+	defer func() { installer = restore }()
+
+	if cmd := m.offerInstall(); cmd != nil || m.overlay != overlayConfirm {
+		t.Fatal("installing must ask first")
+	}
+	if !strings.Contains(strings.Join(m.pending.Lines, " "), "/home/me/bin/correlux (v0.10.0 → v0.11.0)") {
+		t.Errorf("lines = %v", m.pending.Lines)
+	}
+	if installed != "" {
+		t.Fatal("nothing may be installed before the yes")
+	}
+	msg := m.pending.Run(m)()
+	m.Update(msg)
+	if installed != "/home/me/bin/correlux@v0.11.0" || !strings.Contains(m.message, "Updated to v0.11.0") || !strings.Contains(m.message, "Restart") {
+		t.Errorf("installed %q, message %q", installed, m.message)
+	}
+}
+
+func TestAManagedInstallIsPointedAtItsTool(t *testing.T) {
+	withVersion(t, "v0.10.0")
+	m := newTestModel(t)
+	m.executable = "/opt/homebrew/Caskroom/correlux/0.10.0/correlux"
+	learned(m, update.Release{Version: "v0.11.0"}, false)
+
+	m.offerInstall()
+	if m.overlay == overlayConfirm || !strings.Contains(m.message, "brew upgrade correlux") {
+		t.Errorf("overlay %v, message %q", m.overlay, m.message)
+	}
+}
+
+func TestAFailedInstallSaysNothingWasReplaced(t *testing.T) {
+	m := newTestModel(t)
+	m.Update(updateInstalledMsg{err: errors.New("checksum mismatch")})
+	if !strings.Contains(m.message, "nothing was replaced") || m.messageStatus != theme.StatusCritical {
+		t.Errorf("message %q (%v)", m.message, m.messageStatus)
 	}
 }

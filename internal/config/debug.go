@@ -17,7 +17,7 @@ func (d Debug) Image(mode string, airGapped bool) string {
 	switch mode {
 	case "toolbox", "dns", "ephemeral":
 		explicit, fallback, repository = d.ToolboxImage, "busybox:1.37.0", "library/busybox:1.37.0"
-	case "http":
+	case "http", "tls":
 		explicit, fallback, repository = d.CurlImage, "curlimages/curl:8.21.0", "curlimages/curl:8.21.0"
 	case "tcp":
 		explicit, fallback, repository = d.NetworkImage, "nicolaka/netshoot:v0.16", "nicolaka/netshoot:v0.16"

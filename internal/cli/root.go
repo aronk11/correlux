@@ -67,6 +67,7 @@ func Execute() int {
 
 	root.AddCommand(newVersionCommand())
 	root.AddCommand(newDoctorCommand(&flags))
+	root.AddCommand(newUpdateCommand(&flags))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

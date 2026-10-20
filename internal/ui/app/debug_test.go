@@ -164,3 +164,103 @@ func TestAirGappedMirrorPrefillsReviewedDebugImage(t *testing.T) {
 		t.Fatalf("ephemeral prompt image = %q", m.promptInput.Value())
 	}
 }
+
+func runningPodObject(t *testing.T, m *Model) {
+	t.Helper()
+	m.view = viewObject
+	m.objectTarget = objectRef{Kind: "Pod", Name: "payments-0", Namespace: "shop", Resource: "pods"}
+	raw := []byte(`{"kind":"Pod","metadata":{"name":"payments-0","namespace":"shop","uid":"u1","resourceVersion":"7"},
+		"spec":{"containers":[{"name":"payments","image":"registry/payments:1.4"}]},"status":{"phase":"Running"}}`)
+	loadObjectInto(m, &resources.Object{Kind: "Pod", Name: "payments-0", Namespace: "shop", Raw: raw})
+}
+
+func TestChecksFromAPodAreOfferedOnThePod(t *testing.T) {
+	m := newTestModel(t)
+	runningPodObject(t, m)
+	titles := map[string]bool{}
+	for _, c := range m.debugCommands() {
+		titles[c.Title] = true
+	}
+	for _, want := range []string{"Check DNS from this pod", "Check TCP from this pod", "Check HTTP from this pod", "Inspect a TLS certificate from this pod", "Inspect a TLS certificate"} {
+		if !titles[want] {
+			t.Errorf("missing %q in %v", want, titles)
+		}
+	}
+}
+
+func TestACheckFromAPodIsConfirmedWithItsIdentityAndCommand(t *testing.T) {
+	m := newTestModel(t)
+	runningPodObject(t, m)
+	if cmd := m.openDebug("probe:tls"); cmd != nil {
+		t.Fatal("nothing may run before the destination is entered")
+	}
+	if m.overlay != overlayPrompt || m.promptInput.Value() != "https://" {
+		t.Fatalf("overlay %v, prefill %q", m.overlay, m.promptInput.Value())
+	}
+	if cmd := m.promptAccept(m, "http://insecure.example"); cmd != nil || m.promptError == "" {
+		t.Fatal("a TLS check needs an https URL")
+	}
+	if cmd := m.promptAccept(m, "https://pay.example.com"); cmd != nil {
+		t.Fatal("the check ran before confirmation")
+	}
+	if m.pending == nil || m.overlay != overlayConfirm {
+		t.Fatal("missing confirmation")
+	}
+	text := strings.Join(m.pending.Lines, " ")
+	for _, want := range []string{"curl", "--verbose", "https://pay.example.com", "pod payments-0 (shop)", "NetworkPolicies", "curlimages/curl"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("confirmation must say %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestAProbeOpensItsOwnOutput(t *testing.T) {
+	m := newTestModel(t)
+	runningPodObject(t, m)
+	m.logPrevious = true
+	m.Update(probeStartedMsg{cluster: m.contextName, ref: m.objectTarget, name: "correlux-probe-abc"})
+	if m.view != viewLogs || len(m.logTargets) != 1 || m.logTargets[0].Container != "correlux-probe-abc" || m.logPrevious {
+		t.Fatalf("view %v, targets %+v, previous %v", m.view, m.logTargets, m.logPrevious)
+	}
+}
+
+func nodeShellTarget(m *Model) {
+	m.view = viewObject
+	m.objectTarget = objectRef{Kind: "Node", Name: "node-1", Resource: "nodes"}
+	loadObjectInto(m, &resources.Object{Kind: "Node", Name: "node-1", Raw: []byte(`{"kind":"Node","metadata":{"name":"node-1"}}`)})
+}
+
+func TestTheNodeShellIsOffUntilTheConfigurationEnablesIt(t *testing.T) {
+	m := newTestModel(t)
+	nodeShellTarget(m)
+	for _, c := range m.debugCommands() {
+		if c.Arg == "node" {
+			t.Fatal("a root shell on a node must be opt-in")
+		}
+	}
+	if cmd := m.openDebug("node"); cmd != nil || m.overlay != overlayNone {
+		t.Fatal("the action must do nothing while disabled")
+	}
+
+	m.cfg.Debug.NodeShell = true
+	found := false
+	for _, c := range m.debugCommands() {
+		found = found || c.Arg == "node"
+	}
+	if !found {
+		t.Fatal("enabled, it must be offered on a node")
+	}
+	m.openDebug("node")
+	if m.overlay != overlayPrompt || m.promptInput.Value() != "kube-system" {
+		t.Fatalf("overlay %v, prefill %q", m.overlay, m.promptInput.Value())
+	}
+	if cmd := m.promptAccept(m, "kube-system"); cmd != nil {
+		t.Fatal("created before confirmation")
+	}
+	text := strings.Join(m.pending.Lines, " ")
+	for _, want := range []string{"PRIVILEGED", "root on node-1", "/host", "chroot /host", "30 minutes"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("confirmation must say %q:\n%s", want, text)
+		}
+	}
+}

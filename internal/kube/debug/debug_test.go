@@ -72,3 +72,44 @@ func TestJobPreservesExplicitPullPolicy(t *testing.T) {
 		t.Fatal("invalid job policy accepted")
 	}
 }
+
+func TestTLSInspectionNeedsHTTPSAndPrintsTheCertificate(t *testing.T) {
+	if _, err := Command("tls", "http://example.com", 0); err == nil {
+		t.Fatal("plain HTTP has no certificate to inspect")
+	}
+	cmd, err := Command("tls", "https://example.com", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(cmd, " ")
+	if !strings.Contains(joined, "--verbose") || strings.Contains(joined, "--insecure") || cmd[len(cmd)-1] != "https://example.com" {
+		t.Errorf("command = %q", joined)
+	}
+}
+
+func TestTheNodeJobIsPrivilegedOnPurposeAndPinnedToItsNode(t *testing.T) {
+	job, err := NodeJob(NodeOptions{Node: "node-1", Namespace: "kube-system", Image: "busybox:1.37.0", Seconds: 1800})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := job.Spec.Template.Spec
+	c := spec.Containers[0]
+	if spec.NodeName != "node-1" || !spec.HostPID || !spec.HostNetwork || c.SecurityContext.Privileged == nil || !*c.SecurityContext.Privileged {
+		t.Errorf("node pod is not what it says: %+v", spec)
+	}
+	if spec.AutomountServiceAccountToken == nil || *spec.AutomountServiceAccountToken {
+		t.Error("the node pod must not carry a service-account token")
+	}
+	if len(spec.Tolerations) != 1 || spec.Tolerations[0].Operator != "Exists" {
+		t.Error("an unhealthy node is tainted; the pod must tolerate it")
+	}
+	if c.VolumeMounts[0].MountPath != "/host" || spec.Volumes[0].HostPath.Path != "/" {
+		t.Error("the host filesystem must be at /host")
+	}
+	if *job.Spec.ActiveDeadlineSeconds != 1800 || job.Annotations["correlux.dev/debug-mode"] != "node" {
+		t.Error("deadline or mode annotation missing")
+	}
+	if _, err := NodeJob(NodeOptions{Node: "Not A Node", Namespace: "kube-system", Image: "busybox", Seconds: 10}); err == nil {
+		t.Error("invalid node names must be refused")
+	}
+}

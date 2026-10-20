@@ -83,8 +83,9 @@ func Group(s Snapshot) []Application {
 		}
 	}
 
-	for _, ing := range s.Ingresses {
-		if g, reason := attachIngress(groups, ing); g != nil {
+	for i := range s.Ingresses {
+		ing := s.Ingresses[i]
+		if g, reason := attachIngress(groups, &ing); g != nil {
 			ing.GroupedBy = reason
 			g.Ingresses = append(g.Ingresses, ing)
 		}
@@ -161,8 +162,8 @@ func (a *Application) metas() []Meta {
 	for i := range a.Services {
 		out = append(out, a.Services[i].Meta)
 	}
-	for _, i := range a.Ingresses {
-		out = append(out, i.Meta)
+	for i := range a.Ingresses {
+		out = append(out, a.Ingresses[i].Meta)
 	}
 	return out
 }
@@ -209,7 +210,7 @@ func attachService(groups map[string]*Application, svc *Service) (*Application, 
 
 // attachIngress finds the application an ingress belongs to, by label or
 // through the services it routes to.
-func attachIngress(groups map[string]*Application, ing Ingress) (*Application, Reason) {
+func attachIngress(groups map[string]*Application, ing *Ingress) (*Application, Reason) {
 	if key, value, ok := labelNameKV(ing.Meta); ok {
 		if g, exists := groups[ing.Namespace+"/"+value]; exists {
 			return g, Reason{Signal: signalForLabel(key), Key: key, Value: value}

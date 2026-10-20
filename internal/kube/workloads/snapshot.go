@@ -44,6 +44,9 @@ type Options struct {
 	// PageSize and MaxPages bound the work. Zero means the defaults.
 	PageSize int64
 	MaxPages int
+	// GitOpsNamespaces are where the applications' Flux objects live, when
+	// that is not the scope itself.
+	GitOpsNamespaces []string
 }
 
 func (o Options) pageSize() int64 {
@@ -297,11 +300,17 @@ func fromDaemonSet(d *appsv1.DaemonSet) application.Workload {
 // of its pods, and "0 of 1 ready" would report every job that is still running
 // as broken.
 func fromJob(j *batchv1.Job) application.Workload {
-	return application.Workload{
+	out := application.Workload{
 		Meta:      meta("Job", j.ObjectMeta),
 		Selector:  matchLabels(j.Spec.Selector),
 		Suspended: j.Spec.Suspend != nil && *j.Spec.Suspend,
 	}
+	for _, c := range j.Status.Conditions {
+		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
+			out.Failed, out.FailedReason, out.FailedMessage = true, c.Reason, c.Message
+		}
+	}
+	return out
 }
 
 func fromCronJob(c *batchv1.CronJob) application.Workload {
@@ -320,6 +329,9 @@ func fromService(s *corev1.Service) application.Service {
 	}
 	for _, p := range s.Spec.Ports {
 		out.Ports = append(out.Ports, strconv.Itoa(int(p.Port))+"/"+string(p.Protocol))
+		out.Targets = append(out.Targets, application.ServicePort{
+			Name: p.Name, Port: p.Port, TargetPort: p.TargetPort.String(), Protocol: string(p.Protocol),
+		})
 	}
 	return out
 }
@@ -328,6 +340,11 @@ func fromIngress(i *networkingv1.Ingress) application.Ingress {
 	out := application.Ingress{Meta: meta("Ingress", i.ObjectMeta)}
 	if b := i.Spec.DefaultBackend; b != nil && b.Service != nil {
 		out.Backends = append(out.Backends, b.Service.Name)
+	}
+	for _, tls := range i.Spec.TLS {
+		if tls.SecretName != "" {
+			out.TLSSecrets = append(out.TLSSecrets, tls.SecretName)
+		}
 	}
 	for _, rule := range i.Spec.Rules {
 		if rule.Host != "" {

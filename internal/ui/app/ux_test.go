@@ -69,7 +69,7 @@ func TestWhyListsEveryFindingFirstAndFoldsIdenticalEvidence(t *testing.T) {
 	a, evidence := revisedApplication()
 	loadApplicationsInto(m, a)
 	m.openApplication("payments")
-	loadEvidenceInto(m, evidence)
+	loadEvidenceInto(m, &evidence)
 	m.explain()
 
 	out := plainView(m)
@@ -98,7 +98,7 @@ func TestWhyDoesNotOfferARollbackWhereChangesAreRefused(t *testing.T) {
 	a, evidence := revisedApplication()
 	loadApplicationsInto(m, a)
 	m.openApplication("payments")
-	loadEvidenceInto(m, evidence)
+	loadEvidenceInto(m, &evidence)
 	m.explain()
 	if strings.Contains(plainView(m), "[U]") {
 		t.Error("a read-only session must not advertise a rollback")

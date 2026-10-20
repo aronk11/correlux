@@ -321,6 +321,8 @@ func imageCause(hits []affected) (cause string, confidence Confidence, unknown s
 		switch {
 		case h.container.Reason == "InvalidImageName":
 			return "the image reference is not a valid name", High, ""
+		case strings.Contains(message, "toomanyrequests"), strings.Contains(message, "rate limit"):
+			return "the registry is rate-limiting pulls (Docker Hub limits anonymous pulls per IP); pull through a mirror or with credentials", High, ""
 		case strings.Contains(message, "not found"),
 			strings.Contains(message, "manifest unknown"),
 			strings.Contains(message, "repository does not exist"):

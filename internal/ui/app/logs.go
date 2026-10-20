@@ -40,7 +40,11 @@ func (m *Model) openLogs() tea.Cmd {
 		m.notice("Select a pod, a workload or an application to read logs from", theme.StatusWarning)
 		return m.expireNotice()
 	}
+	return m.openLogsFor(sources, title)
+}
 
+// openLogsFor opens the log view on explicit sources.
+func (m *Model) openLogsFor(sources []logs.Source, title string) tea.Cmd {
 	m.logTitle = title
 	m.logTargets = sources
 	m.logLines = nil

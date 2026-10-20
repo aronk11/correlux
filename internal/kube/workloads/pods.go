@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,6 +33,13 @@ func fromPod(p *corev1.Pod) application.Pod {
 	out.Reason = podReason(p)
 	out.Containers = containers(p)
 	out.Scheduled, out.ScheduledReason, out.ScheduledMessage = scheduled(p)
+	if p.DeletionTimestamp != nil {
+		out.DeletingSince = p.DeletionTimestamp.Time
+		if p.DeletionGracePeriodSeconds != nil {
+			out.Grace = time.Duration(*p.DeletionGracePeriodSeconds) * time.Second
+		}
+		out.Finalizers = p.Finalizers
+	}
 	for i := range p.Spec.Volumes {
 		if claim := p.Spec.Volumes[i].PersistentVolumeClaim; claim != nil {
 			out.Claims = append(out.Claims, claim.ClaimName)
@@ -67,7 +75,7 @@ func containers(p *corev1.Pod) []application.Container {
 		if c.Image == "" {
 			c.Image = spec.Image
 		}
-		fillResources(&c, spec)
+		fillSpec(&c, spec)
 		claimed[spec.Name] = true
 		out = append(out, c)
 	}
@@ -78,7 +86,7 @@ func containers(p *corev1.Pod) []application.Container {
 		if c.Image == "" {
 			c.Image = spec.Image
 		}
-		fillResources(&c, spec)
+		fillSpec(&c, spec)
 		claimed[spec.Name] = true
 		out = append(out, c)
 	}
@@ -99,12 +107,15 @@ func containers(p *corev1.Pod) []application.Container {
 	return out
 }
 
-// fillResources copies what the spec asked for. An absent request is recorded
+// fillSpec copies what the spec asked for and declared. An absent request is recorded
 // as absent, never as zero: nothing is what an unsized container is, and zero
 // is what a container that asked for nothing is.
-func fillResources(c *application.Container, spec *corev1.Container) {
+func fillSpec(c *application.Container, spec *corev1.Container) {
 	c.Requests = amountsOf(spec.Resources.Requests)
 	c.Limits = amountsOf(spec.Resources.Limits)
+	for _, p := range spec.Ports {
+		c.Ports = append(c.Ports, application.ContainerPort{Name: p.Name, Port: p.ContainerPort, Protocol: string(p.Protocol)})
+	}
 }
 
 func amountsOf(list corev1.ResourceList) application.Amounts {

@@ -29,8 +29,8 @@ func brokenApplication() application.Application {
 	return a
 }
 
-func loadEvidenceInto(m *Model, evidence application.Context) {
-	m.Update(evidenceLoadedMsg{gen: m.evidence.Generation(), context: evidence})
+func loadEvidenceInto(m *Model, evidence *application.Context) {
+	m.Update(evidenceLoadedMsg{gen: m.evidence.Generation(), context: *evidence})
 }
 
 func TestWhyExplainsTheApplicationUnderTheCursor(t *testing.T) {
@@ -101,7 +101,7 @@ func TestWhyImprovesWhenTheEvidenceArrives(t *testing.T) {
 		t.Fatalf("the observation must be there without evidence:\n%s", before)
 	}
 
-	loadEvidenceInto(m, application.Context{Events: []application.Event{{
+	loadEvidenceInto(m, &application.Context{Events: []application.Event{{
 		Type: "Warning", Reason: "Unhealthy", Count: 9,
 		Message:  "Readiness probe failed: connection refused",
 		LastSeen: time.Now().Add(-90 * time.Second),
@@ -124,7 +124,7 @@ func TestWhyOnAHealthyApplicationSaysThereIsNothing(t *testing.T) {
 		healthy.Pods[i].Containers = []application.Container{{Name: "api", State: "running", Ready: true}}
 	}
 	loadApplicationsInto(m, healthy)
-	loadEvidenceInto(m, application.Context{})
+	loadEvidenceInto(m, &application.Context{})
 
 	press(t, m, "ctrl+w")
 	if out := plainView(m); !strings.Contains(out, "Nothing is wrong with api") {
@@ -140,7 +140,7 @@ func TestWhyHealthIncludesAServiceFailureAfterEvidenceLoads(t *testing.T) {
 		Selector: map[string]string{"app": "does-not-match"},
 	}}
 	loadApplicationsInto(m, app)
-	loadEvidenceInto(m, application.Context{Endpoints: []application.EndpointSet{{
+	loadEvidenceInto(m, &application.Context{Endpoints: []application.EndpointSet{{
 		Service: "api", Namespace: "default",
 	}}})
 
@@ -356,7 +356,7 @@ func TestEventsAppearOnTheApplicationDetail(t *testing.T) {
 	app := brokenApplication()
 	loadApplicationsInto(m, app)
 	press(t, m, "enter")
-	loadEvidenceInto(m, application.Context{Events: []application.Event{{
+	loadEvidenceInto(m, &application.Context{Events: []application.Event{{
 		Type: "Warning", Reason: "BackOff", Count: 30,
 		Message:  "Back-off restarting failed container",
 		LastSeen: time.Now().Add(-2 * time.Minute),
