@@ -365,8 +365,11 @@ type Model struct {
 	fleetPicker   *components.Selector
 	fleetNSPicker *components.Selector
 	nsPicker      *components.Selector
-	resPicker     *components.Selector
-	sortPicker    *components.Selector
+	// nsChoice, when set, turns the namespace picker into a chooser for one
+	// purpose: Enter hands the name to it instead of switching the scope.
+	nsChoice   *namespaceChoice
+	resPicker  *components.Selector
+	sortPicker *components.Selector
 
 	// The filter over whatever list is on screen.
 	search    components.Input

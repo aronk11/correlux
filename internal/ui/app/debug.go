@@ -90,17 +90,9 @@ func (m *Model) openDebug(mode string) tea.Cmd {
 	}
 	ns := m.debugNamespace()
 	if ns == "" {
-		m.promptTitle = "Namespace for troubleshooting"
-		m.promptNote = "Choose one namespace; the new pod uses that namespace's network policies."
-		m.promptRef = objectRef{}
-		m.promptError = ""
-		m.promptInput.SetValue("")
-		m.overlay = overlayPrompt
-		m.promptAccept = func(m *Model, value string) tea.Cmd {
-			m.cancelPrompt()
-			return m.promptDebugDestination(mode, strings.TrimSpace(value))
-		}
-		return nil
+		return m.chooseNamespace("Namespace for troubleshooting",
+			"The new pod runs there and gets that namespace's network policies.", "",
+			func(m *Model, ns string) tea.Cmd { return m.promptDebugDestination(mode, ns) })
 	}
 	return m.promptDebugDestination(mode, ns)
 }
@@ -490,23 +482,17 @@ func (m *Model) promptNodeShell() tea.Cmd {
 		return m.expireNotice()
 	}
 	node := m.objectTarget.Name
-	m.promptTitle = "Namespace for the node pod on " + node
-	m.promptNote = "Pod Security admission must allow privileged pods there; kube-system usually does."
-	m.promptRef = objectRef{}
-	m.promptError = ""
-	m.promptInput.SetValue("kube-system")
-	m.overlay = overlayPrompt
-	m.promptAccept = func(m *Model, value string) tea.Cmd {
-		job, err := debug.NodeJob(debug.NodeOptions{Node: node, Namespace: strings.TrimSpace(value), Image: m.debugImage("toolbox"),
-			ImagePullSecrets: m.cfg.Debug.ImagePullSecrets, ImagePullPolicy: policy, Seconds: nodeShellSeconds})
-		if err != nil {
-			m.promptError = err.Error()
-			return nil
-		}
-		m.cancelPrompt()
-		return m.confirmNodeJob(job)
-	}
-	return nil
+	return m.chooseNamespace("Namespace for the node pod on "+node,
+		"Pod Security admission must allow privileged pods there; kube-system usually does.", "kube-system",
+		func(m *Model, ns string) tea.Cmd {
+			job, err := debug.NodeJob(debug.NodeOptions{Node: node, Namespace: ns, Image: m.debugImage("toolbox"),
+				ImagePullSecrets: m.cfg.Debug.ImagePullSecrets, ImagePullPolicy: policy, Seconds: nodeShellSeconds})
+			if err != nil {
+				m.notice(err.Error(), theme.StatusWarning)
+				return m.expireNotice()
+			}
+			return m.confirmNodeJob(job)
+		})
 }
 
 func (m *Model) confirmNodeJob(job *batchv1.Job) tea.Cmd {

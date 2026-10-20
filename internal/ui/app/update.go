@@ -83,6 +83,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.rebuildCommands()
 		}
 		m.nsPicker.Refresh()
+		// A list that arrives after the chooser opened must still land on the
+		// suggestion, or Enter picks whatever happens to sort first.
+		if m.overlay == overlayNamespaces && m.nsChoice != nil && m.nsChoice.prefer != "" && m.nsPicker.Query() == "" {
+			m.nsPicker.SelectID(m.nsChoice.prefer)
+		}
 		return m, nil
 
 	case catalogLoadedMsg:
