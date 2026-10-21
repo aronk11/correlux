@@ -161,7 +161,7 @@ jobs:
       # which is the one part of the release a pull request cannot rehearse —
       # a keyless signature needs an OIDC identity that fork pull requests are
       # not given, and it would write a transparency-log entry per CI run.
-      - uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
 
       - name: Install Task
         run: go install github.com/go-task/task/v3/cmd/task@${{ env.TASK_VERSION }}
