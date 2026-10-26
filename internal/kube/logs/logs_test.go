@@ -336,3 +336,30 @@ func TestALogThatNeverAnswersTimesOut(t *testing.T) {
 		t.Errorf("err = %v; a request with no answer must not hang the view", err)
 	}
 }
+
+func TestLinesThatShareATimestampAreAllKept(t *testing.T) {
+	restore := reconnectDelay
+	reconnectDelay = func(int) time.Duration { return time.Millisecond }
+	defer func() { reconnectDelay = restore }()
+
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		switch calls {
+		case 1:
+			// A busy container writes several records within one tick.
+			_, _ = w.Write([]byte("2026-10-26T10:00:01Z a\n2026-10-26T10:00:01Z b\n"))
+		case 2:
+			// The resume replays from that instant and goes on in it.
+			_, _ = w.Write([]byte("2026-10-26T10:00:01Z a\n2026-10-26T10:00:01Z b\n2026-10-26T10:00:01Z c\n2026-10-26T10:00:02Z d\n"))
+		}
+	}))
+	defer srv.Close()
+	cs, _ := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+
+	var got []string
+	_ = Stream(context.Background(), cs, source(), Options{Follow: true}, func(l Line) { got = append(got, l.Text) })
+	if strings.Join(got, ",") != "a,b,c,d" {
+		t.Errorf("lines = %v; equal timestamps are not duplicates, only a replay is", got)
+	}
+}

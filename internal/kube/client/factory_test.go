@@ -238,19 +238,7 @@ func TestAFollowedLogOutlivesTheRequestTimeout(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-
-	path := filepath.Join(t.TempDir(), "kubeconfig.yaml")
-	config := "apiVersion: v1\nkind: Config\ncurrent-context: local\nclusters:\n- name: local\n  cluster: {server: \"" + srv.URL +
-		"\"}\ncontexts:\n- name: local\n  context: {cluster: local, user: me}\nusers:\n- name: me\n  user: {token: t}\n"
-	if err := os.WriteFile(path, []byte(config), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	rules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: path}
-	raw, err := rules.Load()
-	if err != nil {
-		t.Fatal(err)
-	}
-	f := New(*raw, rules, Options{Timeout: 300 * time.Millisecond})
+	f := logFactory(t, srv.URL, 300*time.Millisecond)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -271,4 +259,51 @@ func TestAFollowedLogOutlivesTheRequestTimeout(t *testing.T) {
 	if lines < 10 {
 		t.Errorf("only %d of 10 lines arrived; a 300ms request timeout must not cut a followed log", lines)
 	}
+}
+
+func TestAOneOffLogReadKeepsTheRequestTimeout(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+	defer srv.Close()
+	defer close(release)
+	f := logFactory(t, srv.URL, 200*time.Millisecond)
+
+	stream, err := f.Tail(context.Background(), "local", []logs.Source{{Namespace: "shop", Pod: "payments-0"}}, logs.Options{Previous: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		var failed error
+		for event := range stream {
+			if event.Err != nil {
+				failed = event.Err
+			}
+		}
+		done <- failed
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("a stalled one-off read must be reported as failed")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a one-off read hung past the request timeout")
+	}
+}
+
+func logFactory(t *testing.T, server string, timeout time.Duration) *Factory {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "kubeconfig.yaml")
+	config := "apiVersion: v1\nkind: Config\ncurrent-context: local\nclusters:\n- name: local\n  cluster: {server: \"" + server +
+		"\"}\ncontexts:\n- name: local\n  context: {cluster: local, user: me}\nusers:\n- name: me\n  user: {token: t}\n"
+	if err := os.WriteFile(path, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: path}
+	raw, err := rules.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return New(*raw, rules, Options{Timeout: timeout})
 }

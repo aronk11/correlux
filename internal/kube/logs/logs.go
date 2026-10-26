@@ -112,26 +112,47 @@ func Stream(
 	}
 
 	// Server timestamps are how a resumed read knows where it left off; they
-	// are taken off again unless the user asked to see them.
-	var last time.Time
-	deliver := func(line Line) {
-		if !last.IsZero() && !line.At.IsZero() && !line.At.After(last) {
-			return // already delivered before the connection dropped
+	// are taken off again unless the user asked to see them. A timestamp is
+	// not an identity, though: two records may share one. So a live stream
+	// never drops anything, and a resumed one skips only what it replays,
+	// i.e. what is older than the last line delivered, and the lines already
+	// delivered at exactly that instant, in the order they came.
+	var (
+		last   time.Time
+		atLast []string
+	)
+	connection := func() func(Line) {
+		replay := append([]string(nil), atLast...)
+		catchingUp := !last.IsZero()
+		return func(line Line) {
+			if catchingUp && !line.At.IsZero() {
+				switch {
+				case line.At.Before(last):
+					return
+				case line.At.Equal(last) && len(replay) > 0 && replay[0] == line.Text:
+					replay = replay[1:]
+					return
+				}
+				catchingUp = false
+			}
+			if !line.At.IsZero() {
+				if !line.At.Equal(last) {
+					last, atLast = line.At, atLast[:0]
+				}
+				atLast = append(atLast, line.Text)
+			}
+			if !opts.Timestamps {
+				line.At = time.Time{}
+			}
+			emit(line)
 		}
-		if !line.At.IsZero() {
-			last = line.At
-		}
-		if !opts.Timestamps {
-			line.At = time.Time{}
-		}
-		emit(line)
 	}
 
 	tail := opts.tail()
 	request := &corev1.PodLogOptions{
 		Container: source.Container, Follow: true, Previous: opts.Previous, Timestamps: true, TailLines: &tail,
 	}
-	opened, err := streamOnce(ctx, cs, source, request, true, deliver)
+	opened, err := streamOnce(ctx, cs, source, request, true, connection())
 	if !opened {
 		// Never connected at all: that is a source that cannot be read, not a
 		// stream that dropped, and it is reported rather than retried.
@@ -162,7 +183,7 @@ func Stream(
 			request.SinceTime = &since
 		}
 		before, started := last, time.Now()
-		_, err = streamOnce(ctx, cs, source, request, true, deliver)
+		_, err = streamOnce(ctx, cs, source, request, true, connection())
 		if last.Equal(before) && time.Since(started) < quietWindow {
 			quiet++
 		} else {
