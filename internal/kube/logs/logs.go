@@ -10,8 +10,8 @@ package logs
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
