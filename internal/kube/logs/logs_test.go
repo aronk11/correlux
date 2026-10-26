@@ -301,3 +301,38 @@ func TestCancellingAFollowedLogStopsReconnecting(t *testing.T) {
 		t.Fatal("a cancelled stream kept reconnecting")
 	}
 }
+
+func TestALogThatCannotBeReadIsReportedAtOnceNotRetried(t *testing.T) {
+	// A kubelet the API server cannot reach answers 500 on the very first
+	// request. That is a source that cannot be read, not a dropped stream.
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","status":"Failure","code":500,"message":"dial tcp 10.0.0.9:10250: connect: no route to host"}`))
+	}))
+	defer srv.Close()
+	cs, _ := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+
+	err := Stream(context.Background(), cs, source(), Options{Follow: true}, func(Line) {})
+	if err == nil || !strings.Contains(err.Error(), "no route to host") || calls != 1 {
+		t.Errorf("err = %v after %d requests; an unreadable source must be reported, once", err, calls)
+	}
+}
+
+func TestALogThatNeverAnswersTimesOut(t *testing.T) {
+	restore := connectTimeout
+	connectTimeout = 50 * time.Millisecond
+	defer func() { connectTimeout = restore }()
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+	defer srv.Close()
+	defer close(release)
+	cs, _ := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+
+	err := Stream(context.Background(), cs, source(), Options{Follow: true}, func(Line) {})
+	if err == nil || !strings.Contains(err.Error(), "did not answer") {
+		t.Errorf("err = %v; a request with no answer must not hang the view", err)
+	}
+}

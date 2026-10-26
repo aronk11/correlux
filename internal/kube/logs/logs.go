@@ -10,6 +10,7 @@ package logs
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"errors"
 	"io"
 	"strings"
@@ -104,9 +105,10 @@ func Stream(
 ) error {
 	if !opts.Follow {
 		tail := opts.tail()
-		return streamOnce(ctx, cs, source, &corev1.PodLogOptions{
+		_, err := streamOnce(ctx, cs, source, &corev1.PodLogOptions{
 			Container: source.Container, Previous: opts.Previous, Timestamps: opts.Timestamps, TailLines: &tail,
 		}, opts.Timestamps, emit)
+		return err
 	}
 
 	// Server timestamps are how a resumed read knows where it left off; they
@@ -129,7 +131,12 @@ func Stream(
 	request := &corev1.PodLogOptions{
 		Container: source.Container, Follow: true, Previous: opts.Previous, Timestamps: true, TailLines: &tail,
 	}
-	err := streamOnce(ctx, cs, source, request, true, deliver)
+	opened, err := streamOnce(ctx, cs, source, request, true, deliver)
+	if !opened {
+		// Never connected at all: that is a source that cannot be read, not a
+		// stream that dropped, and it is reported rather than retried.
+		return err
+	}
 	quiet := 0
 	for {
 		if ctx.Err() != nil {
@@ -139,7 +146,7 @@ func Stream(
 			return err
 		}
 		if quiet >= maxQuietReconnects {
-			return nil
+			return err
 		}
 		select {
 		case <-ctx.Done():
@@ -155,7 +162,7 @@ func Stream(
 			request.SinceTime = &since
 		}
 		before, started := last, time.Now()
-		err = streamOnce(ctx, cs, source, request, true, deliver)
+		_, err = streamOnce(ctx, cs, source, request, true, deliver)
 		if last.Equal(before) && time.Since(started) < quietWindow {
 			quiet++
 		} else {
@@ -186,14 +193,33 @@ func resumable(err error) bool {
 	return true
 }
 
-func streamOnce(ctx context.Context, cs kubernetes.Interface, source Source, request *corev1.PodLogOptions, timestamps bool, emit func(Line)) error {
-	stream, err := cs.CoreV1().Pods(source.Namespace).GetLogs(source.Pod, request).Stream(ctx)
+// streamOnce reads one connection. opened reports whether the server answered
+// at all, which is what tells a source that cannot be read from one that
+// stopped talking.
+//
+// The client a follow uses has no request timeout, so that the stream may stay
+// open; connecting still has one; a kubelet that never answers must not hang
+// the view.
+func streamOnce(ctx context.Context, cs kubernetes.Interface, source Source, request *corev1.PodLogOptions, timestamps bool, emit func(Line)) (opened bool, err error) {
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	timer := time.AfterFunc(connectTimeout, cancel)
+	stream, err := cs.CoreV1().Pods(source.Namespace).GetLogs(source.Pod, request).Stream(streamCtx)
+	if !timer.Stop() && ctx.Err() == nil {
+		if stream != nil {
+			_ = stream.Close()
+		}
+		return false, fmt.Errorf("the log of %s did not answer within %s", source.Pod, connectTimeout)
+	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer stream.Close()
-	return scan(ctx, stream, source, timestamps, emit)
+	return true, scan(ctx, stream, source, timestamps, emit)
 }
+
+// connectTimeout bounds how long a log request may wait for its first answer.
+var connectTimeout = 10 * time.Second
 
 // scan turns a byte stream into lines. It is separate from the request so it
 // can be tested against a reader, which is where the awkward cases live: a
