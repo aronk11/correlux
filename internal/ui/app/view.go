@@ -95,6 +95,7 @@ func (m *Model) headerData() components.HeaderData {
 		Auto:       m.autoRefreshLabel(),
 		Busy:       m.busyLabel(),
 		Freshness:  m.freshnessLabel(),
+		Mascot:     m.luxFace(),
 	}
 
 	info := m.cluster.Get()

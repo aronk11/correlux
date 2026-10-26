@@ -196,7 +196,7 @@ func (m *Model) applicationsData() screens.TableData {
 
 	switch m.apps.State() {
 	case async.Idle, async.Loading:
-		d.Message = "Looking for applications in " + m.scopeLabel() + "…"
+		d.Message = m.theme.Glyphs.Owl + " Looking for applications in " + m.scopeLabel() + "…"
 		return d
 	case async.Failed:
 		d.Message = "Could not read " + m.scopeLabel() + ": " + shortError(m.apps.Err())
@@ -214,6 +214,8 @@ func (m *Model) applicationsData() screens.TableData {
 		if gaps := m.apps.Get().Snapshot.Gaps; len(gaps) > 0 {
 			d.Message += " " + gapSummary(gaps)
 			d.MessageStatus = theme.StatusWarning
+		} else {
+			d.Message += " An empty nest, " + m.theme.Glyphs.Owl + " Lux checked."
 		}
 		return d
 	}

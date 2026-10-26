@@ -75,12 +75,14 @@ func (m *Model) cheerRecoveries() tea.Cmd {
 	if len(names) == 0 || m.message != "" {
 		return nil
 	}
-	owl := m.theme.Glyphs.Owl
-	text := owl + " " + names[0] + " is healthy again. Nice work."
+	owl := m.theme.Glyphs.OwlHappy
+	cheer := pick(cheers, m.clock(), len(names))
+	text := owl + " " + names[0] + " is healthy again. " + cheer
 	if len(names) > 1 {
-		text = owl + " " + strconv.Itoa(len(names)) + " applications are healthy again. Nice work."
+		text = owl + " " + strconv.Itoa(len(names)) + " applications are healthy again. " + cheer
 	}
 	m.notice(text, theme.StatusHealthy)
+	m.cheerSeq = m.messageSeq
 	return m.expireNotice()
 }
 

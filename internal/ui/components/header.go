@@ -51,6 +51,8 @@ type HeaderData struct {
 	// not polling on a timer must say plainly that what it shows is a snapshot,
 	// not say nothing and let a quiet screen read as a live one.
 	Freshness string
+	// Mascot is Lux's face for the moment; empty means the resting owl.
+	Mascot string
 }
 
 // RenderHeader draws the two-line header: identity on top, position below.
@@ -83,7 +85,11 @@ func RenderHeader(t *theme.Theme, d HeaderData, width int) string {
 	}
 
 	left := strings.Join([]string{badge, scope, conn}, t.Muted.Render("  "+t.Glyphs.Bullet+"  "))
-	version := t.Key.Render(t.Glyphs.Owl) + t.Muted.Render(" "+d.Version)
+	mascot := d.Mascot
+	if mascot == "" {
+		mascot = t.Glyphs.Owl
+	}
+	version := t.Key.Render(mascot) + t.Muted.Render(" "+d.Version)
 	right := version
 	switch {
 	case d.Auto != "":

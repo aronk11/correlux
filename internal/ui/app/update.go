@@ -232,6 +232,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case kubeconfigReloadedMsg:
 		return m, m.applyReloadedKubeconfig(msg)
 
+	case greetingDoneMsg:
+		m.greeting = ""
+		return m, nil
 	case messageExpiredMsg:
 		if msg.seq == m.messageSeq {
 			m.message = ""
@@ -456,7 +459,8 @@ func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
 	m.refreshFailures = 0
 	m.keepCursorOnApplication(previous)
 	m.rediagnose()
-	cheer := m.cheerRecoveries()
+	hello := m.greet()
+	cheer := tea.Batch(hello, m.cheerRecoveries())
 	// The usage view is built on this snapshot; a reload of one is a reload of
 	// the other.
 	m.recomputeUsage()
