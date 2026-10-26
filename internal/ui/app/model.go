@@ -263,6 +263,12 @@ type Model struct {
 	recovered         []string
 	// now is the clock Lux's time-of-day lines read; nil means time.Now.
 	now func() time.Time
+	// greeted is set once Lux has said hello, and greeting holds the hello
+	// while it is still on screen. cheerSeq is the message that was Lux's
+	// latest cheer, so the face can tell it from news.
+	greeted  bool
+	greeting string
+	cheerSeq uint64
 	// executable is the binary an update would replace; empty means the
 	// running one.
 	executable string

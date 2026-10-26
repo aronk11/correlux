@@ -58,7 +58,10 @@ type Factory struct {
 type cached struct {
 	restConfig *rest.Config
 	clientset  *kubernetes.Clientset
-	err        error
+	// streaming is the same client without the per-request timeout, for the
+	// one kind of request that is meant to stay open: a followed log.
+	streaming *kubernetes.Clientset
+	err       error
 }
 
 // Options configures a Factory.
@@ -112,6 +115,19 @@ func (f *Factory) Clientset(contextName string) (kubernetes.Interface, error) {
 	return c.clientset, nil
 }
 
+// StreamingClientset returns a client for long-lived reads. A followed log is
+// one request that stays open for as long as somebody watches it, and the
+// per-request timeout every other call carries would cut it off after
+// Timeout() — mid-incident, while lines are still arriving. Cancelling the
+// caller's context is what ends it instead.
+func (f *Factory) StreamingClientset(contextName string) (kubernetes.Interface, error) {
+	c := f.entry(contextName)
+	if c.err != nil {
+		return nil, c.err
+	}
+	return c.streaming, nil
+}
+
 // RESTConfigForExec returns a REST configuration for a long-lived interactive
 // session: the same authentication RESTConfig returns, but without the
 // per-request timeout, which would otherwise cut an exec session off after
@@ -163,7 +179,13 @@ func (f *Factory) build(contextName string) *cached {
 	if err != nil {
 		return &cached{restConfig: restCfg, err: fmt.Errorf("build client for %q: %w", contextName, err)}
 	}
-	return &cached{restConfig: restCfg, clientset: cs}
+	streamCfg := rest.CopyConfig(restCfg)
+	streamCfg.Timeout = 0
+	streaming, err := kubernetes.NewForConfig(streamCfg)
+	if err != nil {
+		return &cached{restConfig: restCfg, err: fmt.Errorf("build streaming client for %q: %w", contextName, err)}
+	}
+	return &cached{restConfig: restCfg, clientset: cs, streaming: streaming}
 }
 
 func (f *Factory) identity(contextName string, cfg *rest.Config) Identity {

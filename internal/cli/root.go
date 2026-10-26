@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
@@ -19,6 +20,7 @@ import (
 	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	"github.com/aronk11/correlux/internal/kube/kubeconfig"
 	"github.com/aronk11/correlux/internal/ui/app"
+	"github.com/aronk11/correlux/internal/ui/theme"
 	"github.com/aronk11/correlux/internal/update"
 )
 
@@ -189,7 +191,20 @@ func run(ctx context.Context, flags globalFlags) error {
 		}
 		return err
 	}
+	if isTerminal(os.Stdout) {
+		glyphs := theme.GlyphsFor(theme.DetectUnicode(theme.OSEnv))
+		fmt.Fprintln(os.Stdout, signOff(time.Now(), &glyphs))
+	}
 	return nil
+}
+
+// signOff is Lux's one line after the screen is handed back: plain text, no
+// colour, and only to a terminal, so nothing piped or scripted ever sees it.
+func signOff(t time.Time, g *theme.Glyphs) string {
+	if h := t.Hour(); h >= 22 || h < 6 {
+		return g.OwlSleepy + " Lux keeps watch. Sleep well."
+	}
+	return g.Owl + " Lux keeps watch. See you soon."
 }
 
 // knownNewerRelease reports a newer version if the last background check found

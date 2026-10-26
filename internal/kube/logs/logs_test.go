@@ -3,11 +3,16 @@ package logs
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 )
 
 func source() Source {
@@ -189,5 +194,172 @@ func TestTailStopsWhenTheUserLeaves(t *testing.T) {
 		case <-deadline:
 			t.Fatal("the stream did not end after its context was cancelled")
 		}
+	}
+}
+
+// dropping serves a followed log the way a flaky path does: it closes the
+// connection twice, the second time after repeating a line the client already
+// has, and finally has nothing more to say.
+func dropping(t *testing.T, sinces *[]string, mu *sync.Mutex) *httptest.Server {
+	t.Helper()
+	calls := 0
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		calls++
+		n := calls
+		*sinces = append(*sinces, r.URL.Query().Get("sinceTime"))
+		mu.Unlock()
+		switch n {
+		case 1:
+			_, _ = w.Write([]byte("2026-10-26T10:00:01.000000001Z first\n2026-10-26T10:00:02.000000002Z second\n"))
+		case 2:
+			_, _ = w.Write([]byte("2026-10-26T10:00:02.000000002Z second\n2026-10-26T10:00:03.000000003Z third\n"))
+		}
+	}))
+}
+
+func TestAFollowedLogSurvivesDroppedConnectionsWithoutRepeatingLines(t *testing.T) {
+	restore := reconnectDelay
+	reconnectDelay = func(int) time.Duration { return time.Millisecond }
+	defer func() { reconnectDelay = restore }()
+
+	var (
+		mu     sync.Mutex
+		sinces []string
+	)
+	srv := dropping(t, &sinces, &mu)
+	defer srv.Close()
+	cs, _ := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+
+	var got []string
+	err := Stream(context.Background(), cs, Source{Namespace: "shop", Pod: "payments-0"}, Options{Follow: true}, func(l Line) {
+		if !l.At.IsZero() {
+			t.Errorf("timestamps were not asked for, yet %q carries one", l.Text)
+		}
+		got = append(got, l.Text)
+	})
+	if err != nil {
+		t.Fatalf("a stream that ran out on its own is not an error: %v", err)
+	}
+	if strings.Join(got, ",") != "first,second,third" {
+		t.Errorf("lines = %v, want every line exactly once", got)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(sinces) < 3 || sinces[0] != "" || !strings.HasPrefix(sinces[1], "2026-10-26T10:00:02") {
+		t.Errorf("reconnects must resume after the last line; sinceTime per request = %v", sinces)
+	}
+	if len(sinces) > 1+1+maxQuietReconnects {
+		t.Errorf("a stopped container must end the stream, not reconnect forever: %d requests", len(sinces))
+	}
+}
+
+func TestAPodThatIsGoneEndsTheStream(t *testing.T) {
+	restore := reconnectDelay
+	reconnectDelay = func(int) time.Duration { return time.Millisecond }
+	defer func() { reconnectDelay = restore }()
+
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls == 1 {
+			_, _ = w.Write([]byte("2026-10-26T10:00:01Z hello\n"))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"NotFound","code":404,"message":"pods \"payments-0\" not found"}`))
+	}))
+	defer srv.Close()
+	cs, _ := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+
+	err := Stream(context.Background(), cs, Source{Namespace: "shop", Pod: "payments-0"}, Options{Follow: true}, func(Line) {})
+	if err == nil || !strings.Contains(err.Error(), "not found") || calls != 2 {
+		t.Errorf("err = %v after %d requests; a deleted pod must end the stream with the reason", err, calls)
+	}
+}
+
+func TestCancellingAFollowedLogStopsReconnecting(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("2026-10-26T10:00:01Z line\n"))
+		cancel()
+	}))
+	defer srv.Close()
+	cs, _ := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+
+	done := make(chan error, 1)
+	go func() {
+		done <- Stream(ctx, cs, Source{Namespace: "shop", Pod: "p"}, Options{Follow: true}, func(Line) {})
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("err = %v, want the cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a cancelled stream kept reconnecting")
+	}
+}
+
+func TestALogThatCannotBeReadIsReportedAtOnceNotRetried(t *testing.T) {
+	// A kubelet the API server cannot reach answers 500 on the very first
+	// request. That is a source that cannot be read, not a dropped stream.
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","status":"Failure","code":500,"message":"dial tcp 10.0.0.9:10250: connect: no route to host"}`))
+	}))
+	defer srv.Close()
+	cs, _ := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+
+	err := Stream(context.Background(), cs, source(), Options{Follow: true}, func(Line) {})
+	if err == nil || !strings.Contains(err.Error(), "no route to host") || calls != 1 {
+		t.Errorf("err = %v after %d requests; an unreadable source must be reported, once", err, calls)
+	}
+}
+
+func TestALogThatNeverAnswersTimesOut(t *testing.T) {
+	restore := connectTimeout
+	connectTimeout = 50 * time.Millisecond
+	defer func() { connectTimeout = restore }()
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+	defer srv.Close()
+	defer close(release)
+	cs, _ := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+
+	err := Stream(context.Background(), cs, source(), Options{Follow: true}, func(Line) {})
+	if err == nil || !strings.Contains(err.Error(), "did not answer") {
+		t.Errorf("err = %v; a request with no answer must not hang the view", err)
+	}
+}
+
+func TestLinesThatShareATimestampAreAllKept(t *testing.T) {
+	restore := reconnectDelay
+	reconnectDelay = func(int) time.Duration { return time.Millisecond }
+	defer func() { reconnectDelay = restore }()
+
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		switch calls {
+		case 1:
+			// A busy container writes several records within one tick.
+			_, _ = w.Write([]byte("2026-10-26T10:00:01Z a\n2026-10-26T10:00:01Z b\n"))
+		case 2:
+			// The resume replays from that instant and goes on in it.
+			_, _ = w.Write([]byte("2026-10-26T10:00:01Z a\n2026-10-26T10:00:01Z b\n2026-10-26T10:00:01Z c\n2026-10-26T10:00:02Z d\n"))
+		}
+	}))
+	defer srv.Close()
+	cs, _ := kubernetes.NewForConfig(&rest.Config{Host: srv.URL})
+
+	var got []string
+	_ = Stream(context.Background(), cs, source(), Options{Follow: true}, func(l Line) { got = append(got, l.Text) })
+	if strings.Join(got, ",") != "a,b,c,d" {
+		t.Errorf("lines = %v; equal timestamps are not duplicates, only a replay is", got)
 	}
 }

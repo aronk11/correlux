@@ -49,8 +49,15 @@ type Glyphs struct {
 	SortDesc string
 	// Owl is Lux, the night owl Correlux is drawn as: the brand mark beside
 	// the version, and the voice of its quiet moments. It is decoration and
-	// never carries a state.
+	// never carries a state on its own: the moods below only echo what the
+	// screen already says in words.
 	Owl string
+	// OwlAlarm is Lux wide awake, while something on screen is down.
+	OwlAlarm string
+	// OwlSleepy is Lux at night, over a quiet dashboard.
+	OwlSleepy string
+	// OwlHappy is Lux right after something recovered.
+	OwlHappy string
 }
 
 var unicodeGlyphs = Glyphs{
@@ -74,6 +81,9 @@ var unicodeGlyphs = Glyphs{
 	SortAsc:   "↑",
 	SortDesc:  "↓",
 	Owl:       "{ʘ,ʘ}",
+	OwlAlarm:  "{◉,◉}",
+	OwlSleepy: "{-,-}",
+	OwlHappy:  "{^,^}",
 }
 
 var asciiGlyphs = Glyphs{
@@ -97,6 +107,9 @@ var asciiGlyphs = Glyphs{
 	SortAsc:   "^",
 	SortDesc:  "v",
 	Owl:       "{o,o}",
+	OwlAlarm:  "{O,O}",
+	OwlSleepy: "{-,-}",
+	OwlHappy:  "{^,^}",
 }
 
 // Env abstracts environment lookup so detection can be tested without

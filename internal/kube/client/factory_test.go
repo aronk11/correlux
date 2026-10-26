@@ -1,13 +1,21 @@
 package client
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/aronk11/correlux/internal/kube/logs"
 )
 
 // twoClusters is a kubeconfig with two contexts, written to disk because that
@@ -187,4 +195,115 @@ func TestATimeoutIsAlwaysSet(t *testing.T) {
 	if cfg.Timeout <= 0 {
 		t.Errorf("request timeout = %v, want a bound", cfg.Timeout)
 	}
+}
+
+// A followed log is one request that stays open; the per-request timeout every
+// other call carries would cut it off mid-stream after Timeout().
+func TestFollowedLogsUseAClientWithoutTheRequestTimeout(t *testing.T) {
+	f := newFactory(t, Options{Timeout: 15 * time.Second})
+
+	normal, err := f.Clientset("staging")
+	if err != nil {
+		t.Fatal(err)
+	}
+	streaming, err := f.StreamingClientset("staging")
+	if err != nil {
+		t.Fatal(err)
+	}
+	timeout := func(cs kubernetes.Interface) time.Duration {
+		return cs.CoreV1().RESTClient().(*rest.RESTClient).Client.Timeout
+	}
+	if timeout(normal) != 15*time.Second {
+		t.Errorf("ordinary requests must keep their timeout, got %v", timeout(normal))
+	}
+	if timeout(streaming) != 0 {
+		t.Errorf("the streaming client must not time out, got %v", timeout(streaming))
+	}
+	if cfg, _ := f.RESTConfig("staging"); cfg.Timeout != 15*time.Second {
+		t.Error("building the streaming client must not change the shared config")
+	}
+}
+
+func TestAFollowedLogOutlivesTheRequestTimeout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher := w.(http.Flusher)
+		for i := 0; i < 10; i++ {
+			_, _ = fmt.Fprintf(w, "2026-10-26T10:00:%02dZ line %d\n", i, i)
+			flusher.Flush()
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	}))
+	defer srv.Close()
+	f := logFactory(t, srv.URL, 300*time.Millisecond)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	stream, err := f.Tail(ctx, "local", []logs.Source{{Namespace: "shop", Pod: "payments-0"}}, logs.Options{Follow: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := 0
+	for event := range stream {
+		if event.Err != nil {
+			t.Fatalf("the stream failed after %d lines: %v", lines, event.Err)
+		}
+		lines++
+		if lines == 10 {
+			cancel()
+		}
+	}
+	if lines < 10 {
+		t.Errorf("only %d of 10 lines arrived; a 300ms request timeout must not cut a followed log", lines)
+	}
+}
+
+func TestAOneOffLogReadKeepsTheRequestTimeout(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { <-release }))
+	defer srv.Close()
+	defer close(release)
+	f := logFactory(t, srv.URL, 200*time.Millisecond)
+
+	stream, err := f.Tail(context.Background(), "local", []logs.Source{{Namespace: "shop", Pod: "payments-0"}}, logs.Options{Previous: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		var failed error
+		for event := range stream {
+			if event.Err != nil {
+				failed = event.Err
+			}
+		}
+		done <- failed
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("a stalled one-off read must be reported as failed")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a one-off read hung past the request timeout")
+	}
+}
+
+func logFactory(t *testing.T, server string, timeout time.Duration) *Factory {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "kubeconfig.yaml")
+	config := "apiVersion: v1\nkind: Config\ncurrent-context: local\nclusters:\n- name: local\n  cluster: {server: \"" + server +
+		"\"}\ncontexts:\n- name: local\n  context: {cluster: local, user: me}\nusers:\n- name: me\n  user: {token: t}\n"
+	if err := os.WriteFile(path, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: path}
+	raw, err := rules.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return New(*raw, rules, Options{Timeout: timeout})
 }

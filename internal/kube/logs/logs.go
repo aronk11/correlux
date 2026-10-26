@@ -11,12 +11,15 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -82,6 +85,15 @@ type Line struct {
 // ends or the context is cancelled. A cancelled read returns the context's
 // error, which the caller is expected to read as "the user moved on".
 //
+// A followed log is one HTTP response that is meant to stay open for as long
+// as somebody watches, and plenty of things close it without anybody asking: a
+// load balancer's idle timeout, the kubelet rotating the log file, a network
+// that drops for a second. Stream reconnects when that happens and resumes
+// after the last line it delivered, so the screen keeps going instead of
+// stopping mid-incident. It ends on its own only when reconnecting keeps
+// producing nothing, which is what a container that is no longer running
+// looks like.
+//
 // emit is called from the caller's goroutine, not the UI's, so it must be safe
 // to call from anywhere — in Correlux it writes to a channel.
 func Stream(
@@ -91,23 +103,144 @@ func Stream(
 	opts Options,
 	emit func(Line),
 ) error {
-	tail := opts.tail()
-	request := cs.CoreV1().Pods(source.Namespace).GetLogs(source.Pod, &corev1.PodLogOptions{
-		Container:  source.Container,
-		Follow:     opts.Follow,
-		Previous:   opts.Previous,
-		Timestamps: opts.Timestamps,
-		TailLines:  &tail,
-	})
-
-	stream, err := request.Stream(ctx)
-	if err != nil {
+	if !opts.Follow {
+		tail := opts.tail()
+		_, err := streamOnce(ctx, cs, source, &corev1.PodLogOptions{
+			Container: source.Container, Previous: opts.Previous, Timestamps: opts.Timestamps, TailLines: &tail,
+		}, opts.Timestamps, emit)
 		return err
 	}
-	defer stream.Close()
 
-	return scan(ctx, stream, source, opts.Timestamps, emit)
+	// Server timestamps are how a resumed read knows where it left off; they
+	// are taken off again unless the user asked to see them. A timestamp is
+	// not an identity, though: two records may share one. So a live stream
+	// never drops anything, and a resumed one skips only what it replays,
+	// i.e. what is older than the last line delivered, and the lines already
+	// delivered at exactly that instant, in the order they came.
+	var (
+		last   time.Time
+		atLast []string
+	)
+	connection := func() func(Line) {
+		replay := append([]string(nil), atLast...)
+		catchingUp := !last.IsZero()
+		return func(line Line) {
+			if catchingUp && !line.At.IsZero() {
+				switch {
+				case line.At.Before(last):
+					return
+				case line.At.Equal(last) && len(replay) > 0 && replay[0] == line.Text:
+					replay = replay[1:]
+					return
+				}
+				catchingUp = false
+			}
+			if !line.At.IsZero() {
+				if !line.At.Equal(last) {
+					last, atLast = line.At, atLast[:0]
+				}
+				atLast = append(atLast, line.Text)
+			}
+			if !opts.Timestamps {
+				line.At = time.Time{}
+			}
+			emit(line)
+		}
+	}
+
+	tail := opts.tail()
+	request := &corev1.PodLogOptions{
+		Container: source.Container, Follow: true, Previous: opts.Previous, Timestamps: true, TailLines: &tail,
+	}
+	opened, err := streamOnce(ctx, cs, source, request, true, connection())
+	if !opened {
+		// Never connected at all: that is a source that cannot be read, not a
+		// stream that dropped, and it is reported rather than retried.
+		return err
+	}
+	quiet := 0
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err != nil && !resumable(err) {
+			return err
+		}
+		if quiet >= maxQuietReconnects {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(reconnectDelay(quiet)):
+		}
+
+		request = &corev1.PodLogOptions{Container: source.Container, Follow: true, Previous: opts.Previous, Timestamps: true}
+		if last.IsZero() {
+			request.TailLines = &tail
+		} else {
+			since := metav1.NewTime(last)
+			request.SinceTime = &since
+		}
+		before, started := last, time.Now()
+		_, err = streamOnce(ctx, cs, source, request, true, connection())
+		if last.Equal(before) && time.Since(started) < quietWindow {
+			quiet++
+		} else {
+			quiet = 0
+		}
+	}
 }
+
+// Reconnecting is bounded: a stream that closes again at once, with nothing
+// new, several times in a row belongs to a container that has stopped.
+const (
+	maxQuietReconnects = 3
+	quietWindow        = 3 * time.Second
+)
+
+// reconnectDelay backs off between attempts; a variable so tests need not wait.
+var reconnectDelay = func(attempt int) time.Duration {
+	return min(time.Duration(1<<attempt)*time.Second, 5*time.Second)
+}
+
+// resumable reports whether a failed read is worth trying again. A pod that
+// is gone or a request the server refuses will be refused again.
+func resumable(err error) bool {
+	switch {
+	case apierrors.IsNotFound(err), apierrors.IsBadRequest(err), apierrors.IsForbidden(err), apierrors.IsUnauthorized(err):
+		return false
+	}
+	return true
+}
+
+// streamOnce reads one connection. opened reports whether the server answered
+// at all, which is what tells a source that cannot be read from one that
+// stopped talking.
+//
+// The client a follow uses has no request timeout, so that the stream may stay
+// open; connecting still has one; a kubelet that never answers must not hang
+// the view.
+func streamOnce(ctx context.Context, cs kubernetes.Interface, source Source, request *corev1.PodLogOptions, timestamps bool, emit func(Line)) (opened bool, err error) {
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	timer := time.AfterFunc(connectTimeout, cancel)
+	stream, err := cs.CoreV1().Pods(source.Namespace).GetLogs(source.Pod, request).Stream(streamCtx)
+	if !timer.Stop() && ctx.Err() == nil {
+		if stream != nil {
+			_ = stream.Close()
+		}
+		return false, fmt.Errorf("the log of %s did not answer within %s", source.Pod, connectTimeout)
+	}
+	if err != nil {
+		return false, err
+	}
+	defer stream.Close()
+	return true, scan(ctx, stream, source, timestamps, emit)
+}
+
+// connectTimeout bounds how long a log request may wait for its first answer.
+var connectTimeout = 10 * time.Second
 
 // scan turns a byte stream into lines. It is separate from the request so it
 // can be tested against a reader, which is where the awkward cases live: a
