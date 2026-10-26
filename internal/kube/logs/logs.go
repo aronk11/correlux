@@ -17,6 +17,8 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -82,6 +84,15 @@ type Line struct {
 // ends or the context is cancelled. A cancelled read returns the context's
 // error, which the caller is expected to read as "the user moved on".
 //
+// A followed log is one HTTP response that is meant to stay open for as long
+// as somebody watches, and plenty of things close it without anybody asking: a
+// load balancer's idle timeout, the kubelet rotating the log file, a network
+// that drops for a second. Stream reconnects when that happens and resumes
+// after the last line it delivered, so the screen keeps going instead of
+// stopping mid-incident. It ends on its own only when reconnecting keeps
+// producing nothing, which is what a container that is no longer running
+// looks like.
+//
 // emit is called from the caller's goroutine, not the UI's, so it must be safe
 // to call from anywhere — in Correlux it writes to a channel.
 func Stream(
@@ -91,22 +102,97 @@ func Stream(
 	opts Options,
 	emit func(Line),
 ) error {
-	tail := opts.tail()
-	request := cs.CoreV1().Pods(source.Namespace).GetLogs(source.Pod, &corev1.PodLogOptions{
-		Container:  source.Container,
-		Follow:     opts.Follow,
-		Previous:   opts.Previous,
-		Timestamps: opts.Timestamps,
-		TailLines:  &tail,
-	})
+	if !opts.Follow {
+		tail := opts.tail()
+		return streamOnce(ctx, cs, source, &corev1.PodLogOptions{
+			Container: source.Container, Previous: opts.Previous, Timestamps: opts.Timestamps, TailLines: &tail,
+		}, opts.Timestamps, emit)
+	}
 
-	stream, err := request.Stream(ctx)
+	// Server timestamps are how a resumed read knows where it left off; they
+	// are taken off again unless the user asked to see them.
+	var last time.Time
+	deliver := func(line Line) {
+		if !last.IsZero() && !line.At.IsZero() && !line.At.After(last) {
+			return // already delivered before the connection dropped
+		}
+		if !line.At.IsZero() {
+			last = line.At
+		}
+		if !opts.Timestamps {
+			line.At = time.Time{}
+		}
+		emit(line)
+	}
+
+	tail := opts.tail()
+	request := &corev1.PodLogOptions{
+		Container: source.Container, Follow: true, Previous: opts.Previous, Timestamps: true, TailLines: &tail,
+	}
+	err := streamOnce(ctx, cs, source, request, true, deliver)
+	quiet := 0
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err != nil && !resumable(err) {
+			return err
+		}
+		if quiet >= maxQuietReconnects {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(reconnectDelay(quiet)):
+		}
+
+		request = &corev1.PodLogOptions{Container: source.Container, Follow: true, Previous: opts.Previous, Timestamps: true}
+		if last.IsZero() {
+			request.TailLines = &tail
+		} else {
+			since := metav1.NewTime(last)
+			request.SinceTime = &since
+		}
+		before, started := last, time.Now()
+		err = streamOnce(ctx, cs, source, request, true, deliver)
+		if last.Equal(before) && time.Since(started) < quietWindow {
+			quiet++
+		} else {
+			quiet = 0
+		}
+	}
+}
+
+// Reconnecting is bounded: a stream that closes again at once, with nothing
+// new, several times in a row belongs to a container that has stopped.
+const (
+	maxQuietReconnects = 3
+	quietWindow        = 3 * time.Second
+)
+
+// reconnectDelay backs off between attempts; a variable so tests need not wait.
+var reconnectDelay = func(attempt int) time.Duration {
+	return min(time.Duration(1<<attempt)*time.Second, 5*time.Second)
+}
+
+// resumable reports whether a failed read is worth trying again. A pod that
+// is gone or a request the server refuses will be refused again.
+func resumable(err error) bool {
+	switch {
+	case apierrors.IsNotFound(err), apierrors.IsBadRequest(err), apierrors.IsForbidden(err), apierrors.IsUnauthorized(err):
+		return false
+	}
+	return true
+}
+
+func streamOnce(ctx context.Context, cs kubernetes.Interface, source Source, request *corev1.PodLogOptions, timestamps bool, emit func(Line)) error {
+	stream, err := cs.CoreV1().Pods(source.Namespace).GetLogs(source.Pod, request).Stream(ctx)
 	if err != nil {
 		return err
 	}
 	defer stream.Close()
-
-	return scan(ctx, stream, source, opts.Timestamps, emit)
+	return scan(ctx, stream, source, timestamps, emit)
 }
 
 // scan turns a byte stream into lines. It is separate from the request so it

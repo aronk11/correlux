@@ -17,7 +17,7 @@ func (f *Factory) Tail(
 	sources []logs.Source,
 	opts logs.Options,
 ) (<-chan logs.Event, error) {
-	cs, err := f.Clientset(contextName)
+	cs, err := f.StreamingClientset(contextName)
 	if err != nil {
 		return nil, err
 	}
