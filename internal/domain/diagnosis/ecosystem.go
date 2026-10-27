@@ -187,14 +187,15 @@ func isolated(in *Input, pods []*application.Pod, ingress bool) (Diagnosis, bool
 	}
 	blockers = unique(blockers)
 
-	direction, what := "incoming", "nothing outside the pod can reach "+agree(len(cut), "it", "them")+", including the ingress controller and other services"
-	rule, severity := "traffic.ingressdenied", Warning
-	if len(in.App.Services) > 0 || len(in.App.Ingresses) > 0 {
-		severity = Critical
-	}
+	direction, rule := "incoming", "traffic.ingressdenied"
+	services, ingresses := routesTo(&in.App, cut)
+	severity, what := ingressImpact(services, ingresses, len(cut))
 	if !ingress {
-		direction, what = "outgoing", agree(len(cut), "it", "they")+" cannot reach anything, not even DNS, so every lookup and outbound call fails"
-		rule = "traffic.egressdenied"
+		direction, rule, severity = "outgoing", "traffic.egressdenied", Warning
+		if len(services) > 0 {
+			severity = Critical
+		}
+		what = agree(len(cut), "it", "they") + " cannot reach anything, not even DNS, so every lookup and outbound call fails"
 	}
 	first := cut[0]
 	d := Diagnosis{
@@ -220,6 +221,53 @@ func isolated(in *Input, pods []*application.Pod, ingress bool) (Diagnosis, bool
 		d.Evidence = append(d.Evidence, Evidence{Kind: "Pod", Name: p.Name, Detail: "selected, nothing allowed"})
 	}
 	return d, true
+}
+
+// ingressImpact weighs denied incoming traffic by who is meant to arrive.
+// Default-deny is ordinary hardening: a worker that pulls from a queue or an
+// operator that watches the API server takes no connections, and cutting off
+// what nobody sends is not a fault. It matters as far as something is set up
+// to send it: a Service means in-cluster callers time out, an Ingress means
+// users do.
+//
+// Only routes to the denied pods count: an application may group an API behind
+// an Ingress with a worker nothing calls, and the API's route says nothing
+// about the worker.
+func ingressImpact(services, ingresses []string, pods int) (Severity, string) {
+	them := agree(pods, "it", "them")
+	switch {
+	case len(ingresses) > 0:
+		return Critical, "nothing outside the pod can reach " + them + ", including the ingress controller behind Ingress/" + ingresses[0]
+	case len(services) > 0:
+		return Warning, "Service/" + services[0] + " routes to " + them + ", but every connection through it is dropped; " +
+			"if nothing calls that Service, it is the Service that is the leftover"
+	}
+	return Info, "no Service or Ingress points at " + them + ", so this looks like deliberate isolation of a client that takes no connections"
+}
+
+// routesTo names the Services that select any of the pods, and the Ingresses
+// that send traffic to one of those Services.
+func routesTo(a *application.Application, pods []*application.Pod) (services, ingresses []string) {
+	routed := map[string]bool{}
+	for i := range a.Services {
+		svc := &a.Services[i]
+		for _, p := range pods {
+			if svc.Namespace == p.Namespace && matches(svc.Selector, p.Labels) {
+				services = append(services, svc.Name)
+				routed[svc.Name] = true
+				break
+			}
+		}
+	}
+	for i := range a.Ingresses {
+		for _, backend := range a.Ingresses[i].Backends {
+			if routed[backend] {
+				ingresses = append(ingresses, a.Ingresses[i].Name)
+				break
+			}
+		}
+	}
+	return services, ingresses
 }
 
 // certificates reports cert-manager certificates behind the application's
