@@ -245,3 +245,20 @@ func TestAFailedHelmReleaseIsReported(t *testing.T) {
 	ok := &Input{App: helmApp(), Context: application.Context{Releases: []application.HelmRelease{{Name: "payments", Namespace: "shop", Revision: 4, Status: "deployed"}}}}
 	none(t, diagnose(t, ok), "helm.failed")
 }
+
+func TestOnlyRoutesToTheDeniedPodsWeighTheFinding(t *testing.T) {
+	// The API is behind an Ingress; the worker in the same application is
+	// not, and a policy that isolates only the worker is not an outage.
+	a := servingApp("8080")
+	a.Ingresses = []application.Ingress{{Meta: application.Meta{Kind: "Ingress", Name: "payments", Namespace: "shop"}, Backends: []string{"payments"}}}
+	worker := pod("payments-worker-1", application.Container{Name: "worker", State: "running", Ready: true})
+	worker.Ready = true
+	worker.Labels = map[string]string{"app": "payments-worker"}
+	a.Pods = []application.Pod{worker}
+	in := &Input{App: a, Context: application.Context{Policies: []application.NetworkPolicy{
+		policy("worker-deny", map[string]string{"app": "payments-worker"}, 0, 0, true, false),
+	}}}
+	if d := find(t, diagnose(t, in), "traffic.ingressdenied"); d.Severity != Info {
+		t.Errorf("an Ingress to other pods says nothing about these; got %v: %q", d.Severity, d.Cause)
+	}
+}
