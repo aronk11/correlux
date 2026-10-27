@@ -66,11 +66,36 @@ func TestADenyAllPolicyIsolatesTheApplication(t *testing.T) {
 	}}}
 	d := find(t, diagnose(t, in), "traffic.ingressdenied")
 
-	if d.Severity != Critical {
-		t.Errorf("an application with a service cut off is critical; got %v", d.Severity)
+	if d.Severity != Warning || !strings.Contains(d.Cause, "Service/payments") {
+		t.Errorf("a Service nobody can get through is degraded, not down; got %v: %q", d.Severity, d.Cause)
 	}
 	if !strings.Contains(d.Cause, "NetworkPolicy/default-deny") || !strings.Contains(d.Unknown, "enforces") {
 		t.Errorf("cause = %q, unknown = %q", d.Cause, d.Unknown)
+	}
+}
+
+func TestADenyAllInFrontOfAnIngressIsCritical(t *testing.T) {
+	a := servingApp("8080")
+	a.Ingresses = []application.Ingress{{Meta: application.Meta{Kind: "Ingress", Name: "payments", Namespace: "shop"}, Backends: []string{"payments"}}}
+	in := &Input{App: a, Context: application.Context{Policies: []application.NetworkPolicy{
+		policy("default-deny", map[string]string{}, 0, 0, true, false),
+	}}}
+	if d := find(t, diagnose(t, in), "traffic.ingressdenied"); d.Severity != Critical {
+		t.Errorf("users cut off by policy is critical; got %v", d.Severity)
+	}
+}
+
+func TestADenyAllOnAClientThatTakesNoConnectionsIsOnlyANote(t *testing.T) {
+	// A queue worker or an operator: default-deny is the hardening it should
+	// have, and the pods are fine.
+	a := servingApp("8080")
+	a.Services = nil
+	in := &Input{App: a, Context: application.Context{Policies: []application.NetworkPolicy{
+		policy("default-deny-all", map[string]string{}, 0, 0, true, false),
+	}}}
+	d := find(t, diagnose(t, in), "traffic.ingressdenied")
+	if d.Severity != Info || !strings.Contains(d.Cause, "deliberate") {
+		t.Errorf("isolating a client is not a fault; got %v: %q", d.Severity, d.Cause)
 	}
 }
 

@@ -187,14 +187,14 @@ func isolated(in *Input, pods []*application.Pod, ingress bool) (Diagnosis, bool
 	}
 	blockers = unique(blockers)
 
-	direction, what := "incoming", "nothing outside the pod can reach "+agree(len(cut), "it", "them")+", including the ingress controller and other services"
-	rule, severity := "traffic.ingressdenied", Warning
-	if len(in.App.Services) > 0 || len(in.App.Ingresses) > 0 {
-		severity = Critical
-	}
+	direction, rule := "incoming", "traffic.ingressdenied"
+	severity, what := ingressImpact(&in.App, len(cut))
 	if !ingress {
-		direction, what = "outgoing", agree(len(cut), "it", "they")+" cannot reach anything, not even DNS, so every lookup and outbound call fails"
-		rule = "traffic.egressdenied"
+		direction, rule, severity = "outgoing", "traffic.egressdenied", Warning
+		if len(in.App.Services) > 0 || len(in.App.Ingresses) > 0 {
+			severity = Critical
+		}
+		what = agree(len(cut), "it", "they") + " cannot reach anything, not even DNS, so every lookup and outbound call fails"
 	}
 	first := cut[0]
 	d := Diagnosis{
@@ -220,6 +220,24 @@ func isolated(in *Input, pods []*application.Pod, ingress bool) (Diagnosis, bool
 		d.Evidence = append(d.Evidence, Evidence{Kind: "Pod", Name: p.Name, Detail: "selected, nothing allowed"})
 	}
 	return d, true
+}
+
+// ingressImpact weighs denied incoming traffic by who is meant to arrive.
+// Default-deny is ordinary hardening: a worker that pulls from a queue or an
+// operator that watches the API server takes no connections, and cutting off
+// what nobody sends is not a fault. It matters as far as something is set up
+// to send it: a Service means in-cluster callers time out, an Ingress means
+// users do.
+func ingressImpact(a *application.Application, pods int) (Severity, string) {
+	them := agree(pods, "it", "them")
+	switch {
+	case len(a.Ingresses) > 0:
+		return Critical, "nothing outside the pod can reach " + them + ", including the ingress controller behind Ingress/" + a.Ingresses[0].Name
+	case len(a.Services) > 0:
+		return Warning, "Service/" + a.Services[0].Name + " routes to " + them + ", but every connection through it is dropped; " +
+			"if nothing calls that Service, it is the Service that is the leftover"
+	}
+	return Info, "no Service or Ingress points at " + them + ", so this looks like deliberate isolation of a client that takes no connections"
 }
 
 // certificates reports cert-manager certificates behind the application's
