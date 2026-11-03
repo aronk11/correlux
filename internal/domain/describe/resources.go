@@ -496,28 +496,7 @@ func describeCRD(doc map[string]any) []Section {
 // specSection is what a kind with no status of its own still has to say: the
 // fields its spec sets, flattened two levels deep.
 func specSection(doc map[string]any) Section {
-	section := Section{Title: "Spec", Columns: []string{"Field", "Value"}, Empty: "the object sets no spec fields"}
-	var walk func(prefix string, m map[string]any, depth int)
-	walk = func(prefix string, m map[string]any, depth int) {
-		for _, k := range sortedKeys(m) {
-			if len(section.Rows) >= 40 {
-				return
-			}
-			path := k
-			if prefix != "" {
-				path = prefix + "." + k
-			}
-			if nested, ok := m[k].(map[string]any); ok && depth < 2 {
-				walk(path, nested, depth+1)
-				continue
-			}
-			if rendered := value(m[k]); rendered != "" {
-				section.Rows = append(section.Rows, []string{path, preview(rendered)})
-			}
-		}
-	}
-	walk("", child(doc, "spec"), 0)
-	return section
+	return Section{Title: "Spec", Columns: []string{"Field", "Value"}, Empty: "the object sets no spec fields", Rows: flatten(child(doc, "spec"))}
 }
 
 func sortedKeys(m map[string]any) []string {

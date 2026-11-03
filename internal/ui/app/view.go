@@ -472,6 +472,13 @@ func (m *Model) statusData() components.StatusData {
 			{Key: "Enter", Desc: "Follow", Priority: 72},
 			{Group: components.HintView, Key: m.keys.Key(ActionYAML), Desc: yamlHint(m.objectYAML), Priority: 87},
 		}
+		if m.treeActive() {
+			object = []components.KeyHint{
+				{Key: "←→", Desc: "Fold", Priority: 92},
+				{Key: "+/-", Desc: "Fold all", Priority: 91},
+				{Group: components.HintView, Key: m.keys.Key(ActionYAML), Desc: yamlHint(m.objectYAML), Priority: 87},
+			}
+		}
 		if m.objectDecodable() {
 			object = append(object, components.KeyHint{
 				Group: components.HintView, Key: m.keys.Key(ActionDecode), Desc: decodeHint(m.objectDecode), Priority: 83,
@@ -1100,7 +1107,9 @@ func (m *Model) helpTextAt(width int) string {
 		{"Inspect an application or an object", [][2]string{
 			{"↑ ↓ / j k", "Move between the objects; the page follows"},
 			{"Enter", "Open the object under the cursor, or follow the relation"},
-			{m.keys.Key(ActionYAML), "Show the document the server holds, and back"},
+			{m.keys.Key(ActionYAML), "Show the document the server holds as a tree, and back"},
+			{"→ ← / Space", "In the tree: unfold or step in, fold or step out, toggle"},
+			{"+ / -", "In the tree: unfold everything, fold everything"},
 			{m.keys.Key(ActionDecode), "Decode the base64 values in it — a Secret's, above all"},
 			{m.keys.Key(ActionLogs), "Read the logs of the pod, workload or application in hand"},
 			{m.keys.Key(ActionCopy), "Copy its namespace/name to the clipboard"},

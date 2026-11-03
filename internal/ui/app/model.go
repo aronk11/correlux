@@ -209,6 +209,8 @@ type Model struct {
 	// It changes what is drawn and nothing else: an edit still sends the
 	// document the server holds.
 	objectDecode bool
+	// tree is the YAML view's document as a foldable tree.
+	tree treeState
 
 	// The log view. The stream lives as long as the view does; leaving it
 	// cancels the context and the connections go with it.

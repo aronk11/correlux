@@ -698,6 +698,11 @@ func (m *Model) handleLogsKey(keystroke string) (tea.Cmd, bool) {
 
 // handleObjectKey moves through one object's relations, and its document.
 func (m *Model) handleObjectKey(keystroke string) (tea.Cmd, bool) {
+	if m.treeActive() {
+		if cmd, handled := m.handleTreeKey(keystroke); handled {
+			return cmd, true
+		}
+	}
 	page := max(m.screen.Body.Height-1, 1)
 	switch keystroke {
 	case "up", "k":
