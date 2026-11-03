@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 
 	"github.com/aronk11/correlux/internal/buildinfo"
 	"github.com/aronk11/correlux/internal/config"
@@ -497,6 +498,9 @@ func New(opts Options) *Model {
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{
 		tea.RequestBackgroundColor,
+		// Ask to be told when the system switches between light and dark
+		// (mode 2031); terminals that do not know it ignore the request.
+		tea.Raw(xansi.SetModeLightDark),
 		m.probeCluster(),
 		m.loadNamespaces(),
 		m.loadCatalog(),

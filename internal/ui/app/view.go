@@ -27,6 +27,9 @@ func (m *Model) View() tea.View {
 	var v tea.View
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
+	// Coming back to the window is when a terminal that cannot announce a
+	// switch between light and dark is asked for its background again.
+	v.ReportFocus = true
 	v.WindowTitle = "Correlux — " + m.contextName
 
 	if m.quitting {
