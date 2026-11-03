@@ -29,6 +29,10 @@ type ObjectData struct {
 	// YAML is the document as the server returned it, already split into lines.
 	YAML     []string
 	ShowYAML bool
+	// Tree is the document as a foldable tree; when it is set, the YAML view
+	// draws it instead of the flat lines, with TreeCursor on one of them.
+	Tree       []TreeLine
+	TreeCursor int
 
 	// Selected is the target index under the cursor, or -1 for none.
 	Selected int
@@ -51,6 +55,78 @@ func RenderObject(t *theme.Theme, d ObjectData, width, height int) string {
 	offset := clamp(d.Offset, max(len(lines)-1, 0))
 	end := min(offset+height, len(lines))
 	return strings.Join(lines[offset:end], "\n")
+}
+
+// TreeLine is one visible node of the document tree.
+type TreeLine struct {
+	Depth  int
+	Branch bool
+	Open   bool
+	// Key is the field name; empty for one line of a multi-line string.
+	Key     string
+	Value   string
+	Summary string
+}
+
+// TreeCursorLine reports which line the tree's cursor is drawn on.
+func (d ObjectData) TreeCursorLine(width int) int {
+	lines, _ := objectLines(nil, d, width)
+	return len(lines) - len(d.Tree) + d.TreeCursor
+}
+
+// treeLine draws one node the way YAML reads, "key: value", behind a fold
+// marker. A folded node says what it holds instead of its value.
+func treeLine(t *theme.Theme, n *TreeLine, selected bool, width int) string {
+	marker := "  "
+	if n.Branch {
+		folded, unfolded := "▸", "▾"
+		if t != nil {
+			folded, unfolded = t.Glyphs.Folded, t.Glyphs.Unfolded
+		}
+		marker = folded + " "
+		if n.Open {
+			marker = unfolded + " "
+		}
+	}
+	indent := strings.Repeat("  ", n.Depth)
+	key := ""
+	if n.Key != "" {
+		key = n.Key
+		if !strings.HasPrefix(n.Key, "[") {
+			key += ":"
+		}
+	}
+	tail := n.Value
+	if n.Branch && (!n.Open || strings.HasPrefix(n.Key, "[")) {
+		tail = n.Summary
+	}
+	plain := indent + marker + strings.TrimSpace(key+" "+tail)
+	if t == nil {
+		return truncateTo(plain, width)
+	}
+	if selected {
+		return t.SelectedRow.Render(padTo(truncateTo(plain, width), width))
+	}
+	head := indent + marker
+	out := t.Muted.Render(head)
+	room := width - lipgloss.Width(head)
+	if key != "" {
+		k := truncateTo(key, room)
+		out += t.Emphasis.Render(k)
+		room -= lipgloss.Width(k)
+	}
+	if tail != "" && room > 1 {
+		style := t.Base
+		if n.Branch {
+			style = t.Muted
+		}
+		sep := " "
+		if key == "" {
+			sep = ""
+		}
+		out += style.Render(truncateTo(sep+tail, room))
+	}
+	return out
 }
 
 // LineCount reports how tall the view is, so the model can bound scrolling.
@@ -93,6 +169,13 @@ func objectLines(t *theme.Theme, d ObjectData, width int) ([]string, map[int]int
 		lines = append(lines, head)
 	}
 
+	if d.ShowYAML && len(d.Tree) > 0 {
+		lines = append(lines, "")
+		for i := range d.Tree {
+			lines = append(lines, treeLine(t, &d.Tree[i], i == d.TreeCursor, width))
+		}
+		return lines, map[int]int{}
+	}
 	if d.ShowYAML {
 		// The document is shown as it came: indentation carries meaning in
 		// YAML, so lines are clipped at the edge rather than wrapped.

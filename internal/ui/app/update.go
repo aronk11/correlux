@@ -4,6 +4,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 
 	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	"github.com/aronk11/correlux/internal/kube/resources"
@@ -48,6 +49,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.theme = theme.New(m.caps, m.cfg.Theme)
 		}
 		return m, nil
+
+	case uv.DarkColorSchemeEvent, uv.LightColorSchemeEvent, tea.FocusMsg:
+		// The system switched between light and dark, or the window came
+		// back to the front, possibly after one. The terminal's background is
+		// what the palette has to match, and it need not follow the system,
+		// so it is asked again rather than assumed.
+		return m, tea.RequestBackgroundColor
 
 	case tea.KeyPressMsg:
 		return m, m.handleKey(msg)
@@ -698,6 +706,11 @@ func (m *Model) handleLogsKey(keystroke string) (tea.Cmd, bool) {
 
 // handleObjectKey moves through one object's relations, and its document.
 func (m *Model) handleObjectKey(keystroke string) (tea.Cmd, bool) {
+	if m.treeActive() {
+		if cmd, handled := m.handleTreeKey(keystroke); handled {
+			return cmd, true
+		}
+	}
 	page := max(m.screen.Body.Height-1, 1)
 	switch keystroke {
 	case "up", "k":

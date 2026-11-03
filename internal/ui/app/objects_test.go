@@ -612,3 +612,81 @@ func TestAnObjectWithNothingToDecodeSaysSo(t *testing.T) {
 		t.Errorf("a key that found nothing to do must say so rather than look broken:\n%s", out)
 	}
 }
+
+func kanzleiObject() *resources.Object {
+	raw := `{"apiVersion":"tenancy.kanzleisuite.de/v1alpha1","kind":"Kanzlei","metadata":{"name":"frisch","finalizers":["tenancy.kanzleisuite.de/cleanup"],"managedFields":[{"manager":"kubectl","operation":"Apply"}]},` +
+		`"status":{"connector":{"clientSecret":"kanzleisuite-connector-cert"},"dbInit":{"job":"db-init-frisch-82cabad4","succeeded":true},"observedGeneration":1,` +
+		`"conditions":[{"type":"Ready","status":"True","reason":"Ready","message":"Kanzlei bereit"}]}}`
+	yaml := "apiVersion: tenancy.kanzleisuite.de/v1alpha1\nkind: Kanzlei\nmetadata:\n  finalizers:\n  - tenancy.kanzleisuite.de/cleanup\n  managedFields:\n  - manager: kubectl\n    operation: Apply\n  name: frisch\n" +
+		"status:\n  conditions:\n  - message: Kanzlei bereit\n    reason: Ready\n    status: \"True\"\n    type: Ready\n  connector:\n    clientSecret: kanzleisuite-connector-cert\n" +
+		"  dbInit:\n    job: db-init-frisch-82cabad4\n    succeeded: true\n  observedGeneration: 1\n"
+	return &resources.Object{
+		Target: resources.Target{GVR: schema.GroupVersionResource{Group: "tenancy.kanzleisuite.de", Version: "v1alpha1", Resource: "kanzleien"}},
+		Kind:   "Kanzlei", Name: "frisch", UID: "frisch-uid", Raw: []byte(raw), YAML: yaml,
+	}
+}
+
+func openKanzlei(t *testing.T) *Model {
+	t.Helper()
+	m := newTestModel(t)
+	loadCatalogInto(m, testCatalog())
+	openDetail(t, m)
+	press(t, m, "enter")
+	loadObjectInto(m, kanzleiObject())
+	return m
+}
+
+func TestACustomResourceShowsItsNestedStatusInFull(t *testing.T) {
+	m := openKanzlei(t)
+	out := plainView(m)
+	if strings.Contains(out, "fields}") {
+		t.Errorf("a summary says there is something to read, not what:\n%s", out)
+	}
+	for _, want := range []string{"connector.clientSecret", "kanzleisuite-connector-cert", "dbInit.job", "db-init-frisch-82cabad4"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the details must spell out %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestTheYAMLViewIsATreeToWalk(t *testing.T) {
+	m := openKanzlei(t)
+	press(t, m, "y")
+	out := plainView(m)
+	if !strings.Contains(out, "clientSecret: kanzleisuite-connector-cert") || !strings.Contains(out, "metadata: {3 fields}") {
+		t.Fatalf("a small resource unfolds, its metadata does not:\n%s", out)
+	}
+	if strings.Contains(out, "managedFields") || strings.Contains(out, "finalizers") {
+		t.Errorf("metadata noise stays folded away:\n%s", out)
+	}
+
+	// Walk to metadata and open it: the noise is one keystroke away, not gone.
+	press(t, m, "down")
+	press(t, m, "down")
+	press(t, m, "right")
+	if out := plainView(m); !strings.Contains(out, "finalizers") || !strings.Contains(out, "managedFields: [1 item]") {
+		t.Errorf("→ unfolds the node under the cursor:\n%s", out)
+	}
+	press(t, m, "left")
+	if strings.Contains(plainView(m), "finalizers") {
+		t.Error("← folds it again")
+	}
+
+	press(t, m, "-")
+	if out := plainView(m); strings.Contains(out, "clientSecret") || !strings.Contains(out, "status: {4 fields}") {
+		t.Errorf("- folds everything:\n%s", out)
+	}
+	press(t, m, "+")
+	if out := plainView(m); !strings.Contains(out, "operation: Apply") {
+		t.Errorf("+ unfolds everything, managedFields included:\n%s", out)
+	}
+}
+
+func TestLeftAtTheTopOfTheTreeStillGoesBack(t *testing.T) {
+	m := openKanzlei(t)
+	press(t, m, "y")
+	press(t, m, "left") // apiVersion: a leaf without a parent
+	if m.view == viewObject {
+		t.Error("← on a top-level leaf leaves the object, as it does everywhere else")
+	}
+}

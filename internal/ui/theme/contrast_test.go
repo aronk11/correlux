@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 	"testing"
@@ -79,4 +80,40 @@ func relativeLuminance(c color.Color) float64 {
 		return math.Pow((s+0.055)/1.055, 2.4)
 	}
 	return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
+}
+
+// TestEveryRoleIsLegibleOnCommonBackgrounds checks the colours drawn straight
+// onto the terminal's own background. Correlux paints no background of its
+// own, so each palette has to hold on the backgrounds people actually run:
+// plain white and black, and the popular light and dark schemes.
+func TestEveryRoleIsLegibleOnCommonBackgrounds(t *testing.T) {
+	hex := func(s string) color.Color {
+		var r, g, b uint8
+		_, _ = fmt.Sscanf(s, "#%02x%02x%02x", &r, &g, &b)
+		return color.RGBA{R: r, G: g, B: b, A: 0xff}
+	}
+	for _, c := range []struct {
+		name        string
+		p           palette
+		backgrounds []string
+	}{
+		// white, macOS Terminal, Solarized Light, Catppuccin Latte, GitHub Light
+		{"light", lightPalette(), []string{"#ffffff", "#f5f5f5", "#fdf6e3", "#eff1f5", "#f6f8fa"}},
+		// black, One Dark, Tokyo Night Storm, Catppuccin Mocha, Dracula
+		{"dark", darkPalette(), []string{"#000000", "#282c34", "#24283b", "#1e1e2e", "#282a36"}},
+	} {
+		for _, bg := range c.backgrounds {
+			for _, pair := range []struct {
+				role string
+				fg   color.Color
+			}{
+				{"fg", c.p.fg}, {"muted", c.p.muted}, {"accent", c.p.accent},
+				{"healthy", c.p.healthy}, {"warn", c.p.warn}, {"crit", c.p.crit},
+			} {
+				if got := contrast(pair.fg, hex(bg)); got < minContrast {
+					t.Errorf("%s: %s on %s is %.2f:1, the floor is %.1f:1", c.name, pair.role, bg, got, minContrast)
+				}
+			}
+		}
+	}
 }

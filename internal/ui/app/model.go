@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	xansi "github.com/charmbracelet/x/ansi"
 
 	"github.com/aronk11/correlux/internal/buildinfo"
 	"github.com/aronk11/correlux/internal/config"
@@ -209,6 +210,8 @@ type Model struct {
 	// It changes what is drawn and nothing else: an edit still sends the
 	// document the server holds.
 	objectDecode bool
+	// tree is the YAML view's document as a foldable tree.
+	tree treeState
 
 	// The log view. The stream lives as long as the view does; leaving it
 	// cancels the context and the connections go with it.
@@ -495,6 +498,9 @@ func New(opts Options) *Model {
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{
 		tea.RequestBackgroundColor,
+		// Ask to be told when the system switches between light and dark
+		// (mode 2031); terminals that do not know it ignore the request.
+		tea.Raw(xansi.SetModeLightDark),
 		m.probeCluster(),
 		m.loadNamespaces(),
 		m.loadCatalog(),

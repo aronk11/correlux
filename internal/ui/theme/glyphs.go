@@ -47,6 +47,10 @@ type Glyphs struct {
 	// what, and neither is left to be inferred from the other.
 	SortAsc  string
 	SortDesc string
+	// Folded and Unfolded mark a node of the document tree that can be
+	// opened, and one that is.
+	Folded   string
+	Unfolded string
 	// Owl is Lux, the night owl Correlux is drawn as: the brand mark beside
 	// the version, and the voice of its quiet moments. It is decoration and
 	// never carries a state on its own: the moods below only echo what the
@@ -80,6 +84,8 @@ var unicodeGlyphs = Glyphs{
 	BarEmpty:  "░",
 	SortAsc:   "↑",
 	SortDesc:  "↓",
+	Folded:    "▸",
+	Unfolded:  "▾",
 	Owl:       "{ʘ,ʘ}",
 	OwlAlarm:  "{◉,◉}",
 	OwlSleepy: "{-,-}",
@@ -106,6 +112,8 @@ var asciiGlyphs = Glyphs{
 	BarEmpty:  ".",
 	SortAsc:   "^",
 	SortDesc:  "v",
+	Folded:    "+",
+	Unfolded:  "-",
 	Owl:       "{o,o}",
 	OwlAlarm:  "{O,O}",
 	OwlSleepy: "{-,-}",

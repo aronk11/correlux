@@ -13,6 +13,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/spf13/cobra"
 
 	"github.com/aronk11/correlux/internal/buildinfo"
@@ -185,6 +186,11 @@ func run(ctx context.Context, flags globalFlags) error {
 
 	defer model.Close()
 	program := tea.NewProgram(model, tea.WithContext(ctx))
+	if isTerminal(os.Stdout) {
+		// Stop the light/dark notifications the TUI asked for, however it
+		// ends; a shell left with them on prints them as stray characters.
+		defer fmt.Fprint(os.Stdout, ansi.ResetModeLightDark)
+	}
 	if _, err := program.Run(); err != nil {
 		if errors.Is(err, tea.ErrInterrupted) || errors.Is(err, context.Canceled) {
 			return nil

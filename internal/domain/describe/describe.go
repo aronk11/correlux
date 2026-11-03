@@ -16,7 +16,6 @@ package describe
 
 import (
 	"encoding/json"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -95,10 +94,15 @@ func ObjectWith(kind string, raw []byte, opts Options) []Section {
 		// A kind with no rules of its own is still described: whatever its
 		// author put in its status is what they wanted anybody to see, and
 		// when it has no status, what its spec sets.
+		// when it has no status, what its spec sets. Both are spelled out
+		// in full: a custom resource is often small, and "{1 fields}" is not
+		// an answer to anything.
 		status := genericSection(doc)
-		sections = append(sections, status)
 		switch {
+		case len(status.Rows) > 0 && len(child(doc, "spec")) > 0:
+			sections = []Section{status, specSection(doc)}
 		case len(status.Rows) > 0:
+			sections = []Section{status}
 		case len(child(doc, "spec")) > 0:
 			sections = []Section{specSection(doc)}
 		default:
@@ -464,9 +468,11 @@ func conditionsSection(doc map[string]any) *Section {
 	return &section
 }
 
-// genericSection is the fallback for a kind with no rules of its own: the
-// scalar fields of its status, which is where a custom resource usually puts
-// the thing its author wanted you to see.
+// genericSection is the fallback for a kind with no rules of its own: its
+// status, which is where a custom resource puts what its author wanted you to
+// see. Nested fields are spelled out to their leaves, path by path: a summary
+// such as "{2 fields}" only says that there is something to read, not what.
+// Conditions are left to their own section.
 func genericSection(doc map[string]any) Section {
 	section := Section{
 		Title:   "Status",
@@ -474,17 +480,77 @@ func genericSection(doc map[string]any) Section {
 		Empty:   "the object reports no status fields",
 	}
 	status := child(doc, "status")
-	keys := make([]string, 0, len(status))
-	for k := range status {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		if rendered := value(status[k]); rendered != "" && !strings.HasPrefix(rendered, "[") {
-			section.Rows = append(section.Rows, []string{k, rendered})
+	rest := make(map[string]any, len(status))
+	for k, v := range status {
+		if k != "conditions" {
+			rest[k] = v
 		}
 	}
+	section.Rows = flatten(rest)
 	return section
+}
+
+// maxFlatRows bounds a flattened section; the YAML view has the rest.
+const maxFlatRows = 200
+
+// flatten spells a document out as one row per leaf, keyed by its path:
+// "identity.realm", "endpoints[0].url". A list of plain values stays on one
+// row, because that is how it reads best.
+func flatten(doc map[string]any) [][]string {
+	var rows [][]string
+	var walk func(path string, v any)
+	walk = func(path string, v any) {
+		if len(rows) >= maxFlatRows {
+			return
+		}
+		switch typed := v.(type) {
+		case map[string]any:
+			if len(typed) == 0 {
+				if path != "" {
+					rows = append(rows, []string{path, "{}"})
+				}
+				return
+			}
+			for _, k := range sortedKeys(typed) {
+				next := k
+				if path != "" {
+					next = path + "." + k
+				}
+				walk(next, typed[k])
+			}
+		case []any:
+			if len(typed) == 0 {
+				rows = append(rows, []string{path, "[]"})
+				return
+			}
+			if scalars(typed) {
+				rows = append(rows, []string{path, preview(value(typed))})
+				return
+			}
+			for i, item := range typed {
+				walk(path+"["+strconv.Itoa(i)+"]", item)
+			}
+		default:
+			if rendered := value(typed); rendered != "" {
+				rows = append(rows, []string{path, preview(rendered)})
+			}
+		}
+	}
+	walk("", doc)
+	if len(rows) >= maxFlatRows {
+		rows = append(rows, []string{"…", "more fields in the YAML view"})
+	}
+	return rows
+}
+
+func scalars(list []any) bool {
+	for _, item := range list {
+		switch item.(type) {
+		case map[string]any, []any:
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Section) add(label, value string) {

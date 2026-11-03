@@ -109,7 +109,7 @@ type palette struct {
 func darkPalette() palette {
 	return palette{
 		fg:          lipgloss.Color("#e6e6e6"),
-		muted:       lipgloss.Color("#8a8f98"),
+		muted:       lipgloss.Color("#9aa0aa"),
 		subtle:      lipgloss.Color("#5c626b"),
 		accent:      lipgloss.Color("#7aa2f7"),
 		healthy:     lipgloss.Color("#4ec9a5"),
@@ -134,11 +134,11 @@ func darkPalette() palette {
 func lightPalette() palette {
 	return palette{
 		fg:          lipgloss.Color("#1f2328"),
-		muted:       lipgloss.Color("#6a737d"),
+		muted:       lipgloss.Color("#57606a"),
 		subtle:      lipgloss.Color("#98a0a8"),
 		accent:      lipgloss.Color("#1f5fbf"),
-		healthy:     lipgloss.Color("#1a7f4b"),
-		warn:        lipgloss.Color("#9a6700"),
+		healthy:     lipgloss.Color("#126b40"),
+		warn:        lipgloss.Color("#855800"),
 		crit:        lipgloss.Color("#c02637"),
 		border:      lipgloss.Color("#d0d7de"),
 		borderFocus: lipgloss.Color("#1f5fbf"),

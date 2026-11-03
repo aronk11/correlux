@@ -929,7 +929,7 @@ Optional. Correlux runs correctly with no config file.
 - Windows: `%APPDATA%\correlux\config.yaml`
 
 ```yaml
-theme: auto # auto | dark | light
+theme: auto # auto | dark | light — auto follows the terminal's background, and switches with the system's light/dark mode
 airGapped: false # true blocks all release checks and public debug-image defaults
 
 startup:

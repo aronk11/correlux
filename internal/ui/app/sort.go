@@ -319,9 +319,12 @@ func (m *Model) clickBody(x, y int) tea.Cmd {
 		data, targets := m.applicationView()
 		return m.clickTargetRow(data.TargetLines(m.screen.Body.Width), len(targets), &m.detailPort, row, m.openSelectedObject)
 	case viewObject:
+		if m.treeActive() {
+			return m.clickTree(row)
+		}
 		if m.objectYAML {
-			// The document has nothing to select in this mode; a click has
-			// nothing to do here either.
+			// A document that could not be read as a tree has nothing to
+			// select; a click has nothing to do here either.
 			return nil
 		}
 		data, targets := m.objectView()

@@ -112,6 +112,7 @@ func (m *Model) showObject(ref objectRef) tea.Cmd {
 	m.objectPort.Cursor = 0
 	m.objectYAML = false
 	m.objectDecode = false
+	m.resetTree()
 	m.rebuildCommands()
 	return m.loadObject()
 }
@@ -234,13 +235,17 @@ func (m *Model) objectView() (screens.ObjectData, []objectRef) {
 	d.Name = obj.Name
 	d.Namespace = obj.Namespace
 	d.Subtitle = strings.TrimSpace(groupVersionOf(obj) + "   age " + formatAge(obj.CreatedAt, now))
-	d.YAML = splitDocument(obj.YAML)
+	document := obj.YAML
 	if m.objectDecode {
-		document, values := decode.Document(obj.Raw)
+		decoded, values := decode.Document(obj.Raw)
 		if values > 0 {
-			d.YAML = splitDocument(document)
+			document = decoded
 		}
 		d.Subtitle += "   " + decodeNote(values)
+	}
+	d.YAML = splitDocument(document)
+	if m.objectYAML {
+		d.Tree, d.TreeCursor = m.treeLines(document)
 	}
 
 	if pod, ok := m.podFor(obj); ok {
