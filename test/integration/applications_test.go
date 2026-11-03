@@ -216,7 +216,8 @@ func TestOpeningAnObjectFromTheClusterShowsItsDocument(t *testing.T) {
 	}
 
 	m.ShowYAMLForTest()
-	yaml := frame(m)
+	// Key and value are styled apart in the tree, so read it as text.
+	yaml := ansi.ReplaceAllString(frame(m), "")
 	if !strings.Contains(yaml, "apiVersion:") || !strings.Contains(yaml, "kind: Deployment") {
 		t.Errorf("the document the server holds must be readable:\n%s", yaml)
 	}
@@ -247,7 +248,7 @@ func TestOpeningACustomResourceFromTheBrowser(t *testing.T) {
 	}
 
 	m.ShowYAMLForTest()
-	if yaml := frame(m); !strings.Contains(yaml, "apiVersion:") || !strings.Contains(yaml, "kind: Widget") {
+	if yaml := ansi.ReplaceAllString(frame(m), ""); !strings.Contains(yaml, "apiVersion:") || !strings.Contains(yaml, "kind: Widget") {
 		t.Errorf("its document must be readable:\n%s", yaml)
 	}
 }
