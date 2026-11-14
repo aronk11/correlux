@@ -152,3 +152,40 @@ func TestAnOrganisationsOwnLabelsAreReadFirst(t *testing.T) {
 		t.Errorf("configured labels come first: %+v", custom)
 	}
 }
+
+func TestAConfigMapsAddressesBecomeDependenciesOfThePodsThatUseIt(t *testing.T) {
+	s := dependencySnapshot()
+	s.Pods[0].References = nil
+	s.Pods[0].ConfigSources = []ConfigSource{
+		{ConfigMap: "shop-config"},                                  // envFrom: every key
+		{ConfigMap: "cache-config", Key: "REDIS_URL", Env: "CACHE"}, // one key of another
+	}
+	apps := Group(s)
+	if deps := find(t, apps, "checkout").DependsOn; len(deps) != 0 {
+		t.Fatalf("nothing in the pod names a host, got %+v", deps)
+	}
+
+	LinkConfigDependencies(apps, []ConfigReference{
+		{Namespace: "payments", ConfigMap: "shop-config", Key: "DATABASE_URL", Host: "postgres"},
+		{Namespace: "payments", ConfigMap: "cache-config", Key: "REDIS_URL", Host: "redis.cache.svc"},
+		{Namespace: "payments", ConfigMap: "cache-config", Key: "OTHER_URL", Host: "postgres"}, // not the key the pod takes
+		{Namespace: "elsewhere", ConfigMap: "shop-config", Key: "X_URL", Host: "redis.cache.svc"},
+	})
+	var got []string
+	for _, d := range find(t, apps, "checkout").DependsOn {
+		got = append(got, d.Name+" via "+d.Via)
+	}
+	want := []string{"redis via ConfigMap/cache-config key REDIS_URL", "postgres via ConfigMap/shop-config key DATABASE_URL"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("depends on %v, want %v", got, want)
+	}
+	if used := find(t, apps, "postgres").UsedBy; len(used) != 1 {
+		t.Errorf("postgres used by %v", used)
+	}
+
+	// Run again, as every refresh does: the result must not accumulate.
+	LinkConfigDependencies(apps, nil)
+	if deps := find(t, apps, "checkout").DependsOn; len(deps) != 0 {
+		t.Errorf("without references the pod-only reading is restored, got %+v", deps)
+	}
+}

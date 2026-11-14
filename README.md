@@ -240,8 +240,10 @@ is not something the cluster shows. A variable counts only when its value is a
 URL or cluster DNS name, or its own name says it holds an address
 (`REDIS_HOST`, `KAFKA_BROKERS`): `MODE=api` next to a Service called `api` is a
 coincidence. Only the host is kept — never the value, which is where the
-password is — and variables filled from Secrets and ConfigMaps are not
-followed ([ADR 31](docs/adr/0031-dependencies-and-placement.md)).
+password is. Variables that come from a ConfigMap (`envFrom`,
+`configMapKeyRef`) are followed once the application's evidence is loaded:
+exactly the ConfigMaps the pods name are read, by name, and shown as
+`ConfigMap/shop-config key DATABASE_URL`. Secrets are never read for this ([ADR 31](docs/adr/0031-dependencies-and-placement.md)).
 
 Health starts with what the cluster reports in replica counts and pod states.
 Evicted pods that were already replaced do not count against an application;

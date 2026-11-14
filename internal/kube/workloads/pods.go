@@ -50,6 +50,7 @@ func fromPod(p *corev1.Pod) application.Pod {
 	out.Message = p.Status.Message
 	out.Overhead = amountsOf(p.Spec.Overhead)
 	out.References = references(p)
+	out.ConfigSources = configSources(p)
 	out.Spread = len(p.Spec.TopologySpreadConstraints) > 0 ||
 		(p.Spec.Affinity != nil && p.Spec.Affinity.PodAntiAffinity != nil)
 	for i := range p.Spec.Volumes {
@@ -86,6 +87,34 @@ func references(p *corev1.Pod) []application.Reference {
 				if len(out) == maxReferences {
 					return out
 				}
+			}
+		}
+	}
+	return out
+}
+
+// configSources lists the ConfigMaps the pod's environment is filled from.
+// Secrets are left out on purpose and for good: see references.
+func configSources(p *corev1.Pod) []application.ConfigSource {
+	var out []application.ConfigSource
+	seen := map[application.ConfigSource]bool{}
+	add := func(s application.ConfigSource) {
+		if s.ConfigMap != "" && !seen[s] && len(out) < maxReferences {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	for i := range p.Spec.Containers {
+		c := &p.Spec.Containers[i]
+		for _, from := range c.EnvFrom {
+			if from.ConfigMapRef != nil {
+				add(application.ConfigSource{ConfigMap: from.ConfigMapRef.Name, Prefix: from.Prefix})
+			}
+		}
+		for _, env := range c.Env {
+			if env.ValueFrom != nil && env.ValueFrom.ConfigMapKeyRef != nil {
+				ref := env.ValueFrom.ConfigMapKeyRef
+				add(application.ConfigSource{ConfigMap: ref.Name, Key: ref.Key, Env: env.Name})
 			}
 		}
 	}

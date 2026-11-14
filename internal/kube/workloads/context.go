@@ -3,6 +3,7 @@ package workloads
 import (
 	"context"
 	"sort"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -134,6 +135,7 @@ func CollectContext(ctx context.Context, cs kubernetes.Interface, opts Options) 
 	})
 
 	collectEcosystem(ctx, &g, cs, opts, &out)
+	collectConfigReferences(ctx, &g, cs, opts, &out)
 
 	gaps, _, err := g.wait()
 	if err != nil {
@@ -146,6 +148,48 @@ func CollectContext(ctx context.Context, cs kubernetes.Interface, opts Options) 
 	}
 	out.Revisions = pruneRevisions(out.Revisions)
 	return out, nil
+}
+
+// maxConfigMaps bounds how many ConfigMaps one evidence pass reads. They are
+// fetched one by one, by name, because the alternative — listing every
+// ConfigMap in scope with its data — pulls megabytes of other people's
+// configuration to find a dozen URLs.
+const maxConfigMaps = 40
+
+// collectConfigReferences reads the named ConfigMaps and keeps, of each
+// value, only the hosts it points at. A ConfigMap that cannot be read is not
+// a gap: the dependency it would have shown is simply not shown.
+func collectConfigReferences(ctx context.Context, g *group, cs kubernetes.Interface, opts Options, out *application.Context) {
+	names := opts.ConfigMaps
+	if len(names) > maxConfigMaps {
+		names = names[:maxConfigMaps]
+	}
+	if len(names) == 0 {
+		return
+	}
+	g.quiet(func() {
+		for _, full := range names {
+			if ctx.Err() != nil {
+				return
+			}
+			namespace, name, ok := strings.Cut(full, "/")
+			if !ok {
+				continue
+			}
+			cm, err := cs.CoreV1().ConfigMaps(namespace).Get(ctx, name, metav1.GetOptions{})
+			if err != nil {
+				continue
+			}
+			var refs []application.ConfigReference
+			for key, value := range cm.Data {
+				for _, r := range application.ReferencesIn(key, value) {
+					refs = append(refs, application.ConfigReference{Namespace: namespace, ConfigMap: name, Key: key, Host: r.Host})
+				}
+			}
+			sort.Slice(refs, func(i, j int) bool { return refs[i].Key+refs[i].Host < refs[j].Key+refs[j].Host })
+			g.collect(func() { out.ConfigReferences = append(out.ConfigReferences, refs...) })
+		}
+	})
 }
 
 // addSlice folds one EndpointSlice into its service's counts. A service is
