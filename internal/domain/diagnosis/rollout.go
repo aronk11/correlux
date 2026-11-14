@@ -116,6 +116,13 @@ func rolloutStalled(in *Input) []Diagnosis {
 		if cause == "" {
 			cause = "the controller reports " + orUnknown(w.StalledReason)
 		}
+		detail := "Progressing=False: " + orUnknown(w.StalledReason)
+		command := "kubectl rollout status " + strings.ToLower(w.Kind) + "/" + w.Name + " -n " + w.Namespace + " --timeout=1s"
+		if w.Kind == "Rollout" {
+			// Argo Rollouts has its own vocabulary and its own plugin.
+			detail = "phase " + orUnknown(w.StalledReason)
+			command = "kubectl argo rollouts get rollout " + w.Name + " -n " + w.Namespace
+		}
 		out = append(out, Diagnosis{
 			Rule:        "workload.stalled",
 			Severity:    Warning,
@@ -126,10 +133,10 @@ func rolloutStalled(in *Input) []Diagnosis {
 			Consequence: anyPodNotReady(&in.App),
 			Chain:       chain(&in.App, "rollout", orUnknown(w.StalledReason)),
 			Evidence: []Evidence{{Kind: w.Kind, Name: w.Name,
-				Detail: "Progressing=False: " + orUnknown(w.StalledReason) + ", " + strconv.Itoa(int(w.Updated)) +
+				Detail: detail + ", " + strconv.Itoa(int(w.Updated)) +
 					" of " + strconv.Itoa(int(w.Desired)) + " replicas updated"}},
 			Suggestions: []Suggestion{{Text: "See where the rollout stopped",
-				Command: "kubectl rollout status " + strings.ToLower(w.Kind) + "/" + w.Name + " -n " + w.Namespace + " --timeout=1s"}},
+				Command: command}},
 		})
 	}
 	return out
