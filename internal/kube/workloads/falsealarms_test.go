@@ -3,11 +3,14 @@ package workloads
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/aronk11/correlux/internal/domain/application"
@@ -186,5 +189,34 @@ func TestConfigMapsAreReducedToTheHostsTheyName(t *testing.T) {
 	}
 	if r := evidence.ConfigReferences[0]; r.Host != "postgres" || r.Key != "DATABASE_URL" {
 		t.Errorf("reference = %+v, want the key and the host, nothing of the value", r)
+	}
+}
+
+func TestArgoCDAutomationSwitchedOffInsideTheBlockIsOff(t *testing.T) {
+	parse := func(doc string) bool {
+		var a argoItem
+		if err := json.Unmarshal([]byte(doc), &a); err != nil {
+			t.Fatal(err)
+		}
+		return a.toGitOps().Automated
+	}
+	if !parse(`{"spec":{"syncPolicy":{"automated":{"prune":true}}}}`) {
+		t.Error("an automated block is automation")
+	}
+	if parse(`{"spec":{"syncPolicy":{"automated":{"enabled":false}}}}`) {
+		t.Error("enabled: false inside it is not")
+	}
+	if parse(`{"spec":{"syncPolicy":{}}}`) {
+		t.Error("no block is no automation")
+	}
+}
+
+func TestARefusedOptionalKindIsTreatedAsAbsent(t *testing.T) {
+	forbidden := apierrors.NewForbidden(schema.GroupResource{Group: "gateway.networking.k8s.io", Resource: "httproutes"}, "", nil)
+	if !optionalRefused(forbidden) {
+		t.Error("a 403 on an optional kind must not become a gap on every application")
+	}
+	if optionalRefused(apierrors.NewInternalError(errors.New("boom"))) {
+		t.Error("a real failure is still a failure")
 	}
 }

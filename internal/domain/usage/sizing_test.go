@@ -8,7 +8,8 @@ import (
 )
 
 func sized(pods, measured int, used, requests, limits application.Amounts) *AppUsage {
-	return &AppUsage{Name: "api", Pods: pods, Measured: measured, Used: used, Requests: requests, Limits: limits}
+	return &AppUsage{Name: "api", Pods: pods, Measured: measured, Used: used, Requests: requests, Limits: limits,
+		MemoryBounded: limits.HasMemory}
 }
 
 func TestSizingSaysTheOneThingWorthKnowing(t *testing.T) {
@@ -47,5 +48,20 @@ func TestIdleCountsOnlyWhatWasFullyMeasured(t *testing.T) {
 	cpu, memory, covered := Idle(apps)
 	if cpu != 800 || memory != (1<<30)-(256<<20) || covered != 2 {
 		t.Errorf("idle = %dm, %d bytes over %d applications", cpu, memory, covered)
+	}
+}
+
+func TestALimitOnOnlyTheSidecarIsNotACeilingForThePod(t *testing.T) {
+	app := container("app", both(500, 512<<20), application.Amounts{})
+	proxy := container("istio-proxy", both(100, 128<<20), both(200, 256<<20))
+	p := pod("api-0", "node-1", app, proxy)
+	a := application.Application{Name: "api", Pods: []application.Pod{p}}
+	used := map[string]application.Amounts{p.Namespace + "/" + p.Name: both(300, 900<<20)}
+	rows := buildApps([]application.Application{a}, used)
+	if len(rows) != 1 || rows[0].MemoryBounded {
+		t.Fatalf("rows = %+v, want one application whose memory is not bounded", rows)
+	}
+	if text, _ := Sizing(&rows[0]); strings.Contains(text, "limit") {
+		t.Errorf("900Mi against the sidecar's 256Mi is not 352%% of a limit: %q", text)
 	}
 }

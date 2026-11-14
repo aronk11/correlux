@@ -100,6 +100,30 @@ type Workload struct {
 	GroupedBy Reason
 }
 
+// Superseded reports a Job that a later run of the same CronJob has made
+// history: it failed, and a newer Job with the same owner did not.
+//
+// The comparison is only among runs of one CronJob. A CronJob keeps its last
+// failed run for reference, and that is not the state of a job that has
+// succeeded since. A Job nobody schedules has no later run to be superseded
+// by — a failed migration stays failed, whatever else ran after it.
+func (w *Workload) Superseded(siblings []Workload) bool {
+	owner, ok := w.Controller()
+	if !ok || owner.Kind != "CronJob" || w.CreatedAt.IsZero() {
+		return false
+	}
+	for i := range siblings {
+		s := &siblings[i]
+		if s.Kind != "Job" || s.Failed || !s.CreatedAt.After(w.CreatedAt) {
+			continue
+		}
+		if o, ok := s.Controller(); ok && o.Kind == "CronJob" && o.UID == owner.UID && o.Name == owner.Name {
+			return true
+		}
+	}
+	return false
+}
+
 // Pod is one pod, reduced to what health and grouping need.
 type Pod struct {
 	Meta
@@ -252,6 +276,25 @@ func (p *Pod) Terminal() bool { return p.Phase == "Succeeded" }
 // Job, it is the outcome.
 func (p *Pod) Failed() bool { return p.Phase == "Failed" }
 
+// Discarded reports a failed pod that its node gave up on rather than one
+// that ran and failed: evicted, shut down with the machine, preempted. Under
+// a controller with a replica count such a pod has been replaced. A Job's
+// pod that exited with an error is not this — it is the Job's result — even
+// when a Deployment happens to share its application.
+func (p *Pod) Discarded() bool {
+	if !p.Failed() {
+		return false
+	}
+	if ref, ok := p.Controller(); ok && ref.Kind == "Job" {
+		return false
+	}
+	switch p.Reason {
+	case "Evicted", "Shutdown", "NodeShutdown", "Terminated", "NodeAffinity", "Preempting", "NodeLost":
+		return true
+	}
+	return false
+}
+
 // Service is one service and the pods it selects.
 type Service struct {
 	Meta
@@ -289,6 +332,9 @@ type Ingress struct {
 	// such handshake. The Kind in Meta says which of the two this is.
 	Gateways []string
 	Rejected []string
+	// Unresolved is the other thing a Gateway reports: it took the route, and
+	// a backend the route names does not resolve.
+	Unresolved []string
 	// GroupedBy is why this ingress belongs to its application, captured at
 	// grouping time so it never has to be recomputed to answer for itself.
 	GroupedBy Reason

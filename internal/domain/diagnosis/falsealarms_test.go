@@ -28,7 +28,8 @@ func TestAnAutoscalerStandingDownAtZeroReplicasIsNotBlind(t *testing.T) {
 func TestAnOldFailedRunOfACronJobIsHistoryOnceALaterRunWorked(t *testing.T) {
 	job := func(name string, age time.Duration, failed bool) application.Workload {
 		return application.Workload{
-			Meta:   application.Meta{Kind: "Job", Name: name, Namespace: "shop", UID: name, CreatedAt: now.Add(-age)},
+			Meta: application.Meta{Kind: "Job", Name: name, Namespace: "shop", UID: name, CreatedAt: now.Add(-age),
+				Owners: []application.OwnerRef{{Kind: "CronJob", Name: "backup", UID: "cj", Controller: true}}},
 			Failed: failed, FailedReason: "BackoffLimitExceeded",
 		}
 	}
@@ -39,6 +40,28 @@ func TestAnOldFailedRunOfACronJobIsHistoryOnceALaterRunWorked(t *testing.T) {
 	a.Workloads = []application.Workload{job("backup-old", 72*time.Hour, false), job("backup-new", time.Hour, true)}
 	if d := find(t, diagnose(t, &Input{App: a}), "job.failed"); !strings.Contains(d.Problem, "backup-new") {
 		t.Errorf("the newest run failed and must be named: %q", d.Problem)
+	}
+}
+
+func TestAFailedJobIsNotHiddenByALaterJobOfSomethingElse(t *testing.T) {
+	a := application.Application{Name: "release", Namespace: "shop", Workloads: []application.Workload{
+		{Meta: application.Meta{Kind: "Job", Name: "migrate", Namespace: "shop", CreatedAt: now.Add(-time.Hour)},
+			Failed: true, FailedReason: "BackoffLimitExceeded"},
+		{Meta: application.Meta{Kind: "Job", Name: "seed", Namespace: "shop", CreatedAt: now}, Completed: true},
+	}}
+	if d := find(t, diagnose(t, &Input{App: a}), "job.failed"); !strings.Contains(d.Problem, "migrate") {
+		t.Errorf("problem = %q", d.Problem)
+	}
+}
+
+func TestAProbeKillOfAServerThatShutsDownCleanlyIsStillTheProbe(t *testing.T) {
+	c := waiting("CrashLoopBackOff", "")
+	c.Restarts, c.LastExitCode, c.LastReason = 6, 0, "Completed"
+	events := []application.Event{warning(podAbout("payments-1"), "Unhealthy",
+		"Liveness probe failed: HTTP probe failed with statuscode: 503")}
+	d := find(t, diagnose(t, &Input{App: app(pod("payments-1", c)), Context: application.Context{Events: events}}), "pod.crashloop")
+	if !strings.Contains(d.Cause, "liveness probe fails") {
+		t.Errorf("a clean exit after SIGTERM is the kubelet's kill: %q", d.Cause)
 	}
 }
 

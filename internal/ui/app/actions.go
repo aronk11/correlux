@@ -1412,6 +1412,11 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 		m.view = viewApplications
 	}
 	reload := m.loadApplications()
+	if m.view == viewOverview {
+		// The session screen is on screen and everything on it was just
+		// thrown away; nothing else would ask again until the user left.
+		reload = tea.Batch(reload, m.loadEvidence(), m.loadPermissions())
+	}
 	if m.view == viewUsage {
 		// The numbers belong to the scope they were read in; a new scope means
 		// a new reading, not the old one under a new heading.

@@ -91,7 +91,7 @@ func (a *Application) evaluate() {
 			// that failed to become ready.
 			continue
 		}
-		if p.Failed() && replicated {
+		if p.Discarded() && replicated {
 			// Evicted, or shut down with its node: the pod is dead for good and
 			// its controller has already been asked for another. The replica
 			// counts above say whether that one arrived. Counting the corpse as
@@ -203,14 +203,14 @@ func (a *Application) latestJobFailed() string {
 	var latest *Workload
 	for i := range a.Workloads {
 		w := &a.Workloads[i]
-		if w.Kind != "Job" {
+		if w.Kind != "Job" || !w.Failed || w.Superseded(a.Workloads) {
 			continue
 		}
 		if latest == nil || w.CreatedAt.After(latest.CreatedAt) {
 			latest = w
 		}
 	}
-	if latest == nil || !latest.Failed {
+	if latest == nil {
 		return ""
 	}
 	out := "Job " + latest.Name + " failed"

@@ -26,7 +26,11 @@ branches on a list of known kinds beyond the two conversions.
 a second ([ADR 17](0017-timed-refresh-not-watches.md)). A 404 for
 `gateway.networking.k8s.io` is remembered per cluster for the session, so a
 cluster without it costs one request, not one per refresh. A Gateway API
-installed mid-session is seen after a restart; that is the price.
+installed mid-session is seen after a restart; that is the price. A refusal is
+treated the same way: the API server authorises before it looks a resource up,
+so an account whose role does not mention the group is answered 403 whether or
+not the group exists, and reporting that put a gap on every application of
+clusters that never had a route.
 
 **Argo CD Applications are evidence**, read with the Flux objects on the
 on-demand pass ([ADR 18](0018-evidence-on-demand.md)), in the application's

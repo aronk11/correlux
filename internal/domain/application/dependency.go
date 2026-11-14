@@ -267,11 +267,24 @@ func hostOf(piece string) (host string, url bool) {
 	if _, rest, ok := strings.Cut(piece, "://"); ok {
 		piece, url = rest, true
 	}
-	if at := strings.IndexAny(piece, "/?#"); at >= 0 {
-		piece = piece[:at]
+	// The authority normally ends at the first slash. The exception is a
+	// password holding one of the characters that end it: then what was cut
+	// off is "user:half-a-password", which shows as a "port" that is not a
+	// number, and the host is what follows the last @ instead.
+	authority := func(s string) string {
+		if at := strings.IndexAny(s, "/?#"); at >= 0 {
+			return s[:at]
+		}
+		return s
 	}
-	if at := strings.LastIndex(piece, "@"); at >= 0 {
-		piece = piece[at+1:] // user:password@
+	first := authority(piece)
+	if at := strings.LastIndex(first, "@"); at >= 0 {
+		piece = first[at+1:]
+	} else if _, port, found := strings.Cut(first, ":"); found && !numeric(port) &&
+		!strings.Contains(first, "(") && strings.Contains(piece, "@") {
+		piece = authority(piece[strings.LastIndex(piece, "@")+1:])
+	} else {
+		piece = first
 	}
 	// tcp(host:port), as Go's MySQL driver writes it.
 	if open := strings.Index(piece, "("); open >= 0 {
@@ -281,6 +294,18 @@ func hostOf(piece string) (host string, url bool) {
 		piece = piece[:colon]
 	}
 	return strings.ToLower(piece), url
+}
+
+func numeric(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // hostLike reports whether s could be a DNS name: labels of letters, digits

@@ -92,6 +92,11 @@ type AppUsage struct {
 	Requests application.Amounts
 	Limits   application.Amounts
 	Used     application.Amounts
+	// MemoryBounded is true when every container of every pod counted has a
+	// memory limit. Only then is the summed limit a ceiling for the summed
+	// usage: with one unlimited container beside a limited sidecar, the sum
+	// is the sidecar's limit and the usage is the whole pod's.
+	MemoryBounded bool
 }
 
 // NamespaceUsage is one namespace's share of a cluster-wide reading. It is
@@ -402,7 +407,7 @@ func buildApps(apps []application.Application, podSamples map[string]application
 	out := make([]AppUsage, 0, len(apps))
 	for i := range apps {
 		app := &apps[i]
-		usage := AppUsage{Name: app.Name, Namespace: app.Namespace}
+		usage := AppUsage{Name: app.Name, Namespace: app.Namespace, MemoryBounded: true}
 		nodes := map[string]bool{}
 		for j := range app.Pods {
 			pod := &app.Pods[j]
@@ -413,6 +418,11 @@ func buildApps(apps []application.Application, podSamples map[string]application
 			usage.Pods++
 			usage.Requests = usage.Requests.Add(requests)
 			usage.Limits = usage.Limits.Add(Limits(pod))
+			for k := range pod.Containers {
+				if c := &pod.Containers[k]; (!c.Init || c.Sidecar) && !c.Limits.HasMemory {
+					usage.MemoryBounded = false
+				}
+			}
 			if !requests.HasCPU && !requests.HasMemory {
 				usage.Unsized++
 			}

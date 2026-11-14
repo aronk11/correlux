@@ -294,6 +294,11 @@ func scan(
 			}
 			return nil
 		default:
+			// What arrived before the connection broke is still what the
+			// container printed.
+			if len(line) > 0 || oversized {
+				flush()
+			}
 			return err
 		}
 	}

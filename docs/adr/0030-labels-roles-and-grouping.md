@@ -36,6 +36,10 @@ name label, then the application's name, then the image it runs, matched
 exactly or by a family prefix that ends at a dash. Never by substring: `kong`
 is an ingress controller and `kongregate-api` is somebody's application. The
 evidence is kept and shown, so the claim can be checked against the object.
+Family prefixes and names that are also
+ordinary words (`registry`, `vector`, `flux`) are trusted only from the chart's
+own name label or the main container's image, never from a bare `app` label or
+the application's name, and a sidecar's image never decides.
 An application not on the list has no role. A role is a fact about a name; it
 carries a sentence about what leans on it, shown only while the application is
 unwell, and that sentence never claims the failure has already had the effect.

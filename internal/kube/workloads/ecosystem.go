@@ -368,7 +368,9 @@ type argoItem struct {
 	Metadata objectMeta `json:"metadata"`
 	Spec     struct {
 		SyncPolicy struct {
-			Automated *struct{} `json:"automated"`
+			Automated *struct {
+				Enabled *bool `json:"enabled"`
+			} `json:"automated"`
 		} `json:"syncPolicy"`
 	} `json:"spec"`
 	Status struct {
@@ -400,7 +402,7 @@ func (a *argoItem) toGitOps() application.GitOpsObject {
 		Message:          a.Status.Health.Message,
 		Operation:        a.Status.OperationState.Phase,
 		OperationMessage: a.Status.OperationState.Message,
-		Automated:        a.Spec.SyncPolicy.Automated != nil,
+		Automated:        a.automated(),
 	}
 	// Argo CD's conditions are not all complaints; the ones that are end in
 	// "Error" by its own convention (ComparisonError, SyncError, …).
@@ -410,6 +412,13 @@ func (a *argoItem) toGitOps() application.GitOpsObject {
 		}
 	}
 	return out
+}
+
+// automated reports whether Argo CD syncs this Application by itself: the
+// block is present, and not switched off inside.
+func (a *argoItem) automated() bool {
+	auto := a.Spec.SyncPolicy.Automated
+	return auto != nil && (auto.Enabled == nil || *auto.Enabled)
 }
 
 type metadataItem struct {
