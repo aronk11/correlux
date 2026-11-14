@@ -100,3 +100,26 @@ func TestAnArgoCDApplicationIsReducedToItsOwnVerdict(t *testing.T) {
 		t.Errorf("only the *Error conditions are complaints: %v", g.Errors)
 	}
 }
+
+func TestAGatewayRouteIsReadAsWhereTrafficComesIn(t *testing.T) {
+	var r routeItem
+	if err := json.Unmarshal([]byte(`{"metadata":{"name":"shop","namespace":"payments"},
+		"spec":{"hostnames":["shop.example.com"],"parentRefs":[{"name":"public"}],
+		"rules":[{"backendRefs":[{"name":"checkout","port":80},{"name":"elsewhere","namespace":"other"},{"kind":"ServiceImport","name":"x"}]},
+		         {"backendRefs":[{"name":"checkout"}]}]},
+		"status":{"parents":[{"parentRef":{"name":"public"},"conditions":[
+			{"type":"Accepted","status":"False","reason":"NotAllowedByListeners","message":"no listener allows routes from namespace payments"},
+			{"type":"ResolvedRefs","status":"True"}]}]}}`), &r); err != nil {
+		t.Fatal(err)
+	}
+	got := r.toIngress("HTTPRoute")
+	if got.Kind != "HTTPRoute" || len(got.Hosts) != 1 || len(got.Gateways) != 1 {
+		t.Errorf("got %+v", got)
+	}
+	if len(got.Backends) != 1 || got.Backends[0] != "checkout" {
+		t.Errorf("backends = %v, want the one Service next door, once", got.Backends)
+	}
+	if len(got.Rejected) != 1 || got.Rejected[0] != "Gateway/public: Accepted=False (NotAllowedByListeners) — no listener allows routes from namespace payments" {
+		t.Errorf("rejected = %v", got.Rejected)
+	}
+}

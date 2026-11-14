@@ -160,6 +160,7 @@ var rules = []rule{
 	replicasMissing,
 	serviceWithoutEndpoints,
 	ingressWithoutBackend,
+	routeRejected,
 	rolloutPaused,
 	rolloutStalled,
 	rolloutChanged,

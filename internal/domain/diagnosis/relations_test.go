@@ -141,3 +141,21 @@ func TestAHealthyArgoCDApplicationIsNotAFinding(t *testing.T) {
 		none(t, findings, rule)
 	}
 }
+
+func TestARouteItsGatewayRefusedIsTheFirstThingToRead(t *testing.T) {
+	p := pod("payments-1")
+	p.Ready = true
+	a := app(p)
+	a.Ingresses = []application.Ingress{{
+		Meta:     application.Meta{Kind: "HTTPRoute", Name: "shop", Namespace: "shop"},
+		Gateways: []string{"public"},
+		Rejected: []string{"Gateway/public: Accepted=False (NotAllowedByListeners) — no listener allows routes from namespace shop"},
+	}}
+	d := find(t, diagnose(t, &Input{App: a}), "route.rejected")
+	if !strings.Contains(d.Problem, "HTTPRoute/shop") || !strings.Contains(d.Cause, "NotAllowedByListeners") {
+		t.Errorf("problem %q cause %q", d.Problem, d.Cause)
+	}
+
+	a.Ingresses[0].Rejected = nil
+	none(t, diagnose(t, &Input{App: a}), "route.rejected")
+}
