@@ -487,7 +487,7 @@ func (m *Model) fleetData() screens.FleetData {
 					orNone(instance.Namespace),
 					instance.Health.String(),
 					itoa(int(instance.ReadyPods)) + "/" + itoa(int(instance.DesiredPods)),
-					instanceDetail(instance),
+					fleetInstanceDetail(instance),
 				},
 				Status: healthStatus(instance.Health),
 				Target: target,
@@ -497,6 +497,30 @@ func (m *Model) fleetData() screens.FleetData {
 	}
 
 	d.Sections = []screens.DetailSection{clusters, nodes, applications}
+
+	// Version drift is drawn only when there is some: it is the fleet's own
+	// question — which cluster did the rollout not reach — and an empty table
+	// saying "none" would sit on every healthy fleet's screen for nothing.
+	if drifts := fleet.Drifts(m.fleetRows()); len(drifts) > 0 {
+		drift := screens.DetailSection{
+			Title:   "Version drift",
+			Columns: []string{"Application", "Namespace", "Versions"},
+		}
+		for i, dr := range drifts {
+			if i == maxFleetDrift {
+				drift.Rows = append(drift.Rows, screens.DetailRow{Target: -1, Cells: []string{
+					m.theme.Glyphs.Ellipsis + " " + itoa(len(drifts)-i) + " more"}})
+				break
+			}
+			parts := make([]string, 0, len(dr.Versions))
+			for _, v := range dr.Versions {
+				parts = append(parts, v.Version+" in "+strings.Join(v.Contexts, ", "))
+			}
+			drift.Rows = append(drift.Rows, screens.DetailRow{Target: -1,
+				Cells: []string{dr.Name, orNone(dr.Namespace), strings.Join(parts, " · ")}})
+		}
+		d.Sections = append(d.Sections, drift)
+	}
 	return d
 }
 
@@ -745,6 +769,21 @@ func memberStatus(m fleet.Member) theme.Status {
 	default:
 		return theme.StatusUnknown
 	}
+}
+
+// maxFleetDrift bounds the drift table: past a screenful it is a report, and
+// the resource browser across the fleet answers that better.
+const maxFleetDrift = 15
+
+// fleetInstanceDetail leads with the role when the broken thing is a piece
+// of a cluster's platform: across a fleet, "ingress is down in eu" and
+// "one team's frontend is down in eu" must not read alike.
+func fleetInstanceDetail(i fleet.Instance) string {
+	detail := instanceDetail(i)
+	if (application.Role{Name: i.Role}).Platform() {
+		return "[" + i.Role + "] " + detail
+	}
+	return detail
 }
 
 func instanceDetail(i fleet.Instance) string {
