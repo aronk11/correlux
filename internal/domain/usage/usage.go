@@ -146,12 +146,90 @@ type Report struct {
 	// first drill-down level before the per-application rows.
 	Namespaces []NamespaceUsage
 	Apps       []AppUsage
-	Totals     Totals
+	// Zones and Pools roll the nodes up by availability zone and by node
+	// pool, fullest first. Either is empty when no node carries the label.
+	Zones  []PlacementUsage
+	Pools  []PlacementUsage
+	Totals Totals
 	// Unscheduled are the pods no node has accepted, worst question first.
 	Unscheduled []Unscheduled
 	// Notes qualify the report itself: a scope that hides other namespaces'
 	// pods, nodes that could not be listed, half the metrics missing.
 	Notes []string
+}
+
+// PlacementUsage is a set of machines taken together: one zone, or one node
+// pool. It answers the questions a single node row cannot — which pool has
+// to grow, and whether one zone is carrying the cluster.
+type PlacementUsage struct {
+	Name  string
+	Nodes int
+	// Unready counts the machines that are not ready or are cordoned: capacity
+	// that is listed and cannot be scheduled on.
+	Unready     int
+	Pods        int
+	Requests    application.Amounts
+	Used        application.Amounts
+	Allocatable application.Capacity
+	// Types are the distinct instance types in it, sorted, and Spot how many
+	// of its machines the cloud may reclaim.
+	Types []string
+	Spot  int
+}
+
+// rollUp groups nodes by a label. Nodes without it are gathered under the
+// empty name only when some node has it, so a cluster with no zones gets no
+// zone table rather than one row called nothing.
+func rollUp(nodes []NodeUsage, of func(*application.Node) string) []PlacementUsage {
+	groups := map[string]*PlacementUsage{}
+	types := map[string]map[string]bool{}
+	labelled := false
+	for i := range nodes {
+		n := &nodes[i]
+		name := of(&n.Node)
+		labelled = labelled || name != ""
+		g := groups[name]
+		if g == nil {
+			g = &PlacementUsage{Name: name}
+			groups[name] = g
+			types[name] = map[string]bool{}
+		}
+		g.Nodes++
+		if !n.Node.Ready || n.Node.Unschedulable {
+			g.Unready++
+		}
+		g.Pods += n.Pods
+		g.Requests = g.Requests.Add(n.Requests)
+		g.Used = g.Used.Add(n.Used)
+		g.Allocatable = addCapacity(g.Allocatable, n.Node.Allocatable)
+		if t := n.Node.InstanceType(); t != "" {
+			types[name][t] = true
+		}
+		if n.Node.Spot() {
+			g.Spot++
+		}
+	}
+	if !labelled {
+		return nil
+	}
+	out := make([]PlacementUsage, 0, len(groups))
+	for name, g := range groups {
+		g.Types = keys(types[name])
+		out = append(out, *g)
+	}
+	// Fullest first, by whichever of CPU and memory is closer to the limit:
+	// the group that runs out first is the one worth reading first.
+	fill := func(p *PlacementUsage) int {
+		return max(Percent(p.Requests.CPUMilli, p.Allocatable.CPUMilli),
+			Percent(p.Requests.MemoryBytes, p.Allocatable.MemoryBytes))
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if fi, fj := fill(&out[i]), fill(&out[j]); fi != fj {
+			return fi > fj
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
 }
 
 // maxUnscheduled bounds the list of pods that are nowhere. A cluster that
@@ -244,6 +322,8 @@ func Build(live Live, snapshot application.Snapshot, apps []application.Applicat
 	}
 	report.Totals.Nodes = len(report.Nodes)
 	sortNodes(report.Nodes)
+	report.Zones = rollUp(report.Nodes, func(n *application.Node) string { return n.Zone() })
+	report.Pools = rollUp(report.Nodes, func(n *application.Node) string { return n.Pool() })
 
 	report.Apps = buildApps(apps, podSamples)
 	if snapshot.Scope == "" {

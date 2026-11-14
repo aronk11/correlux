@@ -211,3 +211,27 @@ func TestIngressBackendsAndHostsAreCollected(t *testing.T) {
 		t.Errorf("backends = %v", ing.Backends)
 	}
 }
+
+func TestCollectReadsTheNamespacesLabels(t *testing.T) {
+	cs := fake.NewSimpleClientset(
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "shop", Labels: map[string]string{"team": "web"}}},
+		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "other"}},
+	)
+	scoped, err := Collect(context.Background(), cs, Options{Namespace: "shop"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scoped.Namespaces) != 1 || scoped.Namespaces[0].Labels["team"] != "web" {
+		t.Errorf("namespaces = %+v, want shop with its labels", scoped.Namespaces)
+	}
+	all, err := Collect(context.Background(), cs, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all.Namespaces) != 2 {
+		t.Errorf("cluster-wide, every namespace is read: %+v", all.Namespaces)
+	}
+	if len(scoped.Gaps) != 0 {
+		t.Errorf("gaps = %+v", scoped.Gaps)
+	}
+}

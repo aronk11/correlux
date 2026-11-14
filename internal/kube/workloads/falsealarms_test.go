@@ -64,3 +64,20 @@ func TestRestartsOfInitContainersAreCounted(t *testing.T) {
 		t.Errorf("restarts = %d, want 42", p.Restarts)
 	}
 }
+
+func TestAPodsEnvironmentAndSpreadAreRead(t *testing.T) {
+	p := fromPod(&corev1.Pod{Spec: corev1.PodSpec{
+		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{{TopologyKey: "topology.kubernetes.io/zone"}},
+		Containers: []corev1.Container{{Name: "app", Env: []corev1.EnvVar{
+			{Name: "DATABASE_URL", Value: "postgres://app:s3cr3t@postgres:5432/shop"},
+			{Name: "API_TOKEN", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{Key: "token"}}},
+			{Name: "MODE", Value: "api"},
+		}}},
+	}})
+	if !p.Spread {
+		t.Error("a topology spread constraint is a request to spread")
+	}
+	if len(p.References) != 1 || p.References[0].Host != "postgres" || p.References[0].Env != "DATABASE_URL" {
+		t.Errorf("references = %+v, want the one host and never the password", p.References)
+	}
+}

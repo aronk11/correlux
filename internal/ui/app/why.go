@@ -34,6 +34,7 @@ func (m *Model) rediagnose() {
 			App:     apps[i],
 			Context: evidence,
 			Scope:   list.Snapshot,
+			Apps:    apps,
 			Now:     time.Now(),
 		})
 		if len(out) > 0 {
@@ -402,8 +403,19 @@ func (m *Model) incidentLabel(app *application.Application) string {
 	if !ok {
 		return ""
 	}
-	if primary.Cause == "" {
-		return primary.Problem
+	// When what it depends on is failing too, that is said on the same line:
+	// it is the first place to look, whatever the pods report.
+	upstream := ""
+	if primary.Rule != diagnosis.DependencyRule {
+		for _, f := range m.findingsFor(app.Key()) {
+			if f.Rule == diagnosis.DependencyRule && f.Severity >= diagnosis.Warning {
+				upstream = "; " + f.Problem
+				break
+			}
+		}
 	}
-	return primary.Problem + " — " + strings.TrimSuffix(primary.Cause, ".")
+	if primary.Cause == "" {
+		return primary.Problem + upstream
+	}
+	return primary.Problem + " — " + strings.TrimSuffix(primary.Cause, ".") + upstream
 }

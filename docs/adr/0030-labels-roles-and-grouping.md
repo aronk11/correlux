@@ -60,7 +60,8 @@ the Service selects on.
 - The list of names is maintenance. It is one map, and a missing entry costs a
   missing word rather than a wrong one.
 - Team and environment labels have no standard. A handful of common spellings
-  are read; an organisation with its own spelling gets no column until that is
-  made configurable.
-- Namespace labels are not read. Teams often label the namespace rather than
-  the workload, and that needs namespaces in the snapshot.
+  are read, and an organisation names its own under `labels:` in the config
+  file; those are read first.
+- Team, environment and system fall back to the namespace's labels, and the
+  application says when they did. The namespaces are read quietly: an account
+  that may not read them loses a column, and nothing is reported as missing.

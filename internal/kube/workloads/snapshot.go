@@ -44,6 +44,8 @@ type Options struct {
 	// PageSize and MaxPages bound the work. Zero means the defaults.
 	PageSize int64
 	MaxPages int
+	// Labels are the organisation's own label spellings, handed to grouping.
+	Labels application.Labels
 	// GitOpsNamespaces are where the applications' Flux objects live, when
 	// that is not the scope itself.
 	GitOpsNamespaces []string
@@ -205,6 +207,31 @@ func Collect(ctx context.Context, cs kubernetes.Interface, opts Options) (applic
 			g.collect(func() {
 				for i := range l.Items {
 					snap.Ingresses = append(snap.Ingresses, fromIngress(&l.Items[i]))
+				}
+			})
+			return l.Continue, nil
+		})
+	})
+
+	// Namespaces, for their labels. One namespace is a single GET; all of
+	// them is a list most namespace-scoped accounts are refused, and the
+	// refusal costs a column rather than a warning.
+	g.quiet(func() {
+		if opts.Namespace != "" {
+			ns, err := cs.CoreV1().Namespaces().Get(ctx, opts.Namespace, metav1.GetOptions{})
+			if err == nil {
+				g.collect(func() { snap.Namespaces = append(snap.Namespaces, meta("Namespace", ns.ObjectMeta)) })
+			}
+			return
+		}
+		_, _ = page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+			l, err := cs.CoreV1().Namespaces().List(ctx, o)
+			if err != nil {
+				return "", err
+			}
+			g.collect(func() {
+				for i := range l.Items {
+					snap.Namespaces = append(snap.Namespaces, meta("Namespace", l.Items[i].ObjectMeta))
 				}
 			})
 			return l.Continue, nil

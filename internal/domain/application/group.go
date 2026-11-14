@@ -85,8 +85,15 @@ const maxOwnerDepth = 8
 // Objects that match nothing are left out: they remain fully visible in the
 // resource browser, and inventing an "application" for a stray ConfigMap would
 // bury the ones that matter.
-func Group(s Snapshot) []Application {
+func Group(s Snapshot) []Application { return GroupWith(s, Labels{}) }
+
+// GroupWith is Group with an organisation's own label spellings.
+func GroupWith(s Snapshot, labels Labels) []Application {
 	ix := newIndex(s)
+	namespaces := make(map[string]Meta, len(s.Namespaces))
+	for _, ns := range s.Namespaces {
+		namespaces[ns.Name] = ns
+	}
 	groups := map[string]*Application{}
 
 	group := func(namespace, name string) *Application {
@@ -138,9 +145,10 @@ func Group(s Snapshot) []Application {
 
 	out := make([]Application, 0, len(groups))
 	for _, g := range groups {
-		g.finish()
+		g.finish(labels, namespaces[g.Namespace])
 		out = append(out, *g)
 	}
+	linkDependencies(out)
 	sortApplications(out)
 	return out
 }
@@ -161,7 +169,7 @@ func sortApplications(apps []Application) {
 }
 
 // finish sorts an application's members and derives its health.
-func (a *Application) finish() {
+func (a *Application) finish(labels Labels, namespace Meta) {
 	sort.Slice(a.Workloads, func(i, j int) bool { return a.Workloads[i].Name < a.Workloads[j].Name })
 	sort.Slice(a.Pods, func(i, j int) bool { return a.Pods[i].Name < a.Pods[j].Name })
 	sort.Slice(a.Services, func(i, j int) bool { return a.Services[i].Name < a.Services[j].Name })
@@ -193,7 +201,7 @@ func (a *Application) finish() {
 		}
 	}
 
-	a.readTraits()
+	a.readTraits(labels, namespace)
 	a.evaluate()
 }
 

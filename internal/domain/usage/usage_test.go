@@ -394,3 +394,43 @@ func TestNamespacedUsageDoesNotPretendToBeAClusterRollup(t *testing.T) {
 		t.Errorf("namespaces = %+v, want none for an already-scoped report", report.Namespaces)
 	}
 }
+
+func TestNodesRollUpByZoneAndPoolFullestFirst(t *testing.T) {
+	labelled := func(name, zone, pool string, spot bool) application.Node {
+		n := node(name, 4000, 8*gib, 110)
+		n.Labels = map[string]string{"topology.kubernetes.io/zone": zone, "eks.amazonaws.com/nodegroup": pool,
+			"node.kubernetes.io/instance-type": "m6i.large"}
+		if spot {
+			n.Labels["eks.amazonaws.com/capacityType"] = "SPOT"
+		}
+		return n
+	}
+	report := Build(
+		Live{Nodes: []application.Node{labelled("n1", "eu-1a", "general", false),
+			labelled("n2", "eu-1a", "batch", true), labelled("n3", "eu-1b", "general", false)}},
+		application.Snapshot{Pods: []application.Pod{
+			pod("a", "n3", container("app", cpu(3000), application.Amounts{})),
+			pod("b", "n1", container("app", cpu(500), application.Amounts{})),
+		}}, nil)
+
+	if len(report.Zones) != 2 || report.Zones[0].Name != "eu-1b" {
+		t.Fatalf("zones = %+v, want eu-1b first: it is the fuller one", report.Zones)
+	}
+	if z := report.Zones[1]; z.Nodes != 2 || z.Pods != 1 || z.Requests.CPUMilli != 500 || z.Allocatable.CPUMilli != 8000 {
+		t.Errorf("eu-1a = %+v", z)
+	}
+	var batch PlacementUsage
+	for _, p := range report.Pools {
+		if p.Name == "batch" {
+			batch = p
+		}
+	}
+	if batch.Spot != 1 || len(batch.Types) != 1 || batch.Types[0] != "m6i.large" {
+		t.Errorf("batch pool = %+v", batch)
+	}
+
+	bare := Build(Live{Nodes: []application.Node{node("n1", 4000, 8*gib, 110)}}, application.Snapshot{}, nil)
+	if bare.Zones != nil || bare.Pools != nil {
+		t.Error("nodes without the labels get no roll-up, not a row called nothing")
+	}
+}
