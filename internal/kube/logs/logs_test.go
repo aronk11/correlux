@@ -366,3 +366,27 @@ func TestLinesThatShareATimestampAreAllKept(t *testing.T) {
 		t.Errorf("lines = %v; equal timestamps are not duplicates, only a replay is", got)
 	}
 }
+
+func TestLineEndingsAndTheLastLineAreReadAsLines(t *testing.T) {
+	read := func(input string) []string {
+		var out []string
+		if err := scan(context.Background(), strings.NewReader(input), source(), false,
+			func(l Line) { out = append(out, l.Text) }); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	if got := read("a\r\nb\nlast"); len(got) != 3 || got[0] != "a" || got[2] != "last" {
+		t.Errorf("CRLF is an ending and a final line needs no newline: %q", got)
+	}
+	if got := read(""); len(got) != 0 {
+		t.Errorf("an empty stream has no lines: %q", got)
+	}
+	if got := read("\n\n"); len(got) != 2 || got[0] != "" {
+		t.Errorf("blank lines are lines: %q", got)
+	}
+	exact := strings.Repeat("x", MaxLineBytes)
+	if got := read(exact + "\nafter\n"); len(got) != 2 || len(got[0]) != MaxLineBytes {
+		t.Errorf("a line of exactly the limit is kept: %d lines, first is %d bytes", len(got), len(got[0]))
+	}
+}

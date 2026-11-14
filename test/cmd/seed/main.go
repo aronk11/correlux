@@ -257,7 +257,7 @@ func created(err error) error {
 func ensureNode(ctx context.Context, cs kubernetes.Interface) error {
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   nodeName,
+			Name: nodeName,
 			// The labels a cloud would write, so the usage view has a zone,
 			// a pool and a machine type to show.
 			Labels: labels(map[string]string{

@@ -29,7 +29,7 @@ func collectRollouts(ctx context.Context, g *group, cs kubernetes.Interface, opt
 		served := true
 		truncated, err := page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			var list itemList[rolloutItem]
-			found, err := getJSON(ctx, rc, path, nil, o, &list)
+			found, err := getJSON(ctx, rc, path, o, &list)
 			if err != nil {
 				return "", err
 			}

@@ -303,8 +303,9 @@ func imagePull(in *Input) []Diagnosis {
 	if cause == "" {
 		// In ImagePullBackOff the container's own message is often just
 		// "Back-off pulling image": the registry's answer is in the events.
-		for _, e := range warningsAbout(in, podRef(first.pod), "Failed") {
-			if c, conf, ok := classifyPull(strings.ToLower(e.Message)); ok {
+		failed := warningsAbout(in, podRef(first.pod), "Failed")
+		for i := range failed {
+			if c, conf, ok := classifyPull(strings.ToLower(failed[i].Message)); ok {
 				cause, confidence, unknown = c, conf, ""
 				break
 			}

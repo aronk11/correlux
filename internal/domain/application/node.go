@@ -43,12 +43,8 @@ func (n *Node) Pool() string { return firstOf(n.Labels, nodePoolLabels) }
 // from such a node is its nature rather than an incident, which is why it is
 // worth a word next to the node's name.
 func (n *Node) Spot() bool {
-	switch strings.ToLower(n.Labels["karpenter.sh/capacity-type"]) {
-	case "spot":
-		return true
-	}
-	switch strings.ToLower(n.Labels["eks.amazonaws.com/capacityType"]) {
-	case "spot":
+	if strings.EqualFold(n.Labels["karpenter.sh/capacity-type"], "spot") ||
+		strings.EqualFold(n.Labels["eks.amazonaws.com/capacityType"], "spot") {
 		return true
 	}
 	return n.Labels["cloud.google.com/gke-spot"] == "true" ||

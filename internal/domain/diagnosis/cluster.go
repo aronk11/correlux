@@ -120,8 +120,9 @@ func nodeDetail(n application.Node) string {
 // waitsForConsumer reports a claim whose StorageClass uses
 // volumeBindingMode WaitForFirstConsumer, in the cluster's own words.
 func waitsForConsumer(in *Input, claim *application.Claim) bool {
-	for _, e := range in.Context.EventsAbout(claim.UID, claim.Name) {
-		if e.Reason == "WaitForFirstConsumer" {
+	events := in.Context.EventsAbout(claim.UID, claim.Name)
+	for i := range events {
+		if events[i].Reason == "WaitForFirstConsumer" {
 			return true
 		}
 	}
