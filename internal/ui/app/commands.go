@@ -266,6 +266,10 @@ func (m *Model) loadEvidence() tea.Cmd {
 	apps := m.applications()
 	seenConfig := map[string]bool{}
 	for i := range apps {
+		// Reading ConfigMaps is something the user turns on, never a default.
+		if !m.cfg.Dependencies.FromConfigMaps {
+			break
+		}
 		for j := range apps[i].Pods {
 			for _, src := range apps[i].Pods[j].ConfigSources {
 				if key := apps[i].Namespace + "/" + src.ConfigMap; !seenConfig[key] {

@@ -241,8 +241,10 @@ URL or cluster DNS name, or its own name says it holds an address
 (`REDIS_HOST`, `KAFKA_BROKERS`): `MODE=api` next to a Service called `api` is a
 coincidence. Only the host is kept — never the value, which is where the
 password is. Variables that come from a ConfigMap (`envFrom`,
-`configMapKeyRef`) are followed once the application's evidence is loaded:
-exactly the ConfigMaps the pods name are read, by name, and shown as
+`configMapKeyRef`) are followed only if you turn it on with
+`dependencies.fromConfigMaps: true`, because Correlux otherwise reads no
+ConfigMap on its own. Then exactly the ConfigMaps the pods name are read, by
+name, when an application's evidence is loaded, and shown as
 `ConfigMap/shop-config key DATABASE_URL`. Secrets are never read for this ([ADR 31](docs/adr/0031-dependencies-and-placement.md)).
 
 Health starts with what the cluster reports in replica counts and pod states.
@@ -1130,6 +1132,9 @@ labels:
   team: []        # e.g. [acme.io/team]
   environment: [] # e.g. [acme.io/stage]
   system: []
+
+dependencies:
+  fromConfigMaps: false # also follow addresses that reach a pod through a ConfigMap
 
 dangerousActions:
   productionConfirmation: true
