@@ -311,3 +311,35 @@ func TestAGatewayRouteJoinsTheApplicationItRoutesTo(t *testing.T) {
 		t.Errorf("routes = %+v", got)
 	}
 }
+
+func TestASidecarsImageDoesNotDecideWhatTheApplicationIs(t *testing.T) {
+	apps := Group(Snapshot{Pods: []Pod{{
+		Meta: meta("Pod", "checkout-0", map[string]string{"app": "checkout"}), Phase: "Running", Ready: true,
+		Containers: []Container{
+			{Name: "vault-agent-init", Init: true, Image: "hashicorp/vault:1.17"},
+			{Name: "checkout", Image: "ghcr.io/acme/registry/checkout:2.4"},
+			{Name: "vault-agent", Image: "hashicorp/vault:1.17"},
+			{Name: "oauth2-proxy", Image: "quay.io/oauth2-proxy/oauth2-proxy:v7"},
+		},
+	}}})
+	if role := find(t, apps, "checkout").Traits.Role; role.Known() {
+		t.Errorf("an application with Vault injected is not a secrets manager: %+v", role)
+	}
+}
+
+func TestImagesAreRecognisedByProjectWhenTheLastSegmentOnlyNamesAPart(t *testing.T) {
+	cases := map[string]string{
+		"registry.k8s.io/ingress-nginx/controller:v1.11": RoleIngress,
+		"docker.io/calico/node:v3.28":                    RoleNetworking,
+		"quay.io/jetstack/cert-manager-controller:v1.15": RoleCertificates,
+		"quay.io/cilium/cilium:v1.16":                    RoleNetworking,
+		"ghcr.io/acme/registry/api:1.0":                  "",
+		"ghcr.io/acme/vector/search:1.0":                 "",
+		"ghcr.io/acme/shop/server:1.0":                   "",
+	}
+	for image, want := range cases {
+		if got, _ := roleOfImage(image); got != want {
+			t.Errorf("%s: role %q, want %q", image, got, want)
+		}
+	}
+}

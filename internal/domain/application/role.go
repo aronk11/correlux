@@ -123,7 +123,7 @@ var roleNames = map[string]string{
 	"amazon-vpc-cni-k8s": RoleNetworking, "amazon-k8s-cni": RoleNetworking, "azure-cni": RoleNetworking,
 	"azure-ip-masq-agent": RoleNetworking, "ip-masq-agent": RoleNetworking, "multus": RoleNetworking,
 	"kube-multus": RoleNetworking, "metallb": RoleNetworking, "kube-vip": RoleNetworking,
-	"ovnkube-node": RoleNetworking, "netd": RoleNetworking,
+	"ovnkube-node": RoleNetworking,
 
 	// dns
 	"coredns": RoleDNS, "kube-dns": RoleDNS, "node-local-dns": RoleDNS, "nodelocaldns": RoleDNS,
@@ -140,7 +140,7 @@ var roleNames = map[string]string{
 
 	// service mesh
 	"istiod": RoleMesh, "istio-cni": RoleMesh, "istio-cni-node": RoleMesh, "ztunnel": RoleMesh,
-	"pilot": RoleMesh, "linkerd-destination": RoleMesh, "linkerd-identity": RoleMesh,
+	"linkerd-destination": RoleMesh, "linkerd-identity": RoleMesh,
 	"linkerd-proxy-injector": RoleMesh, "linkerd-controller": RoleMesh, "kuma-control-plane": RoleMesh,
 	"consul-connect-injector": RoleMesh,
 
@@ -215,7 +215,7 @@ var roleNames = map[string]string{
 	"topolvm": RoleStorage, "portworx": RoleStorage, "secrets-store-csi-driver": RoleSecrets,
 
 	// backup
-	"velero": RoleBackup, "k10": RoleBackup, "kasten": RoleBackup, "stash": RoleBackup,
+	"velero": RoleBackup, "k10": RoleBackup, "kasten": RoleBackup,
 
 	// secrets
 	"external-secrets": RoleSecrets, "external-secrets-webhook": RoleSecrets,
@@ -364,31 +364,53 @@ func roleOf(a *Application) Role {
 	if role, ok := lookupRole(a.Name); ok {
 		return Role{Name: role, By: "name " + a.Name}
 	}
+	// The image of the main container only — the first regular one, by every
+	// chart's convention. A Vault agent, a mesh proxy or a log shipper injected
+	// beside an application says what the application uses, not what it is,
+	// and reading sidecars made a "secrets" role of everything Vault injects
+	// into.
 	for i := range a.Pods {
 		for j := range a.Pods[i].Containers {
 			c := &a.Pods[i].Containers[j]
-			if c.Init && !c.Sidecar {
+			if c.Init {
 				continue
 			}
-			repo := ImageRepository(c.Image)
-			if repo == "" {
-				continue
+			if role, ok := roleOfImage(c.Image); ok {
+				return Role{Name: role, By: "image " + ImageRepository(c.Image)}
 			}
-			last := repo[strings.LastIndex(repo, "/")+1:]
-			if role, ok := lookupRole(last); ok {
-				return Role{Name: role, By: "image " + repo}
-			}
-			// "ingress-nginx/controller": the project is the directory.
-			if dir, _, ok := strings.Cut(repo, "/"); ok {
-				if slash := strings.LastIndex(repo, "/"); slash > 0 {
-					dir = repo[:slash]
-					dir = dir[strings.LastIndex(dir, "/")+1:]
-				}
-				if role, ok := lookupRole(dir); ok {
-					return Role{Name: role, By: "image " + repo}
-				}
-			}
+			break
 		}
 	}
 	return Role{}
+}
+
+// genericImageNames are last segments that name a part rather than a
+// project: "ingress-nginx/controller", "calico/node". For those the project
+// is the directory.
+var genericImageNames = map[string]bool{
+	"controller": true, "operator": true, "server": true, "agent": true, "node": true,
+	"manager": true, "webhook": true, "daemon": true, "cni": true,
+}
+
+// roleOfImage recognises an image by its repository: the last segment, then
+// — for a segment that only names a part — the directory, alone or joined to
+// it, so "calico/node" is found as "calico-node".
+func roleOfImage(image string) (string, bool) {
+	repo := ImageRepository(image)
+	if repo == "" {
+		return "", false
+	}
+	segments := strings.Split(repo, "/")
+	last := segments[len(segments)-1]
+	if role, ok := lookupRole(last); ok {
+		return role, true
+	}
+	if len(segments) < 2 || !genericImageNames[last] {
+		return "", false
+	}
+	dir := segments[len(segments)-2]
+	if role, ok := lookupRole(dir + "-" + last); ok {
+		return role, true
+	}
+	return lookupRole(dir)
 }
