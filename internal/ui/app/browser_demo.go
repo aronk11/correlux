@@ -363,6 +363,24 @@ func (d *BrowserDemo) applications() ([]application.Application, application.Sna
 		}
 		a.Services = []application.Service{{Meta: application.Meta{Kind: "Service", Name: name, Namespace: ns}, Type: "ClusterIP", Ports: []string{"80/TCP"}, Selector: meta.Labels}}
 		a.Ingresses = []application.Ingress{{Meta: application.Meta{Kind: "Ingress", Name: name, Namespace: ns}, Hosts: []string{name + ".example.com"}}}
+		// What the labels of a real cluster would say, so the demo groups,
+		// filters and follows dependencies like the real thing.
+		a.Traits = application.Traits{System: "shop", Version: "1.4", Team: map[string]string{
+			"payments": "payments", "worker": "payments", "api": "web", "frontend": "web"}[name]}
+		switch name {
+		case "api":
+			a.DependsOn = []application.Dependency{{App: ns + "/payments", Name: "payments", Namespace: ns,
+				Service: "payments", Via: "env PAYMENTS_URL"}}
+		case "frontend":
+			a.DependsOn = []application.Dependency{{App: ns + "/api", Name: "api", Namespace: ns,
+				Service: "api", Via: "env API_URL"}}
+			a.UsedBy = nil
+		case "payments":
+			a.UsedBy = []string{"api"}
+		}
+		if name == "api" {
+			a.UsedBy = []string{"frontend"}
+		}
 		snapshot.Workloads = append(snapshot.Workloads, a.Workloads...)
 		snapshot.Services = append(snapshot.Services, a.Services...)
 		snapshot.Ingresses = append(snapshot.Ingresses, a.Ingresses...)
