@@ -486,6 +486,17 @@ type GitOpsObject struct {
 	Suspended  bool
 	// Revision is the source revision last applied.
 	Revision string
+	// The rest is Argo CD's vocabulary, empty for a Flux object. Sync is
+	// "Synced" or "OutOfSync" and Health its roll-up of the resources.
+	// Operation is how the last sync ended ("Succeeded", "Failed", "Error",
+	// "Running") with the controller's message. Automated says whether Argo
+	// syncs by itself, and Errors are its *Error conditions, quoted.
+	Sync             string
+	Health           string
+	Operation        string
+	OperationMessage string
+	Automated        bool
+	Errors           []string
 }
 
 // HelmRelease is the newest revision Helm recorded for one release, read

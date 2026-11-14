@@ -98,3 +98,46 @@ func TestPlacementStaysQuietWhereThereWasNoChoice(t *testing.T) {
 	spread := []application.Node{zoned("node-1", "a"), zoned("node-2", "b")}
 	none(t, diagnose(t, &Input{App: placed("node-1", "node-2"), Context: application.Context{Nodes: spread}}), "placement.concentrated")
 }
+
+func argoApp(g application.GitOpsObject) *Input {
+	p := pod("payments-1")
+	p.Ready = true
+	a := app(p)
+	a.Manager = application.Manager{Tool: "Argo CD", Kind: "Application", Name: "shop"}
+	g.Meta = application.Meta{Kind: "Application", Name: "shop", Namespace: "argocd", UID: "argo-uid"}
+	return &Input{App: a, Context: application.Context{GitOps: []application.GitOpsObject{g}}}
+}
+
+func TestAnArgoCDSyncThatFailedIsQuoted(t *testing.T) {
+	d := find(t, diagnose(t, argoApp(application.GitOpsObject{Sync: "OutOfSync", Health: "Healthy",
+		Operation: "Failed", OperationMessage: "one or more objects failed to apply: Deployment.apps \"api\" is invalid"})), "gitops.syncfailed")
+	if d.Severity != Warning || !strings.Contains(d.Cause, "failed to apply") {
+		t.Errorf("got %v %q", d.Severity, d.Cause)
+	}
+}
+
+func TestAnArgoCDApplicationOutOfSyncSaysWhetherItWillFixItself(t *testing.T) {
+	manual := find(t, diagnose(t, argoApp(application.GitOpsObject{Sync: "OutOfSync", Health: "Healthy"})), "gitops.outofsync")
+	if manual.Severity != Info || !strings.Contains(manual.Cause, "automated sync is off") {
+		t.Errorf("got %v %q", manual.Severity, manual.Cause)
+	}
+	auto := find(t, diagnose(t, argoApp(application.GitOpsObject{Sync: "OutOfSync", Health: "Healthy", Automated: true})), "gitops.outofsync")
+	if !strings.Contains(auto.Cause, "automated sync is on") {
+		t.Errorf("cause = %q", auto.Cause)
+	}
+}
+
+func TestAnArgoCDComparisonErrorMeansGitIsNotBeingApplied(t *testing.T) {
+	d := find(t, diagnose(t, argoApp(application.GitOpsObject{Sync: "Unknown", Health: "Healthy",
+		Errors: []string{"ComparisonError: failed to generate manifests: helm template failed"}})), "gitops.notready")
+	if !strings.Contains(d.Cause, "helm template failed") {
+		t.Errorf("cause = %q", d.Cause)
+	}
+}
+
+func TestAHealthyArgoCDApplicationIsNotAFinding(t *testing.T) {
+	findings := diagnose(t, argoApp(application.GitOpsObject{Sync: "Synced", Health: "Degraded", Operation: "Succeeded"}))
+	for _, rule := range []string{"gitops.syncfailed", "gitops.outofsync", "gitops.notready", "gitops.missing"} {
+		none(t, findings, rule)
+	}
+}

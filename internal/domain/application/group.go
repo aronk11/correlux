@@ -473,7 +473,33 @@ const (
 	fluxHelmReleaseName = "helm.toolkit.fluxcd.io/name"
 	fluxHelmReleaseNS   = "helm.toolkit.fluxcd.io/namespace"
 	argoInstance        = "argocd.argoproj.io/instance"
+	argoTrackingID      = "argocd.argoproj.io/tracking-id"
 )
+
+// argoApplication reads which Argo CD Application tracks an object.
+//
+// Argo CD marks what it manages in one of three ways, depending on its
+// version and settings: a tracking-id annotation of the form
+// "<application>:<group>/<kind>:<namespace>/<name>" — the default since 3.0 —
+// its own instance label, or the same key as an annotation. An Application
+// outside Argo CD's own namespace writes itself as "<namespace>_<name>".
+func argoApplication(m Meta) (name, namespace string, ok bool) {
+	id := m.Annotations[argoTrackingID]
+	if app, _, found := strings.Cut(id, ":"); found && app != "" {
+		name = app
+	} else if v := m.Labels[argoInstance]; v != "" {
+		name = v
+	} else if v := m.Annotations[argoInstance]; v != "" {
+		name = v
+	}
+	if name == "" {
+		return "", "", false
+	}
+	if ns, app, found := strings.Cut(name, "_"); found && ns != "" && app != "" {
+		return app, ns, true
+	}
+	return name, "", true
+}
 
 // managerOf reads who deployed an object.
 //
@@ -490,8 +516,8 @@ func managerOf(m Meta) Manager {
 		return Manager{Tool: "Flux", Kind: "Kustomization", Name: name,
 			Namespace: firstNonEmpty(m.Labels[fluxKustomizeNS], m.Namespace)}
 	}
-	if name := m.Annotations[argoInstance]; name != "" {
-		return Manager{Tool: "Argo CD", Kind: "Application", Name: name}
+	if name, namespace, ok := argoApplication(m); ok {
+		return Manager{Tool: "Argo CD", Kind: "Application", Name: name, Namespace: namespace}
 	}
 	if strings.EqualFold(m.Labels[helmManagedBy], "Helm") {
 		return Manager{Tool: "Helm", Name: m.Annotations[helmReleaseName],
