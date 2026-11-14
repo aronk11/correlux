@@ -66,3 +66,23 @@ func TestNilClassifierIsSafe(t *testing.T) {
 		t.Error("a nil classifier must not claim production")
 	}
 }
+
+func TestProductionIsRecognisedHoweverTheNameIsPunctuated(t *testing.T) {
+	c := DefaultClassifier()
+	for _, name := range []string{
+		"kubernetes-admin@prod", "admin@prod-eu", "prod1", "prod01-eu", "production2",
+		"eks-prod1-usw2", "Prod Cluster", "myns/api-prod:6443/admin", "arn:aws:eks:eu-west-1:1:cluster/prod",
+	} {
+		if !c.IsProduction(name, "", "") {
+			t.Errorf("%q is production and must be guarded", name)
+		}
+	}
+	if !c.IsProduction("eu", "", "https://api.prod1.example.com") {
+		t.Error("the server name counts too")
+	}
+	for _, name := range []string{"product-team", "reproducer", "olive", "staging", "dev-eu", "nonprod", "preprod"} {
+		if c.IsProduction(name, "", "") {
+			t.Errorf("%q is not production", name)
+		}
+	}
+}

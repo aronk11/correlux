@@ -156,6 +156,21 @@ func TestUnscheduledPodsAreListedWithTheSchedulersVerdict(t *testing.T) {
 	if report.Nodes[0].Pods != 0 {
 		t.Error("a pod with no node must not be counted on one")
 	}
+	if report.Totals.Pods != 0 || report.Totals.Requests.CPUMilli != 0 {
+		t.Errorf("a pending pod reserves nothing yet: totals = %d pods, %dm", report.Totals.Pods, report.Totals.Requests.CPUMilli)
+	}
+}
+
+func TestAnInitContainerRunsOnTopOfTheSidecarsStartedBeforeIt(t *testing.T) {
+	proxy := container("proxy", cpu(100), application.Amounts{})
+	proxy.Init, proxy.Sidecar = true, true
+	migrate := container("migrate", cpu(2000), application.Amounts{})
+	migrate.Init = true
+	p := pod("api", "node-1", proxy, migrate, container("app", cpu(500), application.Amounts{}))
+
+	if got := Requests(&p).CPUMilli; got != 2100 {
+		t.Errorf("requests = %dm, want 2100m: the sidecar is still running while the migration does", got)
+	}
 }
 
 func TestANodeWithNoSampleIsNotANodeUsingNothing(t *testing.T) {

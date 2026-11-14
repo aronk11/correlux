@@ -192,17 +192,12 @@ func Build(live Live, snapshot application.Snapshot, apps []application.Applicat
 			continue
 		}
 		requests, limits := Requests(pod), Limits(pod)
-		report.Totals.Pods++
-		if !requests.HasCPU && !requests.HasMemory {
-			report.Totals.Unsized++
-		}
-		report.Totals.Requests = report.Totals.Requests.Add(requests)
-		report.Totals.Limits = report.Totals.Limits.Add(limits)
-		if sample, ok := podSamples[pod.Namespace+"/"+pod.Name]; ok {
-			report.Totals.Used = report.Totals.Used.Add(sample)
-			report.Totals.Measured++
-		}
 
+		// A pod no node has taken holds no slot and reserves nothing yet. It
+		// is counted on its own, before the totals: forty pending pods added
+		// to "requested" made a cluster that could not fit them look fuller
+		// than the scheduler sees it, and the share disagree with the sum of
+		// the node rows under it.
 		if pod.Node == "" {
 			report.Totals.Unscheduled++
 			if len(report.Unscheduled) < maxUnscheduled {
@@ -214,6 +209,17 @@ func Build(live Live, snapshot application.Snapshot, apps []application.Applicat
 				})
 			}
 			continue
+		}
+
+		report.Totals.Pods++
+		if !requests.HasCPU && !requests.HasMemory {
+			report.Totals.Unsized++
+		}
+		report.Totals.Requests = report.Totals.Requests.Add(requests)
+		report.Totals.Limits = report.Totals.Limits.Add(limits)
+		if sample, ok := podSamples[pod.Namespace+"/"+pod.Name]; ok {
+			report.Totals.Used = report.Totals.Used.Add(sample)
+			report.Totals.Measured++
 		}
 
 		node, known := byNode[pod.Node]
@@ -450,17 +456,23 @@ func Limits(pod *application.Pod) application.Amounts {
 }
 
 func effective(pod *application.Pod, of func(*application.Container) application.Amounts) application.Amounts {
-	var running, init application.Amounts
+	// The scheduler's own formula, in spec order: a sidecar is still running
+	// when everything after it starts, so each init container needs its own
+	// amount on top of the sidecars declared before it.
+	var apps, sidecars, initPeak application.Amounts
 	for i := range pod.Containers {
 		c := &pod.Containers[i]
 		switch {
-		case c.Init && !c.Sidecar:
-			init = init.Max(of(c))
+		case c.Init && c.Sidecar:
+			sidecars = sidecars.Add(of(c))
+			initPeak = initPeak.Max(sidecars)
+		case c.Init:
+			initPeak = initPeak.Max(of(c).Add(sidecars))
 		default:
-			running = running.Add(of(c))
+			apps = apps.Add(of(c))
 		}
 	}
-	return running.Max(init)
+	return apps.Add(sidecars).Max(initPeak)
 }
 
 // Percent renders part of whole as a whole-number percentage, and -1 when

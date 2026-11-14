@@ -253,34 +253,46 @@ func scan(
 	timestamps bool,
 	emit func(Line),
 ) error {
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(make([]byte, 0, 64*1024), MaxLineBytes)
-
-	for scanner.Scan() {
-		if err := ctx.Err(); err != nil {
+	// A reader rather than a Scanner: a Scanner stops for good at a line
+	// longer than its buffer, so one huge JSON blob ended the log — every line
+	// after it was lost, and a follow reconnected into the same line until it
+	// gave up. Here the oversized line is dropped and reading goes on.
+	reader := bufio.NewReaderSize(r, 64*1024)
+	var line []byte
+	oversized := false
+	for {
+		chunk, err := reader.ReadSlice('\n')
+		if cerr := ctx.Err(); cerr != nil {
+			return cerr
+		}
+		if !oversized {
+			line = append(line, chunk...)
+			if len(line) > MaxLineBytes {
+				oversized, line = true, line[:0]
+			}
+		}
+		switch {
+		case errors.Is(err, bufio.ErrBufferFull):
+			continue // the rest of the same line follows
+		case err == nil || (errors.Is(err, io.EOF) && (len(line) > 0 || oversized)):
+			if oversized {
+				emit(Line{Source: source, Text: "[a log line longer than " +
+					itoa(MaxLineBytes/1024) + "KiB was skipped]"})
+			} else {
+				emit(parse(strings.TrimRight(string(line), "\r\n"), source, timestamps))
+			}
+			line, oversized = line[:0], false
+			if err != nil {
+				return nil
+			}
+		case errors.Is(err, io.EOF):
+			return nil
+		default:
+			if cerr := ctx.Err(); cerr != nil {
+				return cerr
+			}
 			return err
 		}
-		emit(parse(scanner.Text(), source, timestamps))
-	}
-
-	// A read cut short because the user moved on ends with the context's own
-	// error. Saying why it stopped is the reader's job; deciding that a
-	// cancellation is not a failure is the caller's.
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	err := scanner.Err()
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, bufio.ErrTooLong):
-		// One absurd line must not end the stream; the caller keeps what it has.
-		emit(Line{Source: source, Text: "[a log line longer than " +
-			itoa(MaxLineBytes/1024) + "KiB was skipped]"})
-		return nil
-	default:
-		return err
 	}
 }
 

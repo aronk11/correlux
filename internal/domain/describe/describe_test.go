@@ -96,14 +96,14 @@ func TestAPodIsDescribedByItsContainers(t *testing.T) {
 	if app[2] != "waiting: CrashLoopBackOff" {
 		t.Errorf("state = %q, want the reason next to the phase", app[2])
 	}
-	if app[4] != "12" {
-		t.Errorf("restarts = %q", app[4])
+	if app[5] != "12" {
+		t.Errorf("restarts = %q", app[5])
 	}
-	if !strings.Contains(app[5], "cpu=100m") || !strings.Contains(app[5], "memory=128Mi") {
-		t.Errorf("requests = %q", app[5])
+	if !strings.Contains(app[6], "cpu=100m") || !strings.Contains(app[6], "memory=128Mi") {
+		t.Errorf("requests = %q", app[6])
 	}
-	if app[6] != "memory=256Mi" {
-		t.Errorf("limits = %q", app[6])
+	if app[7] != "memory=256Mi" {
+		t.Errorf("limits = %q", app[7])
 	}
 
 	volumes := find(t, sections, "Volumes")
@@ -288,5 +288,80 @@ func TestAMalformedObjectDescribesWhatItCan(t *testing.T) {
 func TestUndecodableInputIsNotADescription(t *testing.T) {
 	if sections := Object("Pod", []byte("this is not JSON")); sections != nil {
 		t.Errorf("got %v, want nothing at all", titles(sections))
+	}
+}
+
+func fieldsOf(t *testing.T, sections []Section, title string) map[string]string {
+	t.Helper()
+	for _, s := range sections {
+		if s.Title != title {
+			continue
+		}
+		out := map[string]string{}
+		for _, r := range s.Rows {
+			if len(r) >= 2 {
+				out[r[0]] = r[len(r)-1]
+			}
+		}
+		return out
+	}
+	t.Fatalf("no section %q", title)
+	return nil
+}
+
+func TestAZeroThatIsTheNewsIsNotDropped(t *testing.T) {
+	deployment := Object("Deployment", []byte(`{"kind":"Deployment","spec":{"replicas":3},"status":{"readyReplicas":0,"updatedReplicas":3}}`))
+	if got := fieldsOf(t, deployment, "Status"); got["Ready"] != "0" || got["Available"] != "0" {
+		t.Errorf("a Deployment with nothing ready must say so: %v", got)
+	}
+
+	budget := Object("PodDisruptionBudget", []byte(`{"kind":"PodDisruptionBudget","spec":{"maxUnavailable":0,"selector":{"matchLabels":{"app":"x"}}},"status":{}}`))
+	if got := fieldsOf(t, budget, "Status"); got["Max unavailable"] != "0" {
+		t.Errorf("maxUnavailable 0 is why a drain hangs and must be shown: %v", got)
+	}
+
+	hpa := Object("HorizontalPodAutoscaler", []byte(`{"kind":"HorizontalPodAutoscaler","spec":{"minReplicas":0,"maxReplicas":5,"scaleTargetRef":{"kind":"Deployment","name":"x"}},"status":{}}`))
+	if got := fieldsOf(t, hpa, "Status"); !strings.HasPrefix(got["Range"], "0") {
+		t.Errorf("an explicit minReplicas of 0 is scale-to-zero: %v", got)
+	}
+}
+
+func TestAFailedPodSaysWhyAndHowItsLastRunEnded(t *testing.T) {
+	sections := Object("Pod", []byte(`{"kind":"Pod","spec":{"containers":[{"name":"app","image":"x"}]},
+		"status":{"phase":"Failed","reason":"Evicted","message":"The node was low on resource: memory.",
+		"containerStatuses":[{"name":"app","restartCount":4,"state":{"waiting":{"reason":"CrashLoopBackOff"}},
+		"lastState":{"terminated":{"reason":"OOMKilled","exitCode":137}}}]}}`))
+	status := fieldsOf(t, sections, "Status")
+	if status["Reason"] != "Evicted" || !strings.Contains(status["Message"], "low on resource") {
+		t.Errorf("status = %v", status)
+	}
+	for _, s := range sections {
+		if s.Title == "Containers" && s.Rows[0][3] != "OOMKilled exit 137" {
+			t.Errorf("last run = %q", s.Rows[0][3])
+		}
+	}
+}
+
+func TestIngressBackendsKeepNamedPortsAndTheDefault(t *testing.T) {
+	sections := Object("Ingress", []byte(`{"kind":"Ingress","spec":{"defaultBackend":{"service":{"name":"fallback","port":{"number":80}}},
+		"rules":[{"host":"a.example","http":{"paths":[{"path":"/","backend":{"service":{"name":"web","port":{"name":"http"}}}}]}}]}}`))
+	for _, s := range sections {
+		if s.Title != "Rules" {
+			continue
+		}
+		if len(s.Rows) != 2 || s.Rows[0][2] != "fallback:80" || s.Rows[1][2] != "web:http" {
+			t.Errorf("rules = %v", s.Rows)
+		}
+	}
+}
+
+func TestALoadBalancerWithoutAnAddressSaysItIsPending(t *testing.T) {
+	pending := Object("Service", []byte(`{"kind":"Service","spec":{"type":"LoadBalancer"},"status":{"loadBalancer":{}}}`))
+	if got := fieldsOf(t, pending, "Status"); !strings.Contains(got["External address"], "pending") {
+		t.Errorf("status = %v", got)
+	}
+	ready := Object("Service", []byte(`{"kind":"Service","spec":{"type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"hostname":"lb.example"}]}}}`))
+	if got := fieldsOf(t, ready, "Status"); got["External address"] != "lb.example" {
+		t.Errorf("status = %v", got)
 	}
 }

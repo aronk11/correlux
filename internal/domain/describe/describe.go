@@ -133,6 +133,12 @@ func describePod(doc map[string]any) []Section {
 
 	overview := Section{Title: "Status", Columns: []string{"Field", "Value"}}
 	overview.add("Phase", str(status, "phase"))
+	// Why it is in that phase, in the kubelet's words: "Evicted", and "The
+	// node was low on resource: memory." are the whole explanation of a
+	// failed pod, and they are nowhere else.
+	overview.add("Reason", str(status, "reason"))
+	overview.add("Message", str(status, "message"))
+	overview.add("Deleting since", str(child(doc, "metadata"), "deletionTimestamp"))
 	overview.add("Node", str(spec, "nodeName"))
 	overview.add("Pod IP", str(status, "podIP"))
 	overview.add("Host IP", str(status, "hostIP"))
@@ -143,7 +149,7 @@ func describePod(doc map[string]any) []Section {
 
 	containers := Section{
 		Title:   "Containers",
-		Columns: []string{"Name", "Image", "State", "Ready", "Restarts", "Requests", "Limits"},
+		Columns: []string{"Name", "Image", "State", "Last run", "Ready", "Restarts", "Requests", "Limits"},
 		Empty:   "none reported",
 	}
 	states := containerStates(status)
@@ -163,6 +169,7 @@ func describePod(doc map[string]any) []Section {
 				group.label + name,
 				str(container, "image"),
 				state.state,
+				orDash(state.last),
 				yesNo(state.ready),
 				strconv.Itoa(state.restarts),
 				resourceList(child(child(container, "resources"), "requests")),
@@ -185,7 +192,10 @@ func describePod(doc map[string]any) []Section {
 
 // containerState is the part of a container's status a description needs.
 type containerState struct {
-	state    string
+	state string
+	// last is how the previous run ended, which is the only thing that
+	// explains a container now waiting in CrashLoopBackOff.
+	last     string
 	ready    bool
 	restarts int
 }
@@ -200,6 +210,7 @@ func containerStates(status map[string]any) map[string]containerState {
 			}
 			out[str(cs, "name")] = containerState{
 				state:    stateOf(child(cs, "state")),
+				last:     lastRun(child(child(cs, "lastState"), "terminated")),
 				ready:    boolean(cs, "ready"),
 				restarts: number(cs, "restartCount"),
 			}
@@ -227,6 +238,18 @@ func stateOf(state map[string]any) string {
 	return "—"
 }
 
+// lastRun renders a previous termination: the reason and the exit code.
+func lastRun(terminated map[string]any) string {
+	if terminated == nil {
+		return ""
+	}
+	out := str(terminated, "reason")
+	if _, ok := terminated["exitCode"]; ok {
+		out = strings.TrimSpace(out + " exit " + strconv.Itoa(number(terminated, "exitCode")))
+	}
+	return out
+}
+
 func describeWorkload(kind string, doc map[string]any) []Section {
 	spec, status := child(doc, "spec"), child(doc, "status")
 
@@ -234,15 +257,15 @@ func describeWorkload(kind string, doc map[string]any) []Section {
 	switch kind {
 	case "DaemonSet":
 		overview.add("Desired", strconv.Itoa(number(status, "desiredNumberScheduled")))
-		overview.add("Ready", strconv.Itoa(number(status, "numberReady")))
-		overview.add("Up to date", strconv.Itoa(number(status, "updatedNumberScheduled")))
-		overview.add("Available", strconv.Itoa(number(status, "numberAvailable")))
+		overview.set("Ready", strconv.Itoa(number(status, "numberReady")))
+		overview.set("Up to date", strconv.Itoa(number(status, "updatedNumberScheduled")))
+		overview.set("Available", strconv.Itoa(number(status, "numberAvailable")))
 		overview.add("Misscheduled", strconv.Itoa(number(status, "numberMisscheduled")))
 	default:
 		overview.add("Replicas", strconv.Itoa(number(spec, "replicas")))
-		overview.add("Ready", strconv.Itoa(number(status, "readyReplicas")))
-		overview.add("Up to date", strconv.Itoa(number(status, "updatedReplicas")))
-		overview.add("Available", strconv.Itoa(number(status, "availableReplicas")))
+		overview.set("Ready", strconv.Itoa(number(status, "readyReplicas")))
+		overview.set("Up to date", strconv.Itoa(number(status, "updatedReplicas")))
+		overview.set("Available", strconv.Itoa(number(status, "availableReplicas")))
 	}
 	if strategy := child(spec, "strategy"); strategy != nil {
 		overview.add("Strategy", str(strategy, "type"))
@@ -298,6 +321,28 @@ func describeService(doc map[string]any) []Section {
 	overview.add("Session affinity", str(spec, "sessionAffinity"))
 	overview.add("External traffic", str(spec, "externalTrafficPolicy"))
 	overview.add("Selector", selectorMap(child(spec, "selector")))
+	overview.add("External name", str(spec, "externalName"))
+	var external []string
+	for _, lb := range slice(child(child(doc, "status"), "loadBalancer"), "ingress") {
+		if entry, ok := lb.(map[string]any); ok {
+			if address := str(entry, "ip") + str(entry, "hostname"); address != "" {
+				external = append(external, address)
+			}
+		}
+	}
+	for _, ip := range slice(spec, "externalIPs") {
+		if s, ok := ip.(string); ok {
+			external = append(external, s)
+		}
+	}
+	switch {
+	case len(external) > 0:
+		overview.add("External address", strings.Join(external, ", "))
+	case str(spec, "type") == "LoadBalancer":
+		// The difference between a load balancer that exists and one the
+		// cloud has not provisioned is this row.
+		overview.add("External address", "pending — the cloud has not assigned one")
+	}
 
 	ports := Section{
 		Title:   "Ports",
@@ -318,6 +363,24 @@ func describeService(doc map[string]any) []Section {
 		})
 	}
 	return []Section{overview, ports}
+}
+
+// ingressBackend renders where a rule sends traffic: a service and its port,
+// by number or by name, or the resource a controller-specific backend names.
+func ingressBackend(backend map[string]any) string {
+	if resource := child(backend, "resource"); resource != nil {
+		return str(resource, "kind") + "/" + str(resource, "name")
+	}
+	service := child(backend, "service")
+	out := str(service, "name")
+	if port := child(service, "port"); port != nil {
+		if n := number(port, "number"); n > 0 {
+			out += ":" + strconv.Itoa(n)
+		} else if name := str(port, "name"); name != "" {
+			out += ":" + name
+		}
+	}
+	return out
 }
 
 func describeIngress(doc map[string]any) []Section {
@@ -341,6 +404,9 @@ func describeIngress(doc map[string]any) []Section {
 		Columns: []string{"Host", "Path", "Backend"},
 		Empty:   "none",
 	}
+	if fallback := child(spec, "defaultBackend"); fallback != nil {
+		rules.Rows = append(rules.Rows, []string{"*", "(default backend)", orDash(ingressBackend(fallback))})
+	}
 	for _, r := range slice(spec, "rules") {
 		rule, ok := r.(map[string]any)
 		if !ok {
@@ -352,13 +418,7 @@ func describeIngress(doc map[string]any) []Section {
 			if !ok {
 				continue
 			}
-			service := child(child(path, "backend"), "service")
-			backend := str(service, "name")
-			if port := child(service, "port"); port != nil {
-				if n := number(port, "number"); n > 0 {
-					backend += ":" + strconv.Itoa(n)
-				}
-			}
+			backend := ingressBackend(child(path, "backend"))
 			rules.Rows = append(rules.Rows, []string{host, orDash(str(path, "path")), orDash(backend)})
 		}
 	}
@@ -551,6 +611,15 @@ func scalars(list []any) bool {
 		}
 	}
 	return true
+}
+
+// set adds a row whose zero is the news: "Ready 0" under "Replicas 3" is the
+// line somebody opened the Deployment to read, and add would drop it.
+func (s *Section) set(label, value string) {
+	if strings.TrimSpace(value) == "" {
+		return
+	}
+	s.Rows = append(s.Rows, []string{label, value})
 }
 
 func (s *Section) add(label, value string) {

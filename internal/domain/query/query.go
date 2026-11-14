@@ -93,6 +93,15 @@ func Parse(input string) Query {
 			q.Terms = append(q.Terms, term)
 			continue
 		}
+		// `!status=Running` negates the comparison. Read as excluded text it
+		// matched nothing and hid nothing, with no word to say so.
+		if strings.HasPrefix(word, "!") && len(word) > 1 {
+			if term, ok := parseTerm(word[1:]); ok {
+				term.Negated = true
+				q.Terms = append(q.Terms, term)
+				continue
+			}
+		}
 		if strings.HasPrefix(word, "!") && len(word) > 1 {
 			q.Excluded = append(q.Excluded, strings.ToLower(word[1:]))
 			continue
@@ -216,7 +225,7 @@ func (q Query) Match(columns, cells []string) bool {
 			// screen rather than quietly showing an empty list.
 			return false
 		}
-		if !term.match(columns[index], cells[index]) {
+		if term.match(columns[index], cells[index]) == term.Negated {
 			return false
 		}
 	}
@@ -258,7 +267,7 @@ func (t Term) match(column, cell string) bool {
 	case OpEquals:
 		return strings.EqualFold(cell, t.Value)
 	case OpNotContains:
-		return !strings.Contains(strings.ToLower(cell), strings.ToLower(t.Value))
+		return !containsWord(strings.ToLower(cell), strings.ToLower(t.Value))
 	}
 
 	got, want, ok := numbers(column, cell, t.Value)
@@ -280,6 +289,32 @@ func (t Term) match(column, cell string) bool {
 	return false
 }
 
+// containsWord reports whether cell contains value starting at the beginning
+// of a word. It is what `!=` excludes on: `status!=Ready` must keep the
+// NotReady nodes — the ones the filter was typed to find — and plain
+// "contains" threw them out with the ready ones, because "notready" has
+// "ready" in it. A prefix still counts, so `status!=crash` drops
+// CrashLoopBackOff as it always did.
+func containsWord(cell, value string) bool {
+	if value == "" {
+		return true
+	}
+	for from := 0; from <= len(cell); {
+		i := strings.Index(cell[from:], value)
+		if i < 0 {
+			return false
+		}
+		at := from + i
+		if at == 0 || !isLetter(cell[at-1]) {
+			return true
+		}
+		from = at + 1
+	}
+	return false
+}
+
+func isLetter(b byte) bool { return b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' }
+
 // numbers renders a cell and a typed value as comparable numbers.
 //
 // The column decides how: an age column is a duration, and everything else is a
@@ -300,7 +335,12 @@ func numbers(column, cell, value string) (got, want float64, ok bool) {
 
 func isAgeColumn(column string) bool {
 	c := strings.ToLower(strings.TrimSpace(column))
-	return c == "age" || strings.HasSuffix(c, " age") || c == "last seen" || c == "first seen"
+	switch c {
+	case "age", "last seen", "first seen", "duration", "last schedule", "last transition",
+		"last successful time", "last restart":
+		return true
+	}
+	return strings.HasSuffix(c, " age") || strings.HasSuffix(c, " duration")
 }
 
 // parseNumber reads the number a cell leads with, so "3/5" compares as 3 and
@@ -423,6 +463,8 @@ func ageUnit(r rune) (time.Duration, bool) {
 		return time.Hour, true
 	case 'd':
 		return 24 * time.Hour, true
+	case 'w':
+		return 7 * 24 * time.Hour, true
 	case 'y':
 		return 365 * 24 * time.Hour, true
 	default:

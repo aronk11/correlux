@@ -101,6 +101,21 @@ func (m *Model) confirmRestart(ref objectRef, obj *resources.Object) tea.Cmd {
 		return m.expireNotice()
 	}
 
+	// Having a pod template is not the same as acting on a change to it. A
+	// ReplicaSet ignores one, so the patch "succeeds" and no pod is replaced;
+	// a Job's is immutable, so it fails. Both are restarted through whatever
+	// made them, and saying so beats a confirmation that promises pods it
+	// will not deliver.
+	switch ref.Kind {
+	case "ReplicaSet", "ReplicationController", "Job":
+		hint := "roll the workload that owns it instead"
+		if ref.Kind == "Job" {
+			hint = "a Job cannot be rolled: delete it and let its CronJob or pipeline create the next"
+		}
+		m.notice(ref.label()+" does not replace its pods when restarted; "+hint, theme.StatusWarning)
+		return m.expireNotice()
+	}
+
 	lines := []string{"This replaces every pod of " + ref.Name + ", as fast as its rollout allows."}
 	if pods, known := m.ownedPodCount(ref); known {
 		lines = append(lines, podCount(pods)+" are running now.")
