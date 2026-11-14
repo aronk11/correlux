@@ -258,6 +258,21 @@ operator and custom-resource failures generically—for example cert-manager's
 The scan is capped, respects RBAC, and never attempts to list every custom
 resource installed in the cluster.
 
+The same screen says **what you may do** in the active scope, asked of the API
+server rather than found out by trying:
+
+```
+What you may do in payments
+  Allowed   ✓ read pods, read logs, read events, port-forward, read nodes
+  Refused   ⚠ read secrets, open a shell, debug containers, scale workloads,
+              edit and restart workloads, delete pods, cordon nodes
+```
+
+Learning that a restart is forbidden by attempting one in production is the
+expensive way to learn it. The questions are `SelfSubjectAccessReview`s for
+Deployments and Pods; a question the server did not answer is listed as
+exactly that, never as a no.
+
 ### Why is it broken?
 
 `Ctrl+W` explains the selected application, deterministically and without a
@@ -279,14 +294,15 @@ model anywhere near it:
   confidence: high
 ```
 
-Twenty-seven rules cover crash loops (including the liveness probe that causes
+Twenty-eight rules cover crash loops (including the liveness probe that causes
 them), image pulls (including registry rate limits), missing config, pods stuck
 creating their containers or stuck terminating, OOM kills, unschedulable pods,
 failing probes, missing replicas and the quota that blocks them, failed Jobs,
 stalled rollouts, autoscalers that cannot read their metrics or are at their
 maximum, PodDisruptionBudgets that block node drains, services without
 endpoints or with a targetPort nothing listens on, NetworkPolicies that cut an
-application off, ingresses without a backend, unhealthy nodes, unbound volumes,
+application off, ingresses without a backend, Gateway routes that were not
+accepted, unhealthy nodes, unbound volumes,
 a dependency that is itself down, replicas that all sit on one node or in one
 zone — and what the last rollout changed.
 
@@ -462,6 +478,21 @@ uses the same placement: an application whose replicas all landed on one node,
 or in one zone of a cluster that has several, is told so while it is still
 healthy — three replicas on one machine are one drain away from none — along
 with whether its pod template asked to be spread at all.
+
+With live metrics the application rows carry a **Sizing** remark where there is
+one to make, and only for applications every pod of which was measured:
+
+```
+APPLICATIONS
+  APPLICATION  PODS  NODES  CPU USED/REQ/LIMIT    MEMORY USED/REQ/LIMIT  SIZING
+  ledger       3     3      120m / 1500m / 3000m  2.8Gi / 2Gi / 3Gi      memory at 93% of its limit: close to an OOM kill
+  reports      2     2      40m / 2000m / —       210Mi / 4Gi / —        reserves 20×+ the CPU and 19× the memory it uses right now
+  batch        4     2      — / — / —             — / — / —              no requests set: placed blind, first to be evicted
+```
+
+A note above adds up what the scope reserves and is not using. It says "right
+now" on purpose: this is one sample, and an API at three in the morning looks
+idle. It is where to look, not a sizing recommendation.
 
 Pods that no node has taken get their own section with the scheduler's own
 verdict, because "where are the pods" is not answered by the ones that are
@@ -821,6 +852,25 @@ For controllers that support them, the loaded object's palette offers
 reconcile, suspend and resume. HelmReleases additionally offer retry-counter
 reset and forced install/upgrade. These use guarded, conflict-detecting patches;
 controller conditions tell you whether the requested reconciliation completed.
+
+**Argo CD:** the Application that deploys an application is read like a Flux
+object, and WHY reports what it says about the delivery — a sync that failed,
+with the controller's message; a `ComparisonError`, meaning Git is not being
+applied at all; resources it expects that do not exist; and `OutOfSync`, with
+whether automated sync is on and so whether it will resolve by itself. Its
+health roll-up is deliberately not repeated: Argo CD computes it from the same
+pods the other rules already explain. Argo CD is recognised by its tracking-id
+annotation, its instance label or annotation, including Applications outside
+its own namespace. **Argo Rollouts** are workloads like Deployments: replica
+counts, a canary waiting for promotion shown as paused, an aborted one quoted
+as the controller wrote it.
+
+**Gateway API:** HTTPRoutes and GRPCRoutes belong to the application whose
+Service they route to, next to its Ingresses. A route its Gateway did not
+accept — no listener allows the namespace, a backend reference does not
+resolve — is a finding with the Gateway's own reason, because such a route
+serves nothing however healthy the pods behind it are. A cluster without the
+Gateway API is asked once and not again.
 
 Argo CD ownership navigation continues to use the generic object inspector.
 See [ADR 24](docs/adr/0024-helm-and-flux-operations.md) for boundaries and rationale.

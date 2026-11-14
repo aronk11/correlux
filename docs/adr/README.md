@@ -37,6 +37,7 @@ Michael Nygard's: context, decision, consequences.
 | [29](0029-rollout-revisions-answer-what-changed.md) | Rollout revisions answer "what changed?", and roll back through the gate | accepted |
 | [30](0030-labels-roles-and-grouping.md) | Labels are read, roles are recognised by name, and the dashboard groups by both | accepted |
 | [31](0031-dependencies-and-placement.md) | Dependencies are read from configuration, and placement is a finding before it is an outage | accepted |
+| [32](0032-ecosystem-kinds-and-permissions.md) | Ecosystem kinds are read where served, and permissions are asked rather than tried | accepted |
 
 
 ## Adding one
