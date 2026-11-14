@@ -59,6 +59,27 @@ type evidenceLoadedMsg struct {
 	err     error
 }
 
+type permissionsLoadedMsg struct {
+	gen         uint64
+	permissions []kubeclient.Permission
+	err         error
+}
+
+// loadPermissions asks the API server what this account may do here.
+func (m *Model) loadPermissions() tea.Cmd {
+	gen := m.permissions.Start()
+	ctx, cancel := context.WithTimeout(context.Background(), m.factory.Timeout())
+	factory, name, namespace := m.factory, m.contextName, m.namespace
+	if m.allNamespaces {
+		namespace = ""
+	}
+	return func() tea.Msg {
+		defer cancel()
+		permissions, err := factory.Permissions(ctx, name, namespace)
+		return permissionsLoadedMsg{gen: gen, permissions: permissions, err: err}
+	}
+}
+
 type usageLoadedMsg struct {
 	gen  uint64
 	live usage.Live

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aronk11/correlux/internal/domain/application"
+	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 )
 
 func roleApp(name string, health application.Health, role, team string) application.Application {
@@ -98,5 +99,24 @@ func TestLabelColumnsCanBeFilteredOn(t *testing.T) {
 	m.search.SetValue("team=web")
 	if got := m.visibleApplications(); len(got) != 1 || got[0].Name != "shop" {
 		t.Errorf("team=web matched %d applications", len(got))
+	}
+}
+
+func TestTheSessionScreenSaysWhatTheAccountMayDo(t *testing.T) {
+	m := newTestModel(t)
+	m.backToOverview()
+	if out := view(m); !strings.Contains(out, "Asking the API server") {
+		t.Errorf("while the answer is outstanding the panel says so:\n%s", out)
+	}
+	m.Update(permissionsLoadedMsg{gen: m.permissions.Generation(), permissions: []kubeclient.Permission{
+		{Label: "read logs", Allowed: true, Known: true},
+		{Label: "open a shell", Known: true},
+		{Label: "read secrets"},
+	}})
+	out := view(m)
+	for _, want := range []string{"Allowed", "read logs", "Refused", "open a shell", "No answer", "read secrets"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the panel must show %q:\n%s", want, out)
+		}
 	}
 }

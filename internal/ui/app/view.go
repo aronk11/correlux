@@ -805,8 +805,53 @@ func (m *Model) overviewData() screens.OverviewData {
 	})
 
 	return screens.OverviewData{
-		Panels: []screens.Panel{connection, m.problemsPanel(), session, environment},
+		Panels: []screens.Panel{connection, m.problemsPanel(), session, m.permissionsPanel(), environment},
 	}
+}
+
+// permissionsPanel says what this account may do in the active scope, asked
+// of the API server rather than found out by trying. The list is the actions
+// Correlux offers; what the cluster refuses is named, so a key that will be
+// turned down is known before it is pressed in the middle of an incident.
+func (m *Model) permissionsPanel() screens.Panel {
+	panel := screens.Panel{Title: "What you may do in " + m.scopeLabel()}
+	switch m.permissions.State() {
+	case async.Idle, async.Loading:
+		panel.Fields = []screens.Field{{Label: "Status", Value: "Asking the API server…"}}
+		return panel
+	case async.Failed:
+		panel.Fields = []screens.Field{{Label: "Status", Value: "Could not ask: " + shortError(m.permissions.Err()),
+			Status: theme.StatusWarning, Glyph: true}}
+		return panel
+	}
+	var allowed, denied, unknown []string
+	for _, p := range m.permissions.Get() {
+		switch {
+		case !p.Known:
+			unknown = append(unknown, p.Label)
+		case p.Allowed:
+			allowed = append(allowed, p.Label)
+		default:
+			denied = append(denied, p.Label)
+		}
+	}
+	if len(allowed) > 0 {
+		panel.Fields = append(panel.Fields, screens.Field{Label: "Allowed", Value: strings.Join(allowed, ", "),
+			Status: theme.StatusHealthy, Glyph: true})
+	}
+	if len(denied) > 0 {
+		panel.Fields = append(panel.Fields, screens.Field{Label: "Refused", Value: strings.Join(denied, ", "),
+			Status: theme.StatusWarning, Glyph: true})
+	}
+	if len(unknown) > 0 {
+		panel.Fields = append(panel.Fields, screens.Field{Label: "No answer", Value: strings.Join(unknown, ", ")})
+	}
+	if reason, readOnly := m.readOnlyReason(); readOnly {
+		panel.Note = "Whatever the cluster allows, Correlux refuses every change here: " + reason + "."
+	} else {
+		panel.Note = "Asked with SelfSubjectAccessReview for Deployments and Pods; other kinds may differ, and admission webhooks can still refuse."
+	}
+	return panel
 }
 
 // problemsPanel is the bounded cluster triage pass. It combines application
