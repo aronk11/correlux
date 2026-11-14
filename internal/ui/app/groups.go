@@ -223,9 +223,9 @@ func (m *Model) setGrouping(g groupMode) tea.Cmd {
 	m.keepCursorOnApplication(previous)
 	m.rebuildCommands()
 	if g.active() {
-		m.notice("Grouped by "+g.word(), theme.StatusUnknown)
+		m.notice("Grouped by "+g.word(), theme.StatusHealthy)
 	} else {
-		m.notice("Grouping off: worst first", theme.StatusUnknown)
+		m.notice("Grouping off: worst first", theme.StatusHealthy)
 	}
 	return m.expireNotice()
 }

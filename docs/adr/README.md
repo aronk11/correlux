@@ -35,6 +35,7 @@ Michael Nygard's: context, decision, consequences.
 | [27](0027-air-gapped-operation.md) | Air-gapped operation is an explicit session policy | accepted |
 | [28](0028-read-only-contexts.md) | A read-only context is refused at the transport, not only in the UI | accepted |
 | [29](0029-rollout-revisions-answer-what-changed.md) | Rollout revisions answer "what changed?", and roll back through the gate | accepted |
+| [30](0030-labels-roles-and-grouping.md) | Labels are read, roles are recognised by name, and the dashboard groups by both | accepted |
 
 
 ## Adding one
