@@ -44,7 +44,16 @@ func rolloutChanged(in *Input) []Diagnosis {
 		if len(revs) < 2 {
 			continue
 		}
+		// The revision to compare with is the one still serving, which is not
+		// always the one before: after two bad pushes in a row, revision N-1
+		// is as dead as N, and the working pods belong to N-2.
 		current, previous := &revs[0], &revs[1]
+		for j := 1; j < len(revs); j++ {
+			if revs[j].Ready > 0 {
+				previous = &revs[j]
+				break
+			}
+		}
 		changes := application.TemplateChanges(previous.Template, current.Template)
 		if len(changes) == 0 {
 			continue

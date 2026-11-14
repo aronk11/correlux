@@ -326,13 +326,13 @@ func certificateFinding(in *Input, c *application.Certificate, ingress string) (
 		}
 		if c.Issuer != "" {
 			d.Suggestions = append(d.Suggestions, Suggestion{Text: "Check that the issuer itself is ready",
-				Command: "kubectl get " + strings.ToLower(strings.SplitN(c.Issuer, "/", 2)[0]) + " -A"})
+				Command: issuerCommand(c)})
 		}
 	case expired:
 		d.Rule, d.Severity = "cert.expired", Critical
 		d.Problem = "Certificate/" + c.Name + " for " + hosts + " has expired, so browsers refuse HTTPS"
 		d.Cause = "it expired " + days(-left) + " ago and was not renewed"
-	case c.Ready && !c.NotAfter.IsZero() && left < certWarning:
+	case c.Ready && !c.NotAfter.IsZero() && left < certWarning && renewalOverdue(c, in.Now):
 		d.Rule, d.Severity = "cert.expiring", Warning
 		d.Problem = "Certificate/" + c.Name + " for " + hosts + " expires in " + days(left)
 		d.Cause = "it reports Ready but is this close to expiry, which means renewal is not happening"
@@ -340,6 +340,28 @@ func certificateFinding(in *Input, c *application.Certificate, ingress string) (
 		return Diagnosis{}, false
 	}
 	return d, true
+}
+
+// renewalOverdue reports whether cert-manager should have renewed by now.
+//
+// It says when it means to, and a certificate is late only after that. A
+// fixed window flagged every short-lived certificate for its whole life and
+// every thirty-day one for its last days before a renewal that was on
+// schedule. Without a stated renewal time the window is all there is.
+func renewalOverdue(c *application.Certificate, now time.Time) bool {
+	if c.RenewalTime.IsZero() {
+		return true
+	}
+	return now.After(c.RenewalTime.Add(time.Hour))
+}
+
+// issuerCommand is how to look at the issuer a certificate names.
+func issuerCommand(c *application.Certificate) string {
+	kind, name, _ := strings.Cut(c.Issuer, "/")
+	if strings.EqualFold(kind, "ClusterIssuer") {
+		return "kubectl get clusterissuer " + name
+	}
+	return "kubectl get " + strings.ToLower(kind) + " -n " + c.Namespace + " " + name
 }
 
 func certDetail(c *application.Certificate) string {

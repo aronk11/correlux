@@ -117,6 +117,17 @@ func nodeDetail(n application.Node) string {
 	return strings.Join(parts, "; ")
 }
 
+// waitsForConsumer reports a claim whose StorageClass uses
+// volumeBindingMode WaitForFirstConsumer, in the cluster's own words.
+func waitsForConsumer(in *Input, claim *application.Claim) bool {
+	for _, e := range in.Context.EventsAbout(claim.UID, claim.Name) {
+		if e.Reason == "WaitForFirstConsumer" {
+			return true
+		}
+	}
+	return false
+}
+
 // storageNotBound reports a pod waiting for a volume that does not exist yet.
 // It is a frequent cause of a Pending pod, and the pod itself never says so.
 func storageNotBound(in *Input) []Diagnosis {
@@ -130,6 +141,12 @@ func storageNotBound(in *Input) []Diagnosis {
 		for _, name := range p.Claims {
 			claim, ok := in.Context.ClaimByName(p.Namespace, name)
 			if !ok || claim.Phase == "Bound" || seen[name] {
+				continue
+			}
+			if !p.Scheduled && claim.Phase == "Pending" && waitsForConsumer(in, &claim) {
+				// The claim is waiting for the pod, not the other way round:
+				// its StorageClass binds only once a node has been chosen.
+				// The scheduling rule explains why none has been.
 				continue
 			}
 			seen[name] = true

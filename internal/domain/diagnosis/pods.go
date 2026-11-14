@@ -54,7 +54,11 @@ func crashLoop(in *Input) []Diagnosis {
 
 	cause, confidence, unknown := crashCause(hits)
 	probe := probeKills(in, hits)
-	if probe != nil && !anyOOM(hits) {
+	// A failed probe explains the restarts only when the kubelet did the
+	// killing, which shows as a signal exit. A process that exits by itself
+	// with code 1 usually fails a probe or two on the way down; blaming the
+	// probe there names a symptom as the cause, with high confidence.
+	if probe != nil && !anyOOM(hits) && anySignalled(hits) {
 		cause = "the " + probeKind(probe.Message) + " probe fails, so the kubelet kills the container and restarts it: " +
 			strings.TrimSpace(probe.Message[strings.Index(probe.Message, ":")+1:])
 		confidence, unknown = High, ""
@@ -99,6 +103,19 @@ func crashLoop(in *Input) []Diagnosis {
 		d.Evidence = append(d.Evidence, eventEvidence(&quoted[i]))
 	}
 	return []Diagnosis{d}
+}
+
+// anySignalled reports whether a restarting container's last run ended on a
+// signal: 137 is SIGKILL and 143 SIGTERM, the two the kubelet sends.
+func anySignalled(hits []affected) bool {
+	for _, h := range hits {
+		for _, code := range []int32{h.container.LastExitCode, h.container.ExitCode} {
+			if code == 137 || code == 143 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // probeKills returns the newest event saying a liveness or startup probe
@@ -267,13 +284,24 @@ func lastRun(c *application.Container) string {
 // imagePull explains a container whose image never arrives.
 func imagePull(in *Input) []Diagnosis {
 	hits := findContainers(&in.App,
-		waitingFor("ImagePullBackOff", "ErrImagePull", "ErrImageNeverPull", "InvalidImageName"))
+		waitingFor("ImagePullBackOff", "ErrImagePull", "ErrImageNeverPull", "InvalidImageName",
+			"ImageInspectError", "RegistryUnavailable"))
 	if len(hits) == 0 {
 		return nil
 	}
 
 	first := hits[0]
 	cause, confidence, unknown := imageCause(hits)
+	if cause == "" {
+		// In ImagePullBackOff the container's own message is often just
+		// "Back-off pulling image": the registry's answer is in the events.
+		for _, e := range warningsAbout(in, podRef(first.pod), "Failed") {
+			if c, conf, ok := classifyPull(strings.ToLower(e.Message)); ok {
+				cause, confidence, unknown = c, conf, ""
+				break
+			}
+		}
+	}
 	d := Diagnosis{
 		Rule:        "pod.imagepull",
 		Severity:    Critical,
@@ -317,29 +345,48 @@ func imageSuggestions(first affected, cause string) []Suggestion {
 // worth telling apart, because the fix differs: a typo, a credential, a network.
 func imageCause(hits []affected) (cause string, confidence Confidence, unknown string) {
 	for _, h := range hits {
-		message := strings.ToLower(h.container.Message)
-		switch {
-		case h.container.Reason == "InvalidImageName":
+		switch h.container.Reason {
+		case "InvalidImageName":
 			return "the image reference is not a valid name", High, ""
-		case strings.Contains(message, "toomanyrequests"), strings.Contains(message, "rate limit"):
-			return "the registry is rate-limiting pulls (Docker Hub limits anonymous pulls per IP); pull through a mirror or with credentials", High, ""
-		case strings.Contains(message, "not found"),
-			strings.Contains(message, "manifest unknown"),
-			strings.Contains(message, "repository does not exist"):
-			return "the registry does not have that image or tag", High, ""
-		case strings.Contains(message, "unauthorized"),
-			strings.Contains(message, "authentication required"),
-			strings.Contains(message, "denied"),
-			strings.Contains(message, "forbidden"):
-			return "the registry refused the pull: the node has no credentials for it", High, ""
-		case strings.Contains(message, "no such host"),
-			strings.Contains(message, "timeout"),
-			strings.Contains(message, "connection refused"),
-			strings.Contains(message, "i/o timeout"):
-			return "the node cannot reach the registry", High, ""
+		case "ErrImageNeverPull":
+			return "imagePullPolicy is Never and the image is not already on the node", High, ""
+		}
+		if cause, confidence, ok := classifyPull(strings.ToLower(h.container.Message)); ok {
+			return cause, confidence, ""
 		}
 	}
 	return "", Low, "The kubelet did not say why the pull failed: it could be a missing image, an expired credential or a network problem."
+}
+
+// classifyPull reads one lower-cased message from the kubelet or the registry.
+func classifyPull(message string) (cause string, confidence Confidence, ok bool) {
+	switch {
+	case strings.Contains(message, "toomanyrequests"), strings.Contains(message, "rate limit"):
+		return "the registry is rate-limiting pulls (Docker Hub limits anonymous pulls per IP); pull through a mirror or with credentials", High, true
+	case strings.Contains(message, "pull access denied"),
+		strings.Contains(message, "may require authorization"),
+		strings.Contains(message, "insufficient_scope"):
+		// A registry answers a private repository and a missing one with the
+		// same words, on purpose. Picking one of the two would be right half
+		// the time and send the reader after the wrong fix the other half.
+		return "the registry refused the pull: either the repository does not exist, or the node has no credentials for it", Medium, true
+	case strings.Contains(message, "unauthorized"),
+		strings.Contains(message, "authentication required"),
+		strings.Contains(message, "denied"),
+		strings.Contains(message, "forbidden"):
+		return "the registry refused the pull: the node has no credentials for it", High, true
+	case strings.Contains(message, "not found"),
+		strings.Contains(message, "manifest unknown"),
+		strings.Contains(message, "repository does not exist"):
+		return "the registry does not have that image or tag", High, true
+	case strings.Contains(message, "no such host"),
+		strings.Contains(message, "timeout"),
+		strings.Contains(message, "connection refused"),
+		strings.Contains(message, "x509"),
+		strings.Contains(message, "i/o timeout"):
+		return "the node cannot reach the registry", High, true
+	}
+	return "", Low, false
 }
 
 // containerConfig explains a container the kubelet cannot even create, which is
@@ -492,7 +539,7 @@ func podFailed(in *Input) []Diagnosis {
 		switch reason {
 		case "Evicted":
 			cause = "the node evicted the pod, which happens when it runs short of memory or disk"
-		case "Shutdown", "NodeShutdown":
+		case "Shutdown", "NodeShutdown", "Terminated":
 			cause = "the node was shut down while the pod was running"
 		case "NodeAffinity":
 			cause = "the pod no longer matches the node it was bound to"
