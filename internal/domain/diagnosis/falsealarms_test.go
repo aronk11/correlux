@@ -166,3 +166,53 @@ func TestAnEvictionQuotesWhatTheKubeletSaid(t *testing.T) {
 		t.Errorf("the kubelet says which resource; cause = %q", d.Cause)
 	}
 }
+
+func cron(lastSchedule, lastSuccess time.Duration, active int) application.Application {
+	w := application.Workload{Meta: application.Meta{Kind: "CronJob", Name: "backup", Namespace: "shop", UID: "cj"},
+		Schedule: "0 2 * * *", Active: active}
+	if lastSchedule > 0 {
+		w.LastSchedule = now.Add(-lastSchedule)
+	}
+	if lastSuccess > 0 {
+		w.LastSuccess = now.Add(-lastSuccess)
+	}
+	return application.Application{Name: "backup", Namespace: "shop", Workloads: []application.Workload{w}}
+}
+
+func TestACronJobWhoseLastRunDidNotSucceedIsCalledOutEvenWithItsJobGone(t *testing.T) {
+	d := find(t, diagnose(t, &Input{App: cron(10*time.Hour, 34*time.Hour, 0)}), "cronjob.notsucceeding")
+	if d.Severity != Warning || !strings.Contains(d.Cause, "last success was") {
+		t.Errorf("got %v %q", d.Severity, d.Cause)
+	}
+	never := find(t, diagnose(t, &Input{App: cron(10*time.Hour, 0, 0)}), "cronjob.notsucceeding")
+	if !strings.Contains(never.Cause, "no successful run on record") {
+		t.Errorf("cause = %q", never.Cause)
+	}
+}
+
+func TestACronJobThatIsFineOrBusyIsLeftAlone(t *testing.T) {
+	for name, a := range map[string]application.Application{
+		"last run succeeded":  cron(10*time.Hour, 10*time.Hour-time.Minute, 0),
+		"a run is in flight":  cron(time.Hour, 25*time.Hour, 1),
+		"it has only started": cron(30*time.Second, 24*time.Hour, 0),
+		"never scheduled":     cron(0, 0, 0),
+	} {
+		for _, d := range diagnose(t, &Input{App: a}) {
+			if d.Rule == "cronjob.notsucceeding" {
+				t.Errorf("%s: must not be a finding", name)
+			}
+		}
+	}
+	suspended := cron(10*time.Hour, 34*time.Hour, 0)
+	suspended.Workloads[0].Suspended = true
+	none(t, diagnose(t, &Input{App: suspended}), "cronjob.notsucceeding")
+
+	// The failed Job is still there: it explains itself, with a reason.
+	kept := cron(10*time.Hour, 34*time.Hour, 0)
+	kept.Workloads = append(kept.Workloads, application.Workload{
+		Meta:   application.Meta{Kind: "Job", Name: "backup-1", Namespace: "shop", CreatedAt: now.Add(-10 * time.Hour)},
+		Failed: true, FailedReason: "BackoffLimitExceeded"})
+	findings := diagnose(t, &Input{App: kept})
+	find(t, findings, "job.failed")
+	none(t, findings, "cronjob.notsucceeding")
+}

@@ -85,6 +85,16 @@ type Workload struct {
 	Failed        bool
 	FailedReason  string
 	FailedMessage string
+	// Completed is a Job that finished successfully.
+	Completed bool
+	// The rest describes a CronJob: its schedule as written, when it last
+	// started a run, when a run last succeeded, and how many are running.
+	// The two times are the whole of what Kubernetes remembers about a
+	// CronJob once its Jobs have been cleaned up.
+	Schedule     string
+	LastSchedule time.Time
+	LastSuccess  time.Time
+	Active       int
 	// GroupedBy is why this workload belongs to its application, captured at
 	// grouping time so it never has to be recomputed to answer for itself.
 	GroupedBy Reason

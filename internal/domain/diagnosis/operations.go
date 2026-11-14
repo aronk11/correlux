@@ -178,6 +178,69 @@ func jobFailed(in *Input) []Diagnosis {
 	return out
 }
 
+// settleAfter is how long a CronJob's status is given to catch up with a run
+// that has just been started or has just finished.
+const settleAfter = 2 * time.Minute
+
+// cronJobNotSucceeding reports a CronJob whose last run did not succeed.
+//
+// A CronJob fails quietly. Its failed Jobs are deleted on a history limit —
+// immediately, with failedJobsHistoryLimit 0 — and after that the only trace
+// is two timestamps in its status: when it last started a run and when a run
+// last succeeded. When the first is later than the second and nothing is
+// running, the last run did not succeed, whatever happened to its Job.
+func cronJobNotSucceeding(in *Input) []Diagnosis {
+	var out []Diagnosis
+	for i := range in.App.Workloads {
+		w := &in.App.Workloads[i]
+		if w.Kind != "CronJob" || w.Suspended || w.Active > 0 || w.LastSchedule.IsZero() {
+			continue
+		}
+		if !w.LastSuccess.Before(w.LastSchedule) || in.Now.Sub(w.LastSchedule) < settleAfter {
+			continue
+		}
+		// A failed Job that is still there says the same thing better: it has
+		// a reason and logs. This rule is for when it is gone.
+		covered := false
+		for j := range in.App.Workloads {
+			job := &in.App.Workloads[j]
+			if job.Kind == "Job" && job.Failed && !job.CreatedAt.Before(w.LastSchedule.Add(-settleAfter)) {
+				covered = true
+			}
+		}
+		if covered {
+			continue
+		}
+		cause := "its last run started " + since(in.Now.Sub(w.LastSchedule)) + " ago and the last success was " +
+			since(in.Now.Sub(w.LastSuccess)) + " ago"
+		if w.LastSuccess.IsZero() {
+			cause = "its last run started " + since(in.Now.Sub(w.LastSchedule)) + " ago and it has no successful run on record"
+		}
+		out = append(out, Diagnosis{
+			Rule: "cronjob.notsucceeding", Severity: Warning, Confidence: High,
+			Subject: application.ObjectRef{Kind: "CronJob", Name: w.Name, UID: w.UID},
+			Problem: "CronJob/" + w.Name + " did not succeed on its last run",
+			Cause:   cause,
+			Unknown: "Why it failed, if its Job has already been cleaned up: only the two timestamps remain.",
+			Chain:   chain(&in.App, "CronJob/"+w.Name, "last run not successful"),
+			Suggestions: []Suggestion{
+				{Text: "Look at the Jobs it still keeps and their pods", Command: "kubectl get jobs -n " + w.Namespace + " --sort-by=.metadata.creationTimestamp"},
+				{Text: "Run it once now to see it fail", Command: "kubectl create job -n " + w.Namespace + " --from=cronjob/" + w.Name + " " + w.Name + "-manual"},
+			},
+			Evidence: []Evidence{{Kind: "CronJob", Name: w.Name, Detail: "schedule " + orUnknown(w.Schedule) +
+				"; lastScheduleTime " + w.LastSchedule.UTC().Format("2006-01-02 15:04 MST") + "; lastSuccessfulTime " + stamp(w.LastSuccess)}},
+		})
+	}
+	return out
+}
+
+func stamp(t time.Time) string {
+	if t.IsZero() {
+		return "never"
+	}
+	return t.UTC().Format("2006-01-02 15:04 MST")
+}
+
 // stuckTerminating reports pods that were deleted and are still there long
 // after their grace period: a finalizer nobody removes, or a node that is gone
 // and cannot confirm the containers stopped.

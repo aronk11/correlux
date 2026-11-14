@@ -296,10 +296,11 @@ model anywhere near it:
   confidence: high
 ```
 
-Twenty-eight rules cover crash loops (including the liveness probe that causes
+Twenty-nine rules cover crash loops (including the liveness probe that causes
 them), image pulls (including registry rate limits), missing config, pods stuck
 creating their containers or stuck terminating, OOM kills, unschedulable pods,
 failing probes, missing replicas and the quota that blocks them, failed Jobs,
+CronJobs whose last run did not succeed (even after the Job was cleaned up),
 stalled rollouts, autoscalers that cannot read their metrics or are at their
 maximum, PodDisruptionBudgets that block node drains, services without
 endpoints or with a targetPort nothing listens on, NetworkPolicies that cut an
