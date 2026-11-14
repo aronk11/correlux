@@ -30,6 +30,13 @@ func fromPod(p *corev1.Pod) application.Pod {
 	for i := range p.Status.ContainerStatuses {
 		out.Restarts += p.Status.ContainerStatuses[i].RestartCount
 	}
+	// Init containers restart too, and a pod stuck in Init:CrashLoopBackOff
+	// has all of its restarts here. kubectl counts them; a dashboard that
+	// showed 0 beside a pod on its fortieth attempt would hide it from
+	// `restarts>5`, which is the filter somebody reaches for to find it.
+	for i := range p.Status.InitContainerStatuses {
+		out.Restarts += p.Status.InitContainerStatuses[i].RestartCount
+	}
 	out.Reason = podReason(p)
 	out.Containers = containers(p)
 	out.Scheduled, out.ScheduledReason, out.ScheduledMessage = scheduled(p)

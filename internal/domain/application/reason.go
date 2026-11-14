@@ -30,6 +30,11 @@ const (
 	// SignalBackend is an Ingress that routes to one of the application's
 	// services.
 	SignalBackend
+	// SignalOperatorLabel is a label an operator writes on what it creates —
+	// a database cluster, a pipeline, a Knative service. SignalRunLabel is the
+	// one `kubectl run` leaves behind.
+	SignalOperatorLabel
+	SignalRunLabel
 	// SignalNone means nothing matched at all: the object is here only
 	// because its own name was used as a last resort, so it appears
 	// somewhere rather than vanishing (ADR 16).
@@ -49,6 +54,10 @@ func (s Signal) String() string {
 		return "app label"
 	case SignalK8sAppLabel:
 		return "k8s-app label"
+	case SignalOperatorLabel:
+		return "operator label"
+	case SignalRunLabel:
+		return "run label"
 	case SignalSelector:
 		return "service selector"
 	case SignalBackend:
@@ -105,7 +114,7 @@ func (r Reason) Describe() string {
 		return "backend references Service/" + r.Value
 	case SignalNone:
 		return "no owner, label, selector or backend matched — grouped by name"
-	default: // the four label signals
+	default: // the label signals
 		return r.Key + "=" + r.Value
 	}
 }

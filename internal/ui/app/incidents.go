@@ -62,6 +62,12 @@ func (m *Model) incidentLines(width, height int) []string {
 		}
 		status := severityStatus(primary.Severity)
 		text := m.theme.Glyph(status) + " " + padTo(a.Name, nameWidth) + "  " + m.incidentLabel(a)
+		// A failing piece of the platform is everybody's incident, and the
+		// line says so: the same words about a shop frontend and about the
+		// ingress controller do not weigh the same.
+		if role := a.Traits.Role; role.Platform() {
+			text = m.theme.Glyph(status) + " " + padTo(a.Name, nameWidth) + "  [" + role.Name + "] " + m.incidentLabel(a)
+		}
 		entries = append(entries, entry{text: text, status: primary.Severity})
 	}
 	if len(entries) == 0 {

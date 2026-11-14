@@ -285,7 +285,22 @@ func (m *Model) usageNotes(report *usage.Report) []string {
 // is each machine they landed on.
 func (m *Model) usageNodeSection(report *usage.Report) detailSection {
 	live := report.Metrics.Available
-	columns := []string{"Node", "State", "Pods"}
+	// Zone and pool are drawn where the nodes carry the labels — on a cloud,
+	// they are how "which nodes are full" turns into "which pool do I grow"
+	// and "is this one zone".
+	zones, placed := false, false
+	for i := range report.Nodes {
+		zones = zones || report.Nodes[i].Node.Zone() != ""
+		placed = placed || report.Nodes[i].Node.Placement() != ""
+	}
+	columns := []string{"Node", "State"}
+	if zones {
+		columns = append(columns, "Zone")
+	}
+	if placed {
+		columns = append(columns, "Pool")
+	}
+	columns = append(columns, "Pods")
 	if live {
 		columns = append(columns, "CPU used")
 	}
@@ -305,8 +320,14 @@ func (m *Model) usageNodeSection(report *usage.Report) detailSection {
 		cells := []string{
 			n.Node.Name,
 			m.theme.Glyph(status) + " " + state,
-			podsCell(n.Pods, n.Node.Allocatable.Pods),
 		}
+		if zones {
+			cells = append(cells, orDash(n.Node.Zone()))
+		}
+		if placed {
+			cells = append(cells, orDash(n.Node.Placement()))
+		}
+		cells = append(cells, podsCell(n.Pods, n.Node.Allocatable.Pods))
 		if live {
 			cells = append(cells, m.sampleShare(n.Used.HasCPU, n.Used.CPUMilli,
 				n.Node.Allocatable.CPUMilli, formatCPU))

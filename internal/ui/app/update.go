@@ -975,6 +975,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.explain()
 	case ActionGrouping:
 		return m.toggleGrouping()
+	case ActionGroupBy:
+		return m.cycleGrouping()
 	case ActionYAML:
 		if m.view == viewObject {
 			m.toggleObjectYAML()

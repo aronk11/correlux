@@ -51,7 +51,12 @@ func nodeUnhealthy(in *Input) []Diagnosis {
 		case len(node.Pressure) > 0:
 			problem = podsPhrase(len(pods)) + agree(len(pods), " runs", " run") + " on node " + name +
 				", which is under " + strings.Join(node.Pressure, " and ")
-			cause = "the node is short of a resource and may evict pods to recover it"
+			cause = "the node reports a problem with the machine itself"
+			if onlyPressure(node.Pressure) {
+				cause = "the node is short of a resource and may evict pods to recover it"
+			} else if len(node.Pressure) == 1 && node.Pressure[0] == "NetworkUnavailable" {
+				cause = "the node's pod network is not set up, so pods on it cannot be reached"
+			}
 		default:
 			// Cordoned: nothing is wrong yet, but no replacement pod will land
 			// here, which is worth knowing during a rollout.
@@ -85,6 +90,17 @@ func nodeUnhealthy(in *Input) []Diagnosis {
 		out = append(out, d)
 	}
 	return out
+}
+
+// onlyPressure reports whether every condition is one of the kubelet's
+// resource pressures, which is the only case eviction follows from.
+func onlyPressure(conditions []string) bool {
+	for _, c := range conditions {
+		if !strings.HasSuffix(c, "Pressure") {
+			return false
+		}
+	}
+	return true
 }
 
 func nodeDetail(n application.Node) string {

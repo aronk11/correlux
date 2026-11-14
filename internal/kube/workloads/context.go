@@ -186,6 +186,28 @@ func fromEvent(e *corev1.Event) application.Event {
 	return out
 }
 
+// nodeProblemConditions are the node conditions that mean trouble when they
+// are true: the kubelet's own, and the ones node-problem-detector sets.
+//
+// It is a list rather than "everything but Ready" because conditions come in
+// both polarities. Managed node agents publish conditions such as
+// KernelReady or NetworkingReady that are true on a healthy machine, and
+// reading those as pressure put a warning on every application in the
+// cluster.
+var nodeProblemConditions = map[string]bool{
+	"MemoryPressure":              true,
+	"DiskPressure":                true,
+	"PIDPressure":                 true,
+	"NetworkUnavailable":          true,
+	"KernelDeadlock":              true,
+	"ReadonlyFilesystem":          true,
+	"CorruptDockerOverlay2":       true,
+	"FrequentKubeletRestart":      true,
+	"FrequentDockerRestart":       true,
+	"FrequentContainerdRestart":   true,
+	"FrequentUnregisterNetDevice": true,
+}
+
 func fromNode(n *corev1.Node) application.Node {
 	out := application.Node{
 		Meta:          meta("Node", n.ObjectMeta),
@@ -198,8 +220,7 @@ func fromNode(n *corev1.Node) application.Node {
 			if !out.Ready {
 				out.Reason, out.Message = c.Reason, c.Message
 			}
-		case c.Status == corev1.ConditionTrue:
-			// Every other node condition is a problem when it is true.
+		case c.Status == corev1.ConditionTrue && nodeProblemConditions[string(c.Type)]:
 			out.Pressure = append(out.Pressure, string(c.Type))
 		}
 	}
