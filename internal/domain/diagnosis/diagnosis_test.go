@@ -151,6 +151,7 @@ func TestCrashLoopPrefersTheMemoryKillAsTheCause(t *testing.T) {
 	oom.LastExitCode = 137
 	oom.LastReason = "OOMKilled"
 	oom.OOMKilled = true
+	oom.Limits = application.Amounts{MemoryBytes: 256 << 20, HasMemory: true}
 
 	d := find(t, diagnose(t, &Input{App: app(pod("payments-1", oom))}), "pod.crashloop")
 	if !strings.Contains(d.Cause, "memory limit") {
@@ -183,6 +184,7 @@ func TestCrashLoopOOMKillSeparatesFactInferenceAndUnknown(t *testing.T) {
 	oom.LastExitCode = 137
 	oom.LastReason = "OOMKilled"
 	oom.OOMKilled = true
+	oom.Limits = application.Amounts{MemoryBytes: 256 << 20, HasMemory: true}
 
 	d := find(t, diagnose(t, &Input{App: app(pod("payments-1", oom))}), "pod.crashloop")
 
@@ -291,6 +293,7 @@ func TestOutOfMemoryFiresForARunningPodAndNotForACrashLoop(t *testing.T) {
 
 	crashing := waiting("CrashLoopBackOff", "")
 	crashing.OOMKilled = true
+	crashing.Limits = application.Amounts{MemoryBytes: 256 << 20, HasMemory: true}
 	crashing.LastExitCode = 137
 	// The crash-loop rule already explains this one; two findings about the
 	// same container would be noise.

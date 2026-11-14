@@ -206,6 +206,14 @@ func exitCause(code int32, reason string) string {
 // reasonable reading of them, plus what that reading still cannot explain.
 func crashCause(hits []affected) (cause string, confidence Confidence, unknown string) {
 	for _, h := range hits {
+		if h.container.OOMKilled && !h.container.Limits.HasMemory {
+			// OOMKilled without a limit of its own was not the container
+			// outgrowing its limit: the node ran out, or a limit set on the
+			// whole pod did. "Raise the limit" is advice for a limit that
+			// does not exist.
+			return "the container was killed for lack of memory although it has no memory limit of its own: the node ran out, or a limit on the whole pod was reached", Medium,
+				"Which of the two, and what used the memory, is not reported; a container with no request is among the first the kernel picks."
+		}
 		if h.container.OOMKilled {
 			return "the container exceeded its memory limit and was killed for it", High,
 				"Kubernetes does not report why memory use grew; that requires the application's own metrics or logs."
@@ -539,6 +547,11 @@ func podFailed(in *Input) []Diagnosis {
 		switch reason {
 		case "Evicted":
 			cause = "the node evicted the pod, which happens when it runs short of memory or disk"
+			if pods[0].Message != "" {
+				// The kubelet says which: the node's memory, its disk, or the
+				// pod's own ephemeral-storage limit — three different fixes.
+				cause = "the node evicted the pod: " + pods[0].Message
+			}
 		case "Shutdown", "NodeShutdown", "Terminated":
 			cause = "the node was shut down while the pod was running"
 		case "NodeAffinity":

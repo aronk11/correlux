@@ -343,7 +343,7 @@ func podsOf(app *application.Application, w *application.Workload) int {
 			count++
 			continue
 		}
-		if ref, ok := p.Controller(); ok && ref.Name != "" && strings.HasPrefix(ref.Name, w.Name) {
+		if ref, ok := p.Controller(); ok && ref.Name != "" && strings.HasPrefix(ref.Name, w.Name+"-") {
 			count++
 		}
 	}

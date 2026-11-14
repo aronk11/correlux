@@ -552,7 +552,17 @@ func effective(pod *application.Pod, of func(*application.Container) application
 			apps = apps.Add(of(c))
 		}
 	}
-	return apps.Add(sidecars).Max(initPeak)
+	total := apps.Add(sidecars).Max(initPeak)
+	// Overhead is reserved on top of whatever the containers come to. It adds
+	// to an amount that was set; it does not turn an unsized pod into a
+	// sized one.
+	if total.HasCPU {
+		total.CPUMilli += pod.Overhead.CPUMilli
+	}
+	if total.HasMemory {
+		total.MemoryBytes += pod.Overhead.MemoryBytes
+	}
+	return total
 }
 
 // Percent renders part of whole as a whole-number percentage, and -1 when

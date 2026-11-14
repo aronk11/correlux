@@ -176,7 +176,7 @@ func ingressWithoutBackend(in *Input) []Diagnosis {
 	}
 	known := map[string]bool{}
 	for i := range in.Scope.Services {
-		known[in.Scope.Services[i].Name] = true
+		known[in.Scope.Services[i].Namespace+"/"+in.Scope.Services[i].Name] = true
 	}
 	if len(known) == 0 {
 		// Without the scope's services this rule cannot tell "missing" from
@@ -189,7 +189,7 @@ func ingressWithoutBackend(in *Input) []Diagnosis {
 		ing := &in.App.Ingresses[i]
 		var missing []string
 		for _, backend := range ing.Backends {
-			if !known[backend] {
+			if !known[ing.Namespace+"/"+backend] {
 				missing = append(missing, backend)
 			}
 		}

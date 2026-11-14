@@ -415,7 +415,12 @@ func describeQuota(doc map[string]any) []Section {
 	}
 	usage := Section{Title: "Usage", Columns: []string{"Resource", "Used", "Hard"}, Empty: "no limits"}
 	for _, k := range sortedKeys(hard) {
-		usage.Rows = append(usage.Rows, []string{k, orDash(value(used[k])), value(hard[k])})
+		// Nothing used is "0", and only nothing reported is a dash.
+		consumed := "—"
+		if _, reported := used[k]; reported {
+			consumed = value(used[k])
+		}
+		usage.Rows = append(usage.Rows, []string{k, consumed, value(hard[k])})
 	}
 	return []Section{usage}
 }

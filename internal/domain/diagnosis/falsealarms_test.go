@@ -148,3 +148,21 @@ func TestHealthyWhenTrueNodeConditionsAreNotPressure(t *testing.T) {
 		t.Errorf("a node without pod networking is not short of a resource: %q", d.Cause)
 	}
 }
+
+func TestAnOOMKillWithoutALimitIsNotBlamedOnALimit(t *testing.T) {
+	c := waiting("CrashLoopBackOff", "")
+	c.Restarts, c.LastExitCode, c.LastReason, c.OOMKilled = 4, 137, "OOMKilled", true
+	d := find(t, diagnose(t, &Input{App: app(pod("payments-1", c))}), "pod.crashloop")
+	if strings.Contains(d.Cause, "exceeded its memory limit") || !strings.Contains(d.Cause, "no memory limit of its own") {
+		t.Errorf("cause = %q", d.Cause)
+	}
+}
+
+func TestAnEvictionQuotesWhatTheKubeletSaid(t *testing.T) {
+	p := pod("payments-1")
+	p.Phase, p.Reason, p.Message = "Failed", "Evicted", "Pod ephemeral local storage usage exceeds the total limit of containers 1Gi."
+	d := find(t, diagnose(t, &Input{App: app(p)}), "pod.failed")
+	if !strings.Contains(d.Cause, "ephemeral local storage") {
+		t.Errorf("the kubelet says which resource; cause = %q", d.Cause)
+	}
+}

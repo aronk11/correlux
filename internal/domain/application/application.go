@@ -100,7 +100,10 @@ type Pod struct {
 	// CrashLoopBackOff, ImagePullBackOff, OOMKilled, Unschedulable, Evicted,
 	// Terminating. It is what the cluster reports, never an interpretation of
 	// it — explaining the cause is the diagnosis engine's job (SPEC 11).
-	Reason   string
+	Reason string
+	// Message is the pod-level status message, which a failed pod uses to
+	// say what its Reason alone does not: why it was evicted.
+	Message  string
 	Restarts int32
 	Node     string
 	// Containers carry the detail a diagnosis reasons about: which container,
@@ -118,6 +121,9 @@ type Pod struct {
 	// variable that names it. The values themselves are never kept: a
 	// connection string is where passwords live.
 	References []Reference
+	// Overhead is what the pod's RuntimeClass adds on top of its containers —
+	// a sandbox such as Kata or gVisor — and the scheduler reserves it too.
+	Overhead Amounts
 	// Spread is true when the pod template asks the scheduler to keep its
 	// replicas apart: a topology spread constraint or pod anti-affinity.
 	Spread bool
