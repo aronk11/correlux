@@ -205,6 +205,12 @@ func (m *Model) cycleGrouping() tea.Cmd {
 	if m.view != viewApplications {
 		return nil
 	}
+	if !m.groupable() {
+		// One namespace and no labels: there is nothing to group by, and
+		// saying so beats a key that silently does nothing.
+		m.notice("Nothing to group by here: one namespace, and no role, system or team labels", theme.StatusWarning)
+		return m.expireNotice()
+	}
 	next := m.appGroup
 	for range int(groupModes) {
 		next = (next + 1) % groupModes
@@ -228,6 +234,20 @@ func (m *Model) setGrouping(g groupMode) tea.Cmd {
 		m.notice("Grouping off: worst first", theme.StatusHealthy)
 	}
 	return m.expireNotice()
+}
+
+// groupable reports whether any grouping would say something about the
+// applications loaded, or one is already on and can be turned off.
+func (m *Model) groupable() bool {
+	if m.appGroup.active() {
+		return true
+	}
+	for g := groupNone + 1; g < groupModes; g++ {
+		if g.useful(m.applications()) {
+			return true
+		}
+	}
+	return false
 }
 
 // groupHint is what the status bar says the key does next.
