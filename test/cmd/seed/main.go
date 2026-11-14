@@ -258,7 +258,15 @@ func ensureNode(ctx context.Context, cs kubernetes.Interface) error {
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   nodeName,
-			Labels: labels(map[string]string{"kubernetes.io/hostname": nodeName, "correlux.dev/synthetic": "true"}),
+			// The labels a cloud would write, so the usage view has a zone,
+			// a pool and a machine type to show.
+			Labels: labels(map[string]string{
+				"kubernetes.io/hostname":           nodeName,
+				"correlux.dev/synthetic":           "true",
+				"topology.kubernetes.io/zone":      "seed-1a",
+				"node.kubernetes.io/instance-type": "synthetic.large",
+				"karpenter.sh/nodepool":            "load",
+			}),
 		},
 		Spec: corev1.NodeSpec{
 			// Nothing real may be scheduled here by accident.
@@ -316,7 +324,12 @@ func setNodeReadyOnce(ctx context.Context, cs kubernetes.Interface) error {
 }
 
 func ensureNamespace(ctx context.Context, cs kubernetes.Interface, name string) error {
-	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels(nil)}}
+	// Team and environment sit on the namespace, which is where most
+	// organisations put them, and the workloads inherit them from there.
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels(map[string]string{
+		"team":        "team-" + string(rune('a'+hash(name)%3)),
+		"environment": "test",
+	})}}
 	_, err := cs.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
 	return created(err)
 }

@@ -301,9 +301,23 @@ func podTemplate(app string, podLabels map[string]string) corev1.PodTemplateSpec
 				Name:  app,
 				Image: "registry.k8s.io/pause:3.10",
 				Ports: []corev1.ContainerPort{{ContainerPort: 8080, Name: "http"}},
+				Env:   upstream(app),
 			}},
 		},
 	}
+}
+
+// upstreamApp is the application every other one in a namespace points at,
+// the way a real namespace has one database everything talks to. It gives the
+// dependency view something to draw, and — whenever that application is
+// seeded broken — the "depends on X, which is down" finding something to say.
+const upstreamApp = "app-00"
+
+func upstream(app string) []corev1.EnvVar {
+	if app == upstreamApp {
+		return nil
+	}
+	return []corev1.EnvVar{{Name: "UPSTREAM_URL", Value: "http://" + upstreamApp + ":80/"}}
 }
 
 func seedPod(
