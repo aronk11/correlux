@@ -123,6 +123,7 @@ correlux version
 | `Ctrl+O` | Switch namespace |
 | `/` | Filter the list on screen |
 | `s` | Sort the table by a column; the same column again reverses it |
+| `a` | Group the dashboard: by namespace, role, system, team, or what manages them |
 | `Ctrl+R` | Refresh |
 | `Ctrl+F` | Refresh on a timer, until you turn it off (`auto 2s` appears in the header) |
 | `w` | Show or hide the wide columns; they appear on their own where they fit |
@@ -162,7 +163,52 @@ labelled or configured first, and `Enter` opens an application to show the
 workloads, pods and network it is actually made of
 ([ADR 16](docs/adr/0016-application-inference.md)).
 
+The things operators run are kept together as well: every revision of a
+Knative service, every run of a Tekton pipeline, the head and workers of a Ray
+cluster, the instances of a CloudNativePG or Strimzi cluster. The control
+plane's static pods are named after what they are — `kube-apiserver`, three
+pods on three nodes — not after the machine they run on.
+
+### Labels, roles and grouping
+
+What an application's labels say about it is on the dashboard, and never more
+than they say:
+
+```
+ROLE                 STATUS      APPLICATION    PODS  RESTARTS  AGE    DETAIL
+ingress (1) ✖1       ✖ down      ingress-nginx  0/2          0  41d    0 of 2 pods ready
+applications (2) ⚠1  ⚠ degraded  checkout       2/3         14  9d     1 CrashLoopBackOff
+                     ✓ healthy   cart           3/3          0  9d
+dns (1)              ✓ healthy   coredns        2/2          0  41d
+```
+
+| Column | Read from |
+|--------|-----------|
+| Role | what the application is to the cluster — ingress, dns, networking, service mesh, certificates, gitops, monitoring, autoscaling, storage, secrets, policy, database, … — recognised from the name its own chart gives it or the image it runs |
+| System | `app.kubernetes.io/part-of` |
+| Version | `app.kubernetes.io/version`, else the image tag the pods run; two tags mean a rollout is in progress |
+| Team | `team`, `owner`, `app.kubernetes.io/team`, `a8r.io/owner` and a few other spellings |
+| Env | `environment`, `env`, `stage` |
+
+A column appears only where some application carries the label, and each can be
+filtered on: `/role=ingress`, `/team=payments health!=healthy`, `/version=1.9`.
+`a` groups the dashboard by one of them — or by namespace, or by Helm, Flux and
+Argo CD — with the group named once and how many of its applications are unwell
+beside it. Groupings that would say nothing here are skipped.
+
+A role is recognised by whole names against a list, with what it was recognised
+from shown in the application (`Role: ingress (app.kubernetes.io/name=ingress-nginx)`);
+an application nobody listed has no role rather than a guessed one. When a
+piece of the platform is unwell, the application and the NEEDS ATTENTION strip
+say what leans on it — *traffic from outside the cluster enters through it* —
+because the ingress controller being down and one frontend being down are not
+the same size of problem. `a8r.io/runbook`, `a8r.io/repository` and
+`a8r.io/chat` annotations are shown where the workloads carry them
+([ADR 30](docs/adr/0030-labels-roles-and-grouping.md)).
+
 Health starts with what the cluster reports in replica counts and pod states.
+Evicted pods that were already replaced do not count against an application;
+a CronJob whose newest run failed does.
 After evidence has been loaded, delivery failures such as a Service with no
 ready endpoints are folded into the displayed health as well. *Why* something
 is broken is the next section's question.

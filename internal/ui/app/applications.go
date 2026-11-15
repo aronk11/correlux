@@ -264,7 +264,14 @@ func (m *Model) applicationsData() screens.TableData {
 			cell: func(a *application.Application, _ application.Health, _ theme.Status) string {
 				return workloadSummary(a)
 			}},
-		trait("Role", func(a *application.Application) string { return a.Traits.Role.Name }),
+		// The role is drawn in the compact table too: it is one short word, and
+		// it is the difference between "a deployment is down" and "the ingress
+		// controller is down".
+		func() column {
+			c := trait("Role", func(a *application.Application) string { return a.Traits.Role.Name })
+			c.Wide = false
+			return c
+		}(),
 		trait("System", func(a *application.Application) string { return a.Traits.System }),
 		trait("Version", func(a *application.Application) string { return a.Traits.Version }),
 		trait("Team", func(a *application.Application) string { return a.Traits.Team }),
