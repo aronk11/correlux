@@ -244,8 +244,17 @@ func (m *Model) loadEvidence() tea.Cmd {
 	}
 	apps := m.applications()
 	for i := range apps {
-		if apps[i].Manager.Tool == "Flux" {
+		switch apps[i].Manager.Tool {
+		case "Flux":
 			opts.GitOpsNamespaces = append(opts.GitOpsNamespaces, apps[i].Manager.Namespace)
+		case "Argo CD":
+			// Argo CD keeps its Applications in its own namespace unless the
+			// object says otherwise.
+			ns := apps[i].Manager.Namespace
+			if ns == "" {
+				ns = "argocd"
+			}
+			opts.GitOpsNamespaces = append(opts.GitOpsNamespaces, ns)
 		}
 	}
 

@@ -276,3 +276,25 @@ func TestNodePlacementReadsEveryCloudsSpelling(t *testing.T) {
 		}
 	}
 }
+
+func TestArgoCDIsRecognisedHoweverItTracks(t *testing.T) {
+	cases := []struct {
+		name        string
+		labels      map[string]string
+		annotations map[string]string
+		app, ns     string
+	}{
+		{"tracking id", nil, map[string]string{"argocd.argoproj.io/tracking-id": "shop:apps/Deployment:payments/api"}, "shop", ""},
+		{"application in another namespace", nil, map[string]string{"argocd.argoproj.io/tracking-id": "team-a_shop:apps/Deployment:payments/api"}, "shop", "team-a"},
+		{"instance label", map[string]string{"argocd.argoproj.io/instance": "shop"}, nil, "shop", ""},
+		{"instance annotation", nil, map[string]string{"argocd.argoproj.io/instance": "shop"}, "shop", ""},
+	}
+	for _, c := range cases {
+		m := meta("Deployment", "api", c.labels)
+		m.Annotations = c.annotations
+		got := managerOf(m)
+		if got.Tool != "Argo CD" || got.Name != c.app || got.Namespace != c.ns {
+			t.Errorf("%s: manager = %+v, want Argo CD %s in %q", c.name, got, c.app, c.ns)
+		}
+	}
+}

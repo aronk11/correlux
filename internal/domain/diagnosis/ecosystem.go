@@ -382,6 +382,96 @@ func certDetail(c *application.Certificate) string {
 	return strings.Join(parts, "; ")
 }
 
+// argoCD reports the Argo CD Application that deploys this application when
+// it says something is wrong with the delivery: a sync that failed, a
+// manifest it cannot render, or a cluster that no longer matches Git.
+//
+// Its health roll-up of "Degraded" is deliberately not a finding. Argo CD
+// computes it from the same pods the other rules already explain, and
+// repeating their verdict under another name would add a line and no fact.
+func argoCD(in *Input) []Diagnosis {
+	m := in.App.Manager
+	for i := range in.Context.GitOps {
+		g := &in.Context.GitOps[i]
+		if g.Kind != "Application" || g.Name != m.Name || (m.Namespace != "" && g.Namespace != m.Namespace) {
+			continue
+		}
+		ref := application.ObjectRef{Kind: "Application", Name: g.Name, UID: g.UID}
+		name := "Application/" + g.Name
+		suggestions := []Suggestion{
+			{Text: "Read what Argo CD says about each resource", Command: "argocd app get " + g.Name},
+			{Text: "Read the Application's status and conditions", Command: "kubectl describe applications.argoproj.io -n " + g.Namespace + " " + g.Name},
+		}
+		detail := []string{"sync " + orUnknown(g.Sync), "health " + orUnknown(g.Health)}
+		if g.Operation != "" {
+			detail = append(detail, "last sync "+g.Operation)
+		}
+		if g.Revision != "" {
+			detail = append(detail, "revision "+shortRevision(g.Revision))
+		}
+		evidence := []Evidence{{Kind: "Application", Name: g.Name, Detail: strings.Join(detail, "; ")}}
+		for _, e := range g.Errors {
+			evidence = append(evidence, Evidence{Kind: "Application", Name: g.Name, Detail: e})
+		}
+
+		switch {
+		case g.Operation == "Failed" || g.Operation == "Error":
+			return []Diagnosis{{
+				Rule: "gitops.syncfailed", Severity: Warning, Subject: ref, Confidence: High,
+				Problem:     name + ", which deploys this application, failed its last sync",
+				Cause:       orUnknown(g.OperationMessage),
+				Unknown:     "The application may still run what the last successful sync applied; what is in Git is not what is in the cluster.",
+				Chain:       chain(&in.App, name, "sync "+g.Operation),
+				Suggestions: suggestions,
+				Evidence:    evidence,
+			}}
+		case len(g.Errors) > 0:
+			return []Diagnosis{{
+				Rule: "gitops.notready", Severity: Warning, Subject: ref, Confidence: High,
+				Problem:     name + ", which deploys this application, cannot work out what to apply",
+				Cause:       g.Errors[0],
+				Unknown:     "Until this is resolved a push to Git changes nothing in the cluster.",
+				Chain:       chain(&in.App, name, strings.SplitN(g.Errors[0], ":", 2)[0]),
+				Suggestions: suggestions,
+				Evidence:    evidence,
+			}}
+		case g.Health == "Missing":
+			return []Diagnosis{{
+				Rule: "gitops.missing", Severity: Warning, Subject: ref, Confidence: High,
+				Problem:     name + " expects resources that do not exist in the cluster",
+				Cause:       "Argo CD reports health Missing: something it manages was deleted, or was never created",
+				Chain:       chain(&in.App, name, "Missing"),
+				Suggestions: suggestions,
+				Evidence:    evidence,
+			}}
+		case g.Sync == "OutOfSync":
+			cause := "automated sync is off, so the cluster stays as it is until somebody syncs"
+			if g.Automated {
+				cause = "automated sync is on and has not brought the cluster in line: it is still running, or a resource keeps drifting back"
+			}
+			return []Diagnosis{{
+				Rule: "gitops.outofsync", Severity: Info, Subject: ref, Confidence: High,
+				Problem:  name + " is OutOfSync: what runs is not what is in Git",
+				Cause:    cause,
+				Unknown:  "Which side is the intended one: a change waiting in Git, or a manual change in the cluster.",
+				Chain:    chain(&in.App, name, "OutOfSync"),
+				Evidence: evidence,
+				Suggestions: append(suggestions, Suggestion{Text: "See the difference before syncing",
+					Command: "argocd app diff " + g.Name}),
+			}}
+		}
+		return nil
+	}
+	return nil
+}
+
+func shortRevision(rev string) string {
+	if len(rev) > 12 {
+		return rev[:12]
+	}
+	return rev
+}
+
 func days(d time.Duration) string {
 	n := int(d.Hours() / 24)
 	switch {
@@ -398,6 +488,9 @@ func days(d time.Duration) string {
 // applying anything: a push to Git does nothing until this is resolved.
 func gitOps(in *Input) []Diagnosis {
 	m := in.App.Manager
+	if m.Tool == "Argo CD" {
+		return argoCD(in)
+	}
 	if m.Tool != "Flux" {
 		return nil
 	}

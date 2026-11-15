@@ -1,6 +1,7 @@
 package workloads
 
 import (
+	"encoding/json"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -79,5 +80,23 @@ func TestAPodsEnvironmentAndSpreadAreRead(t *testing.T) {
 	}
 	if len(p.References) != 1 || p.References[0].Host != "postgres" || p.References[0].Env != "DATABASE_URL" {
 		t.Errorf("references = %+v, want the one host and never the password", p.References)
+	}
+}
+
+func TestAnArgoCDApplicationIsReducedToItsOwnVerdict(t *testing.T) {
+	var a argoItem
+	if err := json.Unmarshal([]byte(`{"metadata":{"name":"shop","namespace":"argocd"},
+		"spec":{"syncPolicy":{"automated":{"prune":true}}},
+		"status":{"sync":{"status":"OutOfSync","revision":"abc"},"health":{"status":"Degraded"},
+		"operationState":{"phase":"Failed","message":"boom"},
+		"conditions":[{"type":"SyncError","message":"x"},{"type":"OrphanedResourceWarning","message":"y"}]}}`), &a); err != nil {
+		t.Fatal(err)
+	}
+	g := a.toGitOps()
+	if g.Kind != "Application" || g.Sync != "OutOfSync" || g.Health != "Degraded" || g.Operation != "Failed" || !g.Automated {
+		t.Errorf("got %+v", g)
+	}
+	if len(g.Errors) != 1 || g.Errors[0] != "SyncError: x" {
+		t.Errorf("only the *Error conditions are complaints: %v", g.Errors)
 	}
 }

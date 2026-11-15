@@ -105,6 +105,25 @@ func collectEcosystem(ctx context.Context, g *group, cs kubernetes.Interface, op
 		})
 	}
 
+	for _, ns := range gitOpsScopes(opts) {
+		g.run("Argo CD Application", func() (bool, error) {
+			path := collectionPath("/apis/argoproj.io/v1alpha1", ns, "applications")
+			return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+				var list itemList[argoItem]
+				found, err := getJSON(ctx, rc, path, nil, o, &list)
+				if err != nil || !found {
+					return "", err
+				}
+				g.collect(func() {
+					for i := range list.Items {
+						out.GitOps = append(out.GitOps, list.Items[i].toGitOps())
+					}
+				})
+				return list.Metadata.Continue, nil
+			})
+		})
+	}
+
 	g.run("Helm release", func() (bool, error) {
 		var items []metadataItem
 		path := collectionPath("/api/v1", opts.Namespace, "secrets")
@@ -343,6 +362,55 @@ func (f *fluxItem) toGitOps(kind string) application.GitOpsObject {
 // reconcile of a Kustomization that waits on health checks passes through it
 // — and reading that as "not ready" reported a failure on every deploy.
 func conditionDecided(c condition) bool { return c.Status == "True" || c.Status == "False" }
+
+// argoItem is an Argo CD Application, reduced to what it says about itself.
+type argoItem struct {
+	Metadata objectMeta `json:"metadata"`
+	Spec     struct {
+		SyncPolicy struct {
+			Automated *struct{} `json:"automated"`
+		} `json:"syncPolicy"`
+	} `json:"spec"`
+	Status struct {
+		Sync struct {
+			Status   string `json:"status"`
+			Revision string `json:"revision"`
+		} `json:"sync"`
+		Health struct {
+			Status  string `json:"status"`
+			Message string `json:"message"`
+		} `json:"health"`
+		OperationState struct {
+			Phase   string `json:"phase"`
+			Message string `json:"message"`
+		} `json:"operationState"`
+		Conditions []struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"conditions"`
+	} `json:"status"`
+}
+
+func (a *argoItem) toGitOps() application.GitOpsObject {
+	out := application.GitOpsObject{
+		Meta:             a.Metadata.toMeta("Application"),
+		Revision:         a.Status.Sync.Revision,
+		Sync:             a.Status.Sync.Status,
+		Health:           a.Status.Health.Status,
+		Message:          a.Status.Health.Message,
+		Operation:        a.Status.OperationState.Phase,
+		OperationMessage: a.Status.OperationState.Message,
+		Automated:        a.Spec.SyncPolicy.Automated != nil,
+	}
+	// Argo CD's conditions are not all complaints; the ones that are end in
+	// "Error" by its own convention (ComparisonError, SyncError, …).
+	for _, c := range a.Status.Conditions {
+		if len(c.Type) > 5 && c.Type[len(c.Type)-5:] == "Error" && len(out.Errors) < 3 {
+			out.Errors = append(out.Errors, c.Type+": "+c.Message)
+		}
+	}
+	return out
+}
 
 type metadataItem struct {
 	Metadata objectMeta `json:"metadata"`
