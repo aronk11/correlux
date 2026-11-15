@@ -27,9 +27,11 @@ variable counts when its value is a URL, a `.svc` name, or when its own name
 says it holds an address. The host is resolved the way cluster DNS would
 against Services in the snapshot; what resolves to nothing is dropped. Only
 the variable's name and the host are kept — the value is where credentials
-live. ConfigMaps the pods take their environment from are read on the evidence
-pass, one GET per ConfigMap a pod actually names and at most forty, and
-reduced to key and host as they are read. Secrets are not followed: reading
+live. ConfigMaps the pods take their environment from are read only when the
+user sets `dependencies.fromConfigMaps` — Correlux reads no ConfigMap on its
+own otherwise, and an upgrade must not change what an account's audit log
+shows. Turned on, it is one GET per ConfigMap a pod actually names, at most
+forty, on the evidence pass, reduced to key and host as they are read. Secrets are not followed: reading
 every Secret to draw an arrow is not a trade Correlux makes.
 
 **A dependency is evidence of configuration, never of causation.** The
@@ -54,7 +56,7 @@ compare.
 
 - The graph is incomplete by construction: dependencies configured through a
   Secret or a mounted file are invisible, and those in a ConfigMap appear only
-  after the evidence has loaded. A missing arrow means
+  when that is switched on and the evidence has loaded. A missing arrow means
   "not stated in the pod", never "does not exist".
 - An environment variable can name a Service the application never calls. The
   evidence line names the variable so the reader can judge.

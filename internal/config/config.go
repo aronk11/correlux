@@ -75,6 +75,10 @@ type Config struct {
 	// larger system it belongs to.
 	Labels Labels `json:"labels"`
 
+	// Dependencies controls how far Correlux goes to learn what an
+	// application talks to.
+	Dependencies Dependencies `json:"dependencies"`
+
 	// Keybindings maps an action name to a keystroke, overriding the defaults.
 	Keybindings map[string]string `json:"keybindings"`
 
@@ -93,6 +97,17 @@ type Labels struct {
 	Team        []string `json:"team"`
 	Environment []string `json:"environment"`
 	System      []string `json:"system"`
+}
+
+// Dependencies configures the dependency reading.
+type Dependencies struct {
+	// FromConfigMaps also follows addresses that reach a pod through a
+	// ConfigMap (envFrom, configMapKeyRef). It is off by default: Correlux
+	// otherwise reads no ConfigMap on its own, and an account's audit log
+	// should not start showing ConfigMap reads because of an upgrade. Turned
+	// on, exactly the ConfigMaps the pods in scope name are fetched, by name,
+	// and only the hosts in them are kept.
+	FromConfigMaps bool `json:"fromConfigMaps"`
 }
 
 // Debug configures explicitly created troubleshooting containers.
