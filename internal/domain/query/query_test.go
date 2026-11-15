@@ -155,3 +155,42 @@ func TestAnEmptyFilterFiltersNothing(t *testing.T) {
 		t.Error("whitespace is not a filter")
 	}
 }
+
+func TestNotEqualsKeepsTheRowsItWasTypedToFind(t *testing.T) {
+	columns := []string{"Name", "Status"}
+	q := Parse("status!=Ready")
+	if !q.Match(columns, []string{"node-1", "NotReady"}) {
+		t.Error("status!=Ready must keep a NotReady node: that is the one being looked for")
+	}
+	if q.Match(columns, []string{"node-2", "Ready"}) || q.Match(columns, []string{"node-3", "Ready,SchedulingDisabled"}) {
+		t.Error("status!=Ready must drop the ready ones")
+	}
+	if Parse("status!=crash").Match(columns, []string{"pod", "CrashLoopBackOff"}) {
+		t.Error("a prefix still excludes")
+	}
+}
+
+func TestANegatedComparisonIsAComparison(t *testing.T) {
+	columns := []string{"Name", "Status", "Restarts"}
+	q := Parse("!status=Running !restarts>5")
+	if len(q.Excluded) != 0 || len(q.Terms) != 2 {
+		t.Fatalf("parsed as %+v", q)
+	}
+	if q.Match(columns, []string{"a", "Running", "0"}) || q.Match(columns, []string{"b", "Pending", "9"}) {
+		t.Error("both negations must hold")
+	}
+	if !q.Match(columns, []string{"c", "Pending", "2"}) {
+		t.Error("a pending pod with two restarts satisfies both")
+	}
+}
+
+func TestDurationColumnsCompareAsTime(t *testing.T) {
+	columns := []string{"Name", "Duration"}
+	q := Parse("duration>10m")
+	if q.Match(columns, []string{"job-a", "45s"}) || !q.Match(columns, []string{"job-b", "2h"}) {
+		t.Error("a Job's duration is time, not a quantity: 45s is less than ten minutes and 2h is more")
+	}
+	if !Parse("age>1w").Match([]string{"Name", "Age"}, []string{"x", "9d"}) {
+		t.Error("a week is seven days")
+	}
+}

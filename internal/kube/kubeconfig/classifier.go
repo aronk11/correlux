@@ -39,7 +39,7 @@ func NewClassifier(patterns, explicitContexts []string) (*Classifier, []error) {
 
 // DefaultClassifier uses the built-in production patterns.
 func DefaultClassifier() *Classifier {
-	c, _ := NewClassifier([]string{`(^|[-_./])(prod|prd|production|live)([-_./]|$)`}, nil)
+	c, _ := NewClassifier([]string{`(^|[^a-z])(prod|prd|production|live)\d*([^a-z]|$)`}, nil)
 	return c
 }
 

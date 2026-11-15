@@ -106,6 +106,9 @@ func TestAnAbsurdlyLongLineIsSkippedRatherThanEndingTheStream(t *testing.T) {
 	if !strings.Contains(joined, "was skipped") {
 		t.Errorf("the skip must be stated rather than silent: %q", joined)
 	}
+	if len(texts) != 3 || texts[2] != "after" {
+		t.Errorf("the lines after it must survive too, or a follow dies on one blob: %q", texts)
+	}
 }
 
 func TestACancelledReadSaysWhyItStopped(t *testing.T) {
