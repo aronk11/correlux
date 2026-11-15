@@ -47,6 +47,8 @@ func fromPod(p *corev1.Pod) application.Pod {
 		}
 		out.Finalizers = p.Finalizers
 	}
+	out.Message = p.Status.Message
+	out.Overhead = amountsOf(p.Spec.Overhead)
 	out.References = references(p)
 	out.Spread = len(p.Spec.TopologySpreadConstraints) > 0 ||
 		(p.Spec.Affinity != nil && p.Spec.Affinity.PodAntiAffinity != nil)

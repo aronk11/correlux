@@ -205,7 +205,7 @@ func stuckTerminating(in *Input) []Diagnosis {
 	d := Diagnosis{
 		Rule: "pod.terminating", Severity: Warning, Confidence: confidence,
 		Subject: podRef(first),
-		Problem: podsPhrase(len(pods)) + agree(len(pods), " has", " have") + " been terminating for " + days(in.Now.Sub(first.DeletingSince)),
+		Problem: podsPhrase(len(pods)) + agree(len(pods), " has", " have") + " been terminating for " + days(in.Now.Sub(first.DeletingSince.Add(-first.Grace))),
 		Cause:   cause,
 		Unknown: unknown,
 		Chain:   chain(&in.App, "Pods", "Terminating"),
@@ -216,7 +216,7 @@ func stuckTerminating(in *Input) []Diagnosis {
 		},
 	}
 	for _, p := range limitPods(pods) {
-		detail := "deleting since " + p.DeletingSince.UTC().Format("15:04 MST") + " on " + orUnknown(p.Node)
+		detail := "deleting since " + p.DeletingSince.Add(-p.Grace).UTC().Format("15:04 MST") + " on " + orUnknown(p.Node)
 		if len(p.Finalizers) > 0 {
 			detail += "; finalizers " + strings.Join(p.Finalizers, ", ")
 		}

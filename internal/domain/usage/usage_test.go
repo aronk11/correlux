@@ -434,3 +434,16 @@ func TestNodesRollUpByZoneAndPoolFullestFirst(t *testing.T) {
 		t.Error("nodes without the labels get no roll-up, not a row called nothing")
 	}
 }
+
+func TestASandboxedPodsOverheadIsReservedToo(t *testing.T) {
+	p := pod("api", "node-1", container("app", both(500, 512<<20), application.Amounts{}))
+	p.Overhead = both(250, 120<<20)
+	if got := Requests(&p); got.CPUMilli != 750 || got.MemoryBytes != (512+120)<<20 {
+		t.Errorf("requests = %+v, want the containers plus the RuntimeClass overhead", got)
+	}
+	bare := pod("batch", "node-1", container("app", application.Amounts{}, application.Amounts{}))
+	bare.Overhead = both(250, 120<<20)
+	if got := Requests(&bare); got.HasCPU || got.HasMemory {
+		t.Errorf("overhead does not make an unsized pod sized: %+v", got)
+	}
+}
