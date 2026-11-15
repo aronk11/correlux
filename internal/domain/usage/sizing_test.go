@@ -19,7 +19,7 @@ func TestSizingSaysTheOneThingWorthKnowing(t *testing.T) {
 		level SizingLevel
 	}{
 		{"memory near its limit", sized(2, 2, both(100, 950<<20), both(500, 512<<20), both(1000, 1<<30)), "memory at 93% of its limit", SizingRisk},
-		{"reserves far more than it uses", sized(2, 2, both(100, 100<<20), both(1000, 1<<30), both(2000, 2<<30)), "reserves 10× the CPU and 10× the memory", SizingNote},
+		{"reserves far more than it uses", sized(2, 2, both(100, 100<<20), both(1000, 1<<30), both(2000, 2<<30)), "reserves 10× CPU, 10× memory of use", SizingNote},
 		{"bursting over its request", sized(1, 1, both(900, 300<<20), both(500, 512<<20), application.Amounts{}), "CPU at 180% of its request", SizingNote},
 		{"sized about right", sized(1, 1, both(400, 400<<20), both(500, 512<<20), both(1000, 1<<30)), "", SizingFine},
 		{"too small to be worth a line", sized(1, 1, both(5, 20<<20), both(100, 128<<20), application.Amounts{}), "", SizingFine},

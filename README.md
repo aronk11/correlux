@@ -490,12 +490,14 @@ one to make, and only for applications every pod of which was measured:
 ```
 APPLICATIONS
   APPLICATION  PODS  NODES  CPU USED/REQ/LIMIT    MEMORY USED/REQ/LIMIT  SIZING
-  ledger       3     3      120m / 1500m / 3000m  2.8Gi / 2Gi / 3Gi      memory at 93% of its limit: close to an OOM kill
-  reports      2     2      40m / 2000m / —       210Mi / 4Gi / —        reserves 20×+ the CPU and 19× the memory it uses right now
-  batch        4     2      — / — / —             — / — / —              no requests set: placed blind, first to be evicted
+  ledger       3     3      120m / 1500m / 3000m  2.8Gi / 2Gi / 3Gi      memory at 93% of its limit
+  reports      2     2      40m / 2000m / —       210Mi / 4Gi / —        reserves 20×+ CPU, 19× memory of use
+  batch        4     2      — / — / —             — / — / —              no requests set
 ```
 
-A note above adds up what the scope reserves and is not using. It says "right
+Memory near its limit is an OOM kill waiting; no requests means the scheduler
+places the pods blind and the kubelet evicts them first. A note above adds up
+what the scope reserves and is not using. It says "right
 now" on purpose: this is one sample, and an API at three in the morning looks
 idle. It is where to look, not a sizing recommendation.
 

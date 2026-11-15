@@ -41,7 +41,7 @@ func Sizing(a *AppUsage) (string, SizingLevel) {
 		return "", SizingFine
 	}
 	if a.Unsized == a.Pods {
-		return "no requests set: placed blind, first to be evicted", SizingRisk
+		return "no requests set", SizingRisk
 	}
 	if a.Measured < a.Pods {
 		return "", SizingFine
@@ -49,29 +49,29 @@ func Sizing(a *AppUsage) (string, SizingLevel) {
 
 	if a.Limits.HasMemory && a.Used.HasMemory && a.Limits.MemoryBytes > 0 {
 		if p := Percent(a.Used.MemoryBytes, a.Limits.MemoryBytes); p >= nearLimitPercent {
-			return "memory at " + strconv.Itoa(p) + "% of its limit: close to an OOM kill", SizingRisk
+			return "memory at " + strconv.Itoa(p) + "% of its limit", SizingRisk
 		}
 	}
 	if a.Requests.HasCPU && a.Used.HasCPU && a.Requests.CPUMilli > 0 {
 		if p := Percent(a.Used.CPUMilli, a.Requests.CPUMilli); p >= burstPercent {
-			return "CPU at " + strconv.Itoa(p) + "% of its request: relies on spare capacity the node may not have", SizingNote
+			return "CPU at " + strconv.Itoa(p) + "% of its request", SizingNote
 		}
 	}
 
 	var idle []string
 	if a.Requests.HasCPU && a.Used.HasCPU && a.Requests.CPUMilli >= minIdleCPUMilli &&
 		Percent(a.Used.CPUMilli, a.Requests.CPUMilli) < idlePercent {
-		idle = append(idle, times(a.Requests.CPUMilli, a.Used.CPUMilli)+" the CPU")
+		idle = append(idle, times(a.Requests.CPUMilli, a.Used.CPUMilli)+" CPU")
 	}
 	if a.Requests.HasMemory && a.Used.HasMemory && a.Requests.MemoryBytes >= minIdleMemoryBytes &&
 		Percent(a.Used.MemoryBytes, a.Requests.MemoryBytes) < idlePercent {
-		idle = append(idle, times(a.Requests.MemoryBytes, a.Used.MemoryBytes)+" the memory")
+		idle = append(idle, times(a.Requests.MemoryBytes, a.Used.MemoryBytes)+" memory")
 	}
 	switch len(idle) {
 	case 1:
-		return "reserves " + idle[0] + " it uses right now", SizingNote
+		return "reserves " + idle[0] + " of use", SizingNote
 	case 2:
-		return "reserves " + idle[0] + " and " + idle[1] + " it uses right now", SizingNote
+		return "reserves " + idle[0] + ", " + idle[1] + " of use", SizingNote
 	}
 	return "", SizingFine
 }

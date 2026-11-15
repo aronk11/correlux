@@ -387,10 +387,14 @@ func (m *Model) statusData() components.StatusData {
 				{Key: "Enter", Desc: "Open", Priority: 72},
 				{Group: components.HintView, Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
 				{Group: components.HintView, Key: m.keys.Key(ActionGrouping), Desc: "Grouping", Priority: 45},
-				{Group: components.HintView, Key: m.keys.Key(ActionGroupBy), Desc: m.groupHint(), Priority: 74},
 				{Group: components.HintView, Key: m.keys.Key(ActionSort), Desc: m.sortHint(), Priority: 60},
 				{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.showingWide()), Priority: 50},
 			}, app...)
+			// Offered only where it does something (SPEC 17).
+			if m.groupable() {
+				app = append(app, components.KeyHint{Group: components.HintView,
+					Key: m.keys.Key(ActionGroupBy), Desc: m.groupHint(), Priority: 74})
+			}
 		}
 		hints = append(app, hints...)
 	case viewUsage:

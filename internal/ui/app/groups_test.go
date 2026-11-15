@@ -120,3 +120,18 @@ func TestTheSessionScreenSaysWhatTheAccountMayDo(t *testing.T) {
 		}
 	}
 }
+
+func TestTheGroupKeyIsNotOfferedWhereThereIsNothingToGroupBy(t *testing.T) {
+	m := newTestModel(t)
+	loadApplicationsInto(m, testApplication("api", application.Healthy, 1, 1), testApplication("web", application.Healthy, 1, 1))
+	if m.groupable() {
+		t.Fatal("one namespace and no labels: nothing to group by")
+	}
+	if out := view(m); strings.Contains(out, "a Group") {
+		t.Errorf("a key that would do nothing must not be advertised:\n%s", out)
+	}
+	m.cycleGrouping()
+	if m.appGroup != groupNone || !strings.Contains(view(m), "Nothing to group by") {
+		t.Errorf("pressed anyway, it says why nothing happened:\n%s", view(m))
+	}
+}
