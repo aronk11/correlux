@@ -48,6 +48,18 @@ func (g *group) run(kind string, list func() (bool, error)) {
 	}()
 }
 
+// quiet runs a listing whose failure is neither a gap nor part of the verdict
+// on whether the scope could be read at all. It is for what only adds to the
+// picture — the labels on a namespace — where an account that may not read it
+// loses a column and nothing on screen is wrong.
+func (g *group) quiet(list func()) {
+	g.wg.Add(1)
+	go func() {
+		defer g.wg.Done()
+		list()
+	}()
+}
+
 // collect appends to the caller's slices under the group's lock, so the
 // listings can write their results without a lock of their own.
 func (g *group) collect(f func()) {

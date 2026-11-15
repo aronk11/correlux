@@ -30,7 +30,7 @@ func (f *Factory) Applications(
 	if err != nil {
 		return nil, application.Snapshot{}, err
 	}
-	return application.Group(snapshot), snapshot, nil
+	return application.GroupWith(snapshot, opts.Labels), snapshot, nil
 }
 
 // ApplicationsIn reads a few named namespaces of one cluster and groups them as
@@ -101,7 +101,7 @@ func applicationsIn(
 
 	merged := application.MergeSnapshots(snapshots...)
 	merged.Gaps = append(merged.Gaps, denied...)
-	return application.Group(merged), merged, nil
+	return application.GroupWith(merged, opts.Labels), merged, nil
 }
 
 // Nodes reads a cluster's nodes, which is what the fleet overview needs to say

@@ -70,11 +70,44 @@ type Config struct {
 	// Fleet field remains supported as the implicit "default" group.
 	FleetGroups []FleetGroup `json:"fleetGroups"`
 
+	// Labels names the labels this organisation uses where Kubernetes has no
+	// standard: who owns an application, which environment it is, which
+	// larger system it belongs to.
+	Labels Labels `json:"labels"`
+
+	// Dependencies controls how far Correlux goes to learn what an
+	// application talks to.
+	Dependencies Dependencies `json:"dependencies"`
+
 	// Keybindings maps an action name to a keystroke, overriding the defaults.
 	Keybindings map[string]string `json:"keybindings"`
 
 	// SourcePath records where this config was read from ("" if defaults).
 	SourcePath string `json:"-"`
+}
+
+// Labels are an organisation's own label keys, read before the built-in
+// spellings (team, owner, environment, env, app.kubernetes.io/part-of, …) on
+// workloads and, where a workload has none, on its namespace.
+//
+//	labels:
+//	  team: [acme.io/team]
+//	  environment: [acme.io/stage]
+type Labels struct {
+	Team        []string `json:"team"`
+	Environment []string `json:"environment"`
+	System      []string `json:"system"`
+}
+
+// Dependencies configures the dependency reading.
+type Dependencies struct {
+	// FromConfigMaps also follows addresses that reach a pod through a
+	// ConfigMap (envFrom, configMapKeyRef). It is off by default: Correlux
+	// otherwise reads no ConfigMap on its own, and an account's audit log
+	// should not start showing ConfigMap reads because of an upgrade. Turned
+	// on, exactly the ConfigMaps the pods in scope name are fetched, by name,
+	// and only the hosts in them are kept.
+	FromConfigMaps bool `json:"fromConfigMaps"`
 }
 
 // Debug configures explicitly created troubleshooting containers.
@@ -219,7 +252,9 @@ func (s Safety) ReadOnlyIn(contextName string, production bool) (string, bool) {
 // deliberately conservative: a false positive costs one extra confirmation, a
 // false negative costs an outage.
 var DefaultProductionPatterns = []string{
-	`(^|[-_./])(prod|prd|production|live)([-_./]|$)`,
+	// Any non-letter is a boundary, and digits may follow: "admin@prod",
+	// "prod1-eu" and "Prod Cluster" are production as surely as "prod-eu".
+	`(^|[^a-z])(prod|prd|production|live)\d*([^a-z]|$)`,
 }
 
 // Default returns the configuration used when no file exists.

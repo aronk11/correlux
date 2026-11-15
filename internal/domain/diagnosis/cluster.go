@@ -51,7 +51,12 @@ func nodeUnhealthy(in *Input) []Diagnosis {
 		case len(node.Pressure) > 0:
 			problem = podsPhrase(len(pods)) + agree(len(pods), " runs", " run") + " on node " + name +
 				", which is under " + strings.Join(node.Pressure, " and ")
-			cause = "the node is short of a resource and may evict pods to recover it"
+			cause = "the node reports a problem with the machine itself"
+			if onlyPressure(node.Pressure) {
+				cause = "the node is short of a resource and may evict pods to recover it"
+			} else if len(node.Pressure) == 1 && node.Pressure[0] == "NetworkUnavailable" {
+				cause = "the node's pod network is not set up, so pods on it cannot be reached"
+			}
 		default:
 			// Cordoned: nothing is wrong yet, but no replacement pod will land
 			// here, which is worth knowing during a rollout.
@@ -87,6 +92,17 @@ func nodeUnhealthy(in *Input) []Diagnosis {
 	return out
 }
 
+// onlyPressure reports whether every condition is one of the kubelet's
+// resource pressures, which is the only case eviction follows from.
+func onlyPressure(conditions []string) bool {
+	for _, c := range conditions {
+		if !strings.HasSuffix(c, "Pressure") {
+			return false
+		}
+	}
+	return true
+}
+
 func nodeDetail(n application.Node) string {
 	parts := []string{"Ready=" + boolWord(n.Ready)}
 	if len(n.Pressure) > 0 {
@@ -99,6 +115,18 @@ func nodeDetail(n application.Node) string {
 		parts = append(parts, n.Reason)
 	}
 	return strings.Join(parts, "; ")
+}
+
+// waitsForConsumer reports a claim whose StorageClass uses
+// volumeBindingMode WaitForFirstConsumer, in the cluster's own words.
+func waitsForConsumer(in *Input, claim *application.Claim) bool {
+	events := in.Context.EventsAbout(claim.UID, claim.Name)
+	for i := range events {
+		if events[i].Reason == "WaitForFirstConsumer" {
+			return true
+		}
+	}
+	return false
 }
 
 // storageNotBound reports a pod waiting for a volume that does not exist yet.
@@ -114,6 +142,12 @@ func storageNotBound(in *Input) []Diagnosis {
 		for _, name := range p.Claims {
 			claim, ok := in.Context.ClaimByName(p.Namespace, name)
 			if !ok || claim.Phase == "Bound" || seen[name] {
+				continue
+			}
+			if !p.Scheduled && claim.Phase == "Pending" && waitsForConsumer(in, &claim) {
+				// The claim is waiting for the pod, not the other way round:
+				// its StorageClass binds only once a node has been chosen.
+				// The scheduling rule explains why none has been.
 				continue
 			}
 			seen[name] = true
@@ -310,7 +344,7 @@ func podsOf(app *application.Application, w *application.Workload) int {
 			count++
 			continue
 		}
-		if ref, ok := p.Controller(); ok && ref.Name != "" && strings.HasPrefix(ref.Name, w.Name) {
+		if ref, ok := p.Controller(); ok && ref.Name != "" && strings.HasPrefix(ref.Name, w.Name+"-") {
 			count++
 		}
 	}

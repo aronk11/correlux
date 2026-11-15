@@ -106,6 +106,9 @@ func TestAnAbsurdlyLongLineIsSkippedRatherThanEndingTheStream(t *testing.T) {
 	if !strings.Contains(joined, "was skipped") {
 		t.Errorf("the skip must be stated rather than silent: %q", joined)
 	}
+	if len(texts) != 3 || texts[2] != "after" {
+		t.Errorf("the lines after it must survive too, or a follow dies on one blob: %q", texts)
+	}
 }
 
 func TestACancelledReadSaysWhyItStopped(t *testing.T) {
@@ -361,5 +364,54 @@ func TestLinesThatShareATimestampAreAllKept(t *testing.T) {
 	_ = Stream(context.Background(), cs, source(), Options{Follow: true}, func(l Line) { got = append(got, l.Text) })
 	if strings.Join(got, ",") != "a,b,c,d" {
 		t.Errorf("lines = %v; equal timestamps are not duplicates, only a replay is", got)
+	}
+}
+
+func TestLineEndingsAndTheLastLineAreReadAsLines(t *testing.T) {
+	read := func(input string) []string {
+		var out []string
+		if err := scan(context.Background(), strings.NewReader(input), source(), false,
+			func(l Line) { out = append(out, l.Text) }); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	if got := read("a\r\nb\nlast"); len(got) != 3 || got[0] != "a" || got[2] != "last" {
+		t.Errorf("CRLF is an ending and a final line needs no newline: %q", got)
+	}
+	if got := read(""); len(got) != 0 {
+		t.Errorf("an empty stream has no lines: %q", got)
+	}
+	if got := read("\n\n"); len(got) != 2 || got[0] != "" {
+		t.Errorf("blank lines are lines: %q", got)
+	}
+	exact := strings.Repeat("x", MaxLineBytes)
+	if got := read(exact + "\nafter\n"); len(got) != 2 || len(got[0]) != MaxLineBytes {
+		t.Errorf("a line of exactly the limit is kept: %d lines, first is %d bytes", len(got), len(got[0]))
+	}
+}
+
+type brokenReader struct {
+	data string
+	done bool
+}
+
+func (b *brokenReader) Read(p []byte) (int, error) {
+	if b.done {
+		return 0, errors.New("connection reset by peer")
+	}
+	b.done = true
+	return copy(p, b.data), nil
+}
+
+func TestWhatArrivedBeforeTheConnectionBrokeIsKept(t *testing.T) {
+	var got []string
+	err := scan(context.Background(), &brokenReader{data: "full\npartial"}, source(), false,
+		func(l Line) { got = append(got, l.Text) })
+	if err == nil {
+		t.Error("the broken connection must still be reported")
+	}
+	if len(got) != 2 || got[1] != "partial" {
+		t.Errorf("lines = %q, want the partial last line too", got)
 	}
 }

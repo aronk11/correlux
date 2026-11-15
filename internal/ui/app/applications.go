@@ -220,40 +220,243 @@ func (m *Model) applicationsData() screens.TableData {
 		return d
 	}
 
-	d.Columns = []screens.TableColumn{
-		{Title: "Status"},
-		{Title: "Application"},
-		{Title: "Namespace", Wide: !m.allNamespaces},
-		{Title: "Pods"},
-		{Title: "Workloads", Wide: true},
-		{Title: "Managed by", Wide: true},
-		{Title: "Restarts", Right: true},
-		{Title: "Age"},
-		{Title: "Detail"},
+	// The label columns are drawn only where somebody set the label: a cluster
+	// with no team labels gets no column of dashes, and the columns that are
+	// there keep their room.
+	all := m.applications()
+	has := func(of func(*application.Application) string) bool {
+		for i := range all {
+			if of(&all[i]) != "" {
+				return true
+			}
+		}
+		return false
+	}
+	type column struct {
+		screens.TableColumn
+		cell func(a *application.Application, health application.Health, status theme.Status) string
+		show bool
+	}
+	now := time.Now()
+	trait := func(title string, of func(*application.Application) string) column {
+		return column{
+			TableColumn: screens.TableColumn{Title: title, Wide: true},
+			cell: func(a *application.Application, _ application.Health, _ theme.Status) string {
+				return orDash(of(a))
+			},
+			show: has(of),
+		}
+	}
+	columns := []column{
+		{TableColumn: screens.TableColumn{Title: "Status"}, show: true,
+			cell: func(_ *application.Application, health application.Health, status theme.Status) string {
+				return m.theme.Glyph(status) + " " + health.String()
+			}},
+		{TableColumn: screens.TableColumn{Title: "Application"}, show: true,
+			cell: func(a *application.Application, _ application.Health, _ theme.Status) string { return a.Name }},
+		{TableColumn: screens.TableColumn{Title: "Namespace", Wide: !m.allNamespaces}, show: true,
+			cell: func(a *application.Application, _ application.Health, _ theme.Status) string { return a.Namespace }},
+		{TableColumn: screens.TableColumn{Title: "Pods"}, show: true,
+			cell: func(a *application.Application, _ application.Health, _ theme.Status) string {
+				return itoa(int(a.ReadyPods)) + "/" + itoa(int(a.DesiredPods))
+			}},
+		{TableColumn: screens.TableColumn{Title: "Workloads", Wide: true}, show: true,
+			cell: func(a *application.Application, _ application.Health, _ theme.Status) string {
+				return workloadSummary(a)
+			}},
+		// The role is drawn in the compact table too: it is one short word, and
+		// it is the difference between "a deployment is down" and "the ingress
+		// controller is down".
+		func() column {
+			c := trait("Role", func(a *application.Application) string { return a.Traits.Role.Name })
+			c.Wide = false
+			return c
+		}(),
+		trait("System", func(a *application.Application) string { return a.Traits.System }),
+		trait("Version", func(a *application.Application) string { return a.Traits.Version }),
+		trait("Team", func(a *application.Application) string { return a.Traits.Team }),
+		trait("Env", func(a *application.Application) string { return a.Traits.Environment }),
+		{TableColumn: screens.TableColumn{Title: "Managed by", Wide: true}, show: true,
+			cell: func(a *application.Application, _ application.Health, _ theme.Status) string {
+				return managerCell(a.Manager)
+			}},
+		{TableColumn: screens.TableColumn{Title: "Restarts", Right: true}, show: true,
+			cell: func(a *application.Application, _ application.Health, _ theme.Status) string {
+				return itoa(int(a.Restarts))
+			}},
+		{TableColumn: screens.TableColumn{Title: "Age"}, show: true,
+			cell: func(a *application.Application, _ application.Health, _ theme.Status) string {
+				return formatAge(a.CreatedAt, now)
+			}},
+		{TableColumn: screens.TableColumn{Title: "Detail"}, show: true,
+			cell: func(a *application.Application, health application.Health, _ theme.Status) string {
+				return applicationDetail(a, health, m.findingsFor(a.Key()))
+			}},
 	}
 
-	now := time.Now()
+	// Grouped, the key the list is grouped by leads the row and is printed once
+	// per group, with what is in it; its own column further right would only
+	// repeat it.
+	group := m.appGroup
+	labels := groupLabels(m.theme, apps, group, func(a *application.Application) application.Health {
+		return diagnosedHealth(a.Health, m.findingsFor(a.Key()))
+	}, m.appPort.Offset)
+	if group.active() {
+		d.Columns = append(d.Columns, screens.TableColumn{Title: group.title()})
+	}
+	for _, c := range columns {
+		if !c.show || (group.active() && c.Title == group.title()) {
+			continue
+		}
+		d.Columns = append(d.Columns, c.TableColumn)
+	}
+
 	d.Rows = make([]screens.TableRow, 0, len(apps))
 	for i := range apps {
 		a := &apps[i]
 		health := diagnosedHealth(a.Health, m.findingsFor(a.Key()))
 		status := healthStatus(health)
-		d.Rows = append(d.Rows, screens.TableRow{
-			Status: status,
-			Cells: []string{
-				m.theme.Glyph(status) + " " + health.String(),
-				a.Name,
-				a.Namespace,
-				itoa(int(a.ReadyPods)) + "/" + itoa(int(a.DesiredPods)),
-				workloadSummary(a),
-				managerCell(a.Manager),
-				itoa(int(a.Restarts)),
-				formatAge(a.CreatedAt, now),
-				applicationDetail(a, health, m.findingsFor(a.Key())),
-			},
-		})
+		cells := make([]string, 0, len(d.Columns))
+		if group.active() {
+			cells = append(cells, labels[i])
+		}
+		for _, c := range columns {
+			if !c.show || (group.active() && c.Title == group.title()) {
+				continue
+			}
+			cells = append(cells, c.cell(a, health, status))
+		}
+		d.Rows = append(d.Rows, screens.TableRow{Status: status, Cells: cells})
 	}
 	return d
+}
+
+// traitNotes are what the application's labels say about it, in the order
+// somebody in an incident needs them: what it is to the cluster and what
+// leans on it, then who to ask and where it is written down.
+func traitNotes(a *application.Application, health application.Health) []string {
+	t := a.Traits
+	var out []string
+	if t.Role.Known() {
+		line := "Role: " + t.Role.Name + " (" + t.Role.By + ")"
+		// What depends on it is said only while it is unwell. On a healthy
+		// row it is a sentence everybody already knows.
+		if impact := t.Role.Impact(); impact != "" && health != application.Healthy {
+			line += " — " + impact
+		}
+		out = append(out, line)
+	}
+	var labels []string
+	add := func(name, value string) {
+		if value != "" {
+			labels = append(labels, name+" "+value)
+		}
+	}
+	add("part of", t.System)
+	add("components", strings.Join(t.Components, ", "))
+	add("version", t.Version)
+	add("team", inherited(t.Team, t.TeamFrom))
+	add("env", inherited(t.Environment, t.EnvironmentFrom))
+	if len(labels) > 0 {
+		out = append(out, strings.Join(labels, " · "))
+	}
+	add = func(name, value string) {
+		if value != "" {
+			out = append(out, name+": "+value)
+		}
+	}
+	add("Runbook", t.Runbook)
+	add("Repository", t.Repository)
+	add("Chat", t.Chat)
+	return out
+}
+
+// inherited marks a label that was read off the namespace.
+func inherited(value, from string) string {
+	if value == "" || from == "" {
+		return value
+	}
+	return value + " (" + from + ")"
+}
+
+// dependencyNotes say what the application points at and what points at it,
+// each with its health: the two lines that turn one broken row into a guess
+// at where the fault started and how far it reaches.
+func (m *Model) dependencyNotes(a *application.Application) []string {
+	var out []string
+	if len(a.DependsOn) > 0 {
+		health := map[string]application.Health{}
+		apps := m.applications()
+		for i := range apps {
+			health[apps[i].Key()] = diagnosedHealth(apps[i].Health, m.findingsFor(apps[i].Key()))
+		}
+		parts := make([]string, 0, len(a.DependsOn))
+		for _, dep := range a.DependsOn {
+			h := health[dep.App]
+			name := dep.Name
+			if dep.Namespace != a.Namespace {
+				name = dep.Namespace + "/" + dep.Name
+			}
+			parts = append(parts, m.theme.Glyph(healthStatus(h))+" "+name+" "+h.String()+" ("+dep.Via+")")
+		}
+		out = append(out, "Depends on: "+strings.Join(parts, " · "))
+	}
+	if len(a.UsedBy) > 0 {
+		out = append(out, "Used by: "+strings.Join(a.UsedBy, ", "))
+	}
+	return out
+}
+
+// routeKindOf is "Ingress", or the Gateway API kind the route really is.
+func routeKindOf(ing *application.Ingress) string {
+	if ing.Kind == "" {
+		return "Ingress"
+	}
+	return ing.Kind
+}
+
+// routeNote is the last cell of a route's row: the Gateway it hangs off, and
+// whether that Gateway took it.
+func routeNote(ing *application.Ingress) string {
+	if len(ing.Gateways) == 0 {
+		return "—"
+	}
+	note := "via " + strings.Join(ing.Gateways, ", ")
+	switch {
+	case len(ing.Rejected) > 0:
+		note += " (not accepted)"
+	case len(ing.Unresolved) > 0:
+		note += " (backend unresolved)"
+	}
+	return note
+}
+
+// cronStatus is what a CronJob says about itself on one line: when it runs,
+// when it last did, and when that last worked.
+func cronStatus(w *application.Workload, now time.Time) string {
+	parts := []string{}
+	if w.Schedule != "" {
+		parts = append(parts, w.Schedule)
+	}
+	switch {
+	case w.Active > 0:
+		parts = append(parts, "running now")
+	case !w.LastSchedule.IsZero():
+		parts = append(parts, "last run "+formatAge(w.LastSchedule, now)+" ago")
+	default:
+		parts = append(parts, "never run")
+	}
+	if !w.LastSuccess.IsZero() {
+		parts = append(parts, "last success "+formatAge(w.LastSuccess, now)+" ago")
+	}
+	return strings.Join(parts, " · ")
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
 }
 
 // managerCell names who deployed an application, or says plainly that nothing
@@ -406,6 +609,12 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 	if incident := m.incidentLabel(&a); incident != "" {
 		d.Notes = append(d.Notes, incident)
 	}
+	if a.Leftover > 0 {
+		d.Notes = append(d.Notes, itoa(a.Leftover)+" failed "+plural(a.Leftover, "pod")+
+			" left behind (evicted or shut down, already replaced)")
+	}
+	d.Notes = append(d.Notes, traitNotes(&a, health)...)
+	d.Notes = append(d.Notes, m.dependencyNotes(&a)...)
 	if gaps := m.apps.Get().Snapshot.Gaps; len(gaps) > 0 {
 		d.Notes = append(d.Notes, gapSummary(gaps))
 	}
@@ -431,13 +640,23 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 			status = "⏸ Suspended"
 		case w.Stalled:
 			status = "⛔ Stalled"
+		case w.Failed:
+			status = "✖ Failed"
+			if w.FailedReason != "" {
+				status += ": " + w.FailedReason
+			}
+		case w.Completed:
+			status = "✓ Complete"
+		}
+		if w.Kind == "CronJob" {
+			status = strings.TrimSpace(status + " " + cronStatus(w, now))
 		}
 		row := detailRow{
 			Cells: []string{w.Kind, w.Name, ready, updated, status, formatAge(w.CreatedAt, now)},
 			Ref:   objectRef{Kind: w.Kind, Name: w.Name, Namespace: w.Namespace},
 		}
 		switch {
-		case w.Stalled:
+		case w.Stalled, w.Failed:
 			row.Status = theme.StatusCritical
 		case w.Replicated && w.Desired > 0 && w.Ready == 0:
 			row.Status = theme.StatusCritical
@@ -562,8 +781,8 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 			backends = "—"
 		}
 		network.Rows = append(network.Rows, detailRow{
-			Cells: []string{"Ingress", ing.Name, hosts, backends, "—"},
-			Ref:   objectRef{Kind: "Ingress", Name: ing.Name, Namespace: ing.Namespace},
+			Cells: []string{routeKindOf(ing), ing.Name, hosts, backends, routeNote(ing)},
+			Ref:   objectRef{Kind: routeKindOf(ing), Name: ing.Name, Namespace: ing.Namespace},
 		})
 	}
 
@@ -616,7 +835,7 @@ func (m *Model) groupingSection(a *application.Application) detailSection {
 	}
 	for i := range a.Ingresses {
 		ing := &a.Ingresses[i]
-		add("Ingress", ing.Name, ing.Namespace, ing.GroupedBy)
+		add(routeKindOf(ing), ing.Name, ing.Namespace, ing.GroupedBy)
 	}
 	return section
 }

@@ -59,6 +59,27 @@ type evidenceLoadedMsg struct {
 	err     error
 }
 
+type permissionsLoadedMsg struct {
+	gen         uint64
+	permissions []kubeclient.Permission
+	err         error
+}
+
+// loadPermissions asks the API server what this account may do here.
+func (m *Model) loadPermissions() tea.Cmd {
+	gen := m.permissions.Start()
+	ctx, cancel := context.WithTimeout(context.Background(), m.factory.Timeout())
+	factory, name, namespace := m.factory, m.contextName, m.namespace
+	if m.allNamespaces {
+		namespace = ""
+	}
+	return func() tea.Msg {
+		defer cancel()
+		permissions, err := factory.Permissions(ctx, name, namespace)
+		return permissionsLoadedMsg{gen: gen, permissions: permissions, err: err}
+	}
+}
+
 type usageLoadedMsg struct {
 	gen  uint64
 	live usage.Live
@@ -204,7 +225,7 @@ func (m *Model) loadApplications() tea.Cmd {
 
 	factory := m.factory
 	name := m.contextName
-	opts := workloads.Options{}
+	opts := workloads.Options{Labels: m.labels()}
 	if !m.allNamespaces {
 		opts.Namespace = m.namespace
 	}
@@ -243,9 +264,33 @@ func (m *Model) loadEvidence() tea.Cmd {
 		opts.Namespace = m.namespace
 	}
 	apps := m.applications()
+	seenConfig := map[string]bool{}
 	for i := range apps {
-		if apps[i].Manager.Tool == "Flux" {
+		// Reading ConfigMaps is something the user turns on, never a default.
+		if !m.cfg.Dependencies.FromConfigMaps {
+			break
+		}
+		for j := range apps[i].Pods {
+			for _, src := range apps[i].Pods[j].ConfigSources {
+				if key := apps[i].Namespace + "/" + src.ConfigMap; !seenConfig[key] {
+					seenConfig[key] = true
+					opts.ConfigMaps = append(opts.ConfigMaps, key)
+				}
+			}
+		}
+	}
+	for i := range apps {
+		switch apps[i].Manager.Tool {
+		case "Flux":
 			opts.GitOpsNamespaces = append(opts.GitOpsNamespaces, apps[i].Manager.Namespace)
+		case "Argo CD":
+			// Argo CD keeps its Applications in its own namespace unless the
+			// object says otherwise.
+			ns := apps[i].Manager.Namespace
+			if ns == "" {
+				ns = "argocd"
+			}
+			opts.GitOpsNamespaces = append(opts.GitOpsNamespaces, ns)
 		}
 	}
 

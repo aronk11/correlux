@@ -91,6 +91,15 @@ func (a *Application) evaluate() {
 			// that failed to become ready.
 			continue
 		}
+		if p.Discarded() && replicated {
+			// Evicted, or shut down with its node: the pod is dead for good and
+			// its controller has already been asked for another. The replica
+			// counts above say whether that one arrived. Counting the corpse as
+			// an unready pod kept an application degraded for as long as the
+			// garbage collector left it lying there, which can be days.
+			a.Leftover++
+			continue
+		}
 		running++
 		if !p.Ready {
 			notReady++
@@ -109,7 +118,9 @@ func (a *Application) evaluate() {
 
 	a.DesiredPods, a.ReadyPods = desired, ready
 	a.Problems = rankProblems(problems)
+	failedJob := a.latestJobFailed()
 	a.Health, a.Summary = classify(state{
+		failedJob:  failedJob,
 		desired:    desired,
 		ready:      ready,
 		replicated: replicated,
@@ -129,6 +140,8 @@ type state struct {
 	problems          bool
 	paused, suspended int
 	workloads         int
+	// failedJob names the most recent Job when the controller gave up on it.
+	failedJob string
 	// replicated is false when no workload in the application declares a
 	// replica count, so "0 of 0" describes a CronJob between runs rather than
 	// something that was scaled away.
@@ -151,6 +164,11 @@ func classify(s state) (Health, string) {
 	switch {
 	case s.workloads == 0 && s.pods == 0:
 		return Unknown, "nothing running"
+	case s.failedJob != "" && !s.replicated:
+		// The controller's own verdict, and it outlives the pods: a Job past
+		// its backoff limit has usually had them cleaned up, and "no pods
+		// running" is then the least informative true thing to say about it.
+		return Degraded, s.failedJob + note
 	case !s.replicated && s.pods == 0:
 		return Unknown, "no pods running" + note
 	case s.desired == 0 && s.pods == 0:
@@ -173,6 +191,33 @@ func classify(s state) (Health, string) {
 	default:
 		return Healthy, replicaSummary(s.ready, s.desired) + note
 	}
+}
+
+// latestJobFailed reports the newest Job of the application when its
+// controller has given up on it, as a sentence.
+//
+// Only the newest counts. A CronJob keeps its last failed run around for
+// reference (failedJobsHistoryLimit), and one bad night three days ago is not
+// the state of a job that has succeeded every night since.
+func (a *Application) latestJobFailed() string {
+	var latest *Workload
+	for i := range a.Workloads {
+		w := &a.Workloads[i]
+		if w.Kind != "Job" || !w.Failed || w.Superseded(a.Workloads) {
+			continue
+		}
+		if latest == nil || w.CreatedAt.After(latest.CreatedAt) {
+			latest = w
+		}
+	}
+	if latest == nil {
+		return ""
+	}
+	out := "Job " + latest.Name + " failed"
+	if latest.FailedReason != "" {
+		out += ": " + latest.FailedReason
+	}
+	return out
 }
 
 // notReadyPhrase completes "…, 2 pods not ready" without a plural slip.

@@ -19,6 +19,23 @@ import (
 //     problem, already explained by a pod rule;
 //   - the pods are ready and the endpoints are still empty: rarer, and worth
 //     saying plainly rather than guessing about.
+//
+// scaledToZero reports an application whose workloads all want no pods.
+func scaledToZero(app *application.Application) bool {
+	replicated := false
+	for i := range app.Workloads {
+		w := &app.Workloads[i]
+		if !w.Replicated {
+			continue
+		}
+		replicated = true
+		if w.Desired > 0 {
+			return false
+		}
+	}
+	return replicated
+}
+
 func serviceWithoutEndpoints(in *Input) []Diagnosis {
 	if len(in.Context.Endpoints) == 0 && len(in.Context.Gaps) > 0 {
 		// Endpoints could not be read at all; saying "no endpoints" would be a
@@ -43,6 +60,12 @@ func serviceWithoutEndpoints(in *Input) []Diagnosis {
 		}
 
 		selected, ready := selectedPods(&in.App, svc.Selector)
+		if len(selected) == 0 && scaledToZero(&in.App) {
+			// Nothing is meant to be running: a workload at zero replicas has
+			// no endpoints by design, and calling that a selector typo would
+			// raise a critical on every service KEDA parks overnight.
+			continue
+		}
 		var (
 			cause      string
 			confidence Confidence
@@ -102,13 +125,82 @@ func serviceWithoutEndpoints(in *Input) []Diagnosis {
 // ingressWithoutBackend reports an ingress rule pointing at a service that is
 // not in the scope at all. A request to that host returns 503 and nothing in
 // the application looks wrong.
+// routeKind is "Ingress", or the Gateway API kind the route really is.
+func routeKind(ing *application.Ingress) string {
+	if ing.Kind == "" {
+		return "Ingress"
+	}
+	return ing.Kind
+}
+
+// routeRejected reports a Gateway API route its Gateway did not take.
+//
+// An Ingress is picked up or silently ignored. A route is answered: the
+// Gateway writes Accepted and ResolvedRefs conditions back onto it, and a
+// route that was refused serves nothing however healthy the pods behind it
+// are — which makes those two conditions the first thing worth reading.
+func routeRejected(in *Input) []Diagnosis {
+	var out []Diagnosis
+	for i := range in.App.Ingresses {
+		r := &in.App.Ingresses[i]
+		name := routeKind(r) + "/" + r.Name
+		if len(r.Rejected) == 0 && len(r.Unresolved) > 0 {
+			// Taken by its Gateway, and pointing at something that is not
+			// there: a different fault with a different fix.
+			d := Diagnosis{
+				Rule:       "route.rejected",
+				Severity:   Warning,
+				Confidence: High,
+				Subject:    application.ObjectRef{Kind: routeKind(r), Name: r.Name, UID: r.UID},
+				Problem:    name + " was accepted by its Gateway, but a backend it names does not resolve",
+				Cause:      r.Unresolved[0],
+				Chain:      chain(&in.App, name, "backend unresolved"),
+				Suggestions: []Suggestion{
+					{Text: "Check that the backend Service exists and the port is one it serves",
+						Command: describeCommand(strings.ToLower(routeKind(r)), r.Namespace, r.Name)},
+					{Text: "A backend in another namespace needs a ReferenceGrant there",
+						Command: "kubectl get referencegrants -A"},
+				},
+			}
+			for _, line := range r.Unresolved {
+				d.Evidence = append(d.Evidence, Evidence{Kind: routeKind(r), Name: r.Name, Detail: line})
+			}
+			out = append(out, d)
+			continue
+		}
+		if len(r.Rejected) == 0 {
+			continue
+		}
+		d := Diagnosis{
+			Rule:       "route.rejected",
+			Severity:   Warning,
+			Confidence: High,
+			Subject:    application.ObjectRef{Kind: routeKind(r), Name: r.Name, UID: r.UID},
+			Problem:    name + " is not being served: its Gateway did not accept it",
+			Cause:      r.Rejected[0],
+			Chain:      chain(&in.App, name, "not accepted"),
+			Suggestions: []Suggestion{
+				{Text: "Read the conditions each parent Gateway wrote on the route",
+					Command: describeCommand(strings.ToLower(routeKind(r)), r.Namespace, r.Name)},
+				{Text: "Check that the Gateway allows routes from this namespace (allowedRoutes) and has a matching listener",
+					Command: "kubectl get gateways -A"},
+			},
+		}
+		for _, line := range r.Rejected {
+			d.Evidence = append(d.Evidence, Evidence{Kind: routeKind(r), Name: r.Name, Detail: line})
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
 func ingressWithoutBackend(in *Input) []Diagnosis {
 	if len(in.App.Ingresses) == 0 {
 		return nil
 	}
 	known := map[string]bool{}
 	for i := range in.Scope.Services {
-		known[in.Scope.Services[i].Name] = true
+		known[in.Scope.Services[i].Namespace+"/"+in.Scope.Services[i].Name] = true
 	}
 	if len(known) == 0 {
 		// Without the scope's services this rule cannot tell "missing" from
@@ -121,7 +213,7 @@ func ingressWithoutBackend(in *Input) []Diagnosis {
 		ing := &in.App.Ingresses[i]
 		var missing []string
 		for _, backend := range ing.Backends {
-			if !known[backend] {
+			if !known[ing.Namespace+"/"+backend] {
 				missing = append(missing, backend)
 			}
 		}
@@ -133,17 +225,17 @@ func ingressWithoutBackend(in *Input) []Diagnosis {
 		out = append(out, Diagnosis{
 			Rule:       "ingress.nobackend",
 			Severity:   Critical,
-			Subject:    application.ObjectRef{Kind: "Ingress", Name: ing.Name, UID: ing.UID},
-			Problem:    "Ingress/" + ing.Name + " routes to " + strings.Join(missing, ", ") + ", which does not exist here",
-			Cause:      "the backend service named in the ingress is not in this namespace, so the router has nothing to send requests to",
+			Subject:    application.ObjectRef{Kind: routeKind(ing), Name: ing.Name, UID: ing.UID},
+			Problem:    routeKind(ing) + "/" + ing.Name + " routes to " + strings.Join(missing, ", ") + ", which does not exist here",
+			Cause:      "the backend service it names is not in this namespace, so the router has nothing to send requests to",
 			Confidence: High,
-			Chain:      chain(&in.App, "Ingress/"+ing.Name, "missing backend"),
+			Chain:      chain(&in.App, routeKind(ing)+"/"+ing.Name, "missing backend"),
 			Suggestions: []Suggestion{
-				{Text: "Check the service name in the ingress rules",
-					Command: describeCommand("ingress", ing.Namespace, ing.Name)},
+				{Text: "Check the service name in its rules",
+					Command: describeCommand(strings.ToLower(routeKind(ing)), ing.Namespace, ing.Name)},
 			},
 			Evidence: []Evidence{{
-				Kind:   "Ingress",
+				Kind:   routeKind(ing),
 				Name:   ing.Name,
 				Detail: "hosts " + orUnknown(strings.Join(ing.Hosts, ", ")) + " → " + strings.Join(missing, ", "),
 			}},

@@ -34,6 +34,7 @@ const (
 	paletteOpenApp          palette.ActionID = "open.application"
 	paletteExplain          palette.ActionID = "explain"
 	paletteGrouping         palette.ActionID = "application.grouping"
+	paletteGroupBy          palette.ActionID = "applications.group"
 	paletteToggleYAML       palette.ActionID = "object.yaml"
 	paletteToggleDecode     palette.ActionID = "object.decode"
 	paletteScale            palette.ActionID = "scale"
@@ -280,6 +281,30 @@ func (m *Model) rebuildCommands() {
 			Weight:   96,
 			Enabled:  true,
 		})
+	}
+
+	if m.view == viewApplications {
+		for g := groupNone; g < groupModes; g++ {
+			if g == m.appGroup || !g.useful(m.applications()) {
+				continue
+			}
+			title, subtitle := "Group applications by "+g.word(), "the label once per group, with how many are unwell"
+			if g == groupNone {
+				title, subtitle = "Stop grouping applications", "back to one list, worst first"
+			}
+			cmds = append(cmds, palette.Command{
+				ID:       "cmd.group." + itoa(int(g)),
+				Action:   paletteGroupBy,
+				Arg:      itoa(int(g)),
+				Title:    title,
+				Subtitle: subtitle,
+				Category: "View",
+				Keywords: []string{"group", "by", "namespace", "role", "platform", "system", "part-of", "team", "owner", "helm", "flux", "argo", "label"},
+				Shortcut: m.keys.Key(ActionGroupBy),
+				Weight:   82,
+				Enabled:  true,
+			})
+		}
 	}
 
 	if m.sortable() {
@@ -1075,6 +1100,9 @@ func (m *Model) backToOverview() tea.Cmd {
 	if m.evidence.State() == async.Idle {
 		cmds = append(cmds, m.loadEvidence())
 	}
+	if m.permissions.State() == async.Idle {
+		cmds = append(cmds, m.loadPermissions())
+	}
 	return tea.Batch(cmds...)
 }
 
@@ -1200,6 +1228,14 @@ func (m *Model) runCommand(id string) tea.Cmd {
 		return m.explain()
 	case paletteGrouping:
 		return m.toggleGrouping()
+	case paletteGroupBy:
+		g := groupNone
+		for candidate := groupNone; candidate < groupModes; candidate++ {
+			if itoa(int(candidate)) == cmd.Arg {
+				g = candidate
+			}
+		}
+		return m.setGrouping(g)
 	case paletteOpenResources:
 		return m.openOverlay(overlayResources)
 	case paletteOpenResource:
@@ -1310,6 +1346,7 @@ func (m *Model) switchContextScoped(name, namespace string) tea.Cmd {
 	m.table.Reset()
 	m.apps.Reset()
 	m.evidence.Reset()
+	m.permissions.Reset()
 	m.object.Reset()
 	m.resetUsage()
 	m.usageDrilledIn = false
@@ -1362,6 +1399,7 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	// The dashboard is always scoped, so it always reloads.
 	m.apps.Reset()
 	m.evidence.Reset()
+	m.permissions.Reset()
 	m.object.Reset()
 	m.resetUsage()
 	m.stopLogs()
@@ -1374,6 +1412,11 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 		m.view = viewApplications
 	}
 	reload := m.loadApplications()
+	if m.view == viewOverview {
+		// The session screen is on screen and everything on it was just
+		// thrown away; nothing else would ask again until the user left.
+		reload = tea.Batch(reload, m.loadEvidence(), m.loadPermissions())
+	}
 	if m.view == viewUsage {
 		// The numbers belong to the scope they were read in; a new scope means
 		// a new reading, not the old one under a new heading.

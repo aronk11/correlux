@@ -44,6 +44,12 @@ type Options struct {
 	// PageSize and MaxPages bound the work. Zero means the defaults.
 	PageSize int64
 	MaxPages int
+	// Labels are the organisation's own label spellings, handed to grouping.
+	Labels application.Labels
+	// ConfigMaps are the ConfigMaps the evidence pass should read for the
+	// hosts they name, as "namespace/name": the ones the pods in scope take
+	// their environment from, and no others.
+	ConfigMaps []string
 	// GitOpsNamespaces are where the applications' Flux objects live, when
 	// that is not the scope itself.
 	GitOpsNamespaces []string
@@ -211,6 +217,34 @@ func Collect(ctx context.Context, cs kubernetes.Interface, opts Options) (applic
 		})
 	})
 
+	collectRoutes(ctx, &g, cs, opts, &snap)
+	collectRollouts(ctx, &g, cs, opts, &snap)
+
+	// Namespaces, for their labels. One namespace is a single GET; all of
+	// them is a list most namespace-scoped accounts are refused, and the
+	// refusal costs a column rather than a warning.
+	g.quiet(func() {
+		if opts.Namespace != "" {
+			ns, err := cs.CoreV1().Namespaces().Get(ctx, opts.Namespace, metav1.GetOptions{})
+			if err == nil {
+				g.collect(func() { snap.Namespaces = append(snap.Namespaces, meta("Namespace", ns.ObjectMeta)) })
+			}
+			return
+		}
+		_, _ = page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+			l, err := cs.CoreV1().Namespaces().List(ctx, o)
+			if err != nil {
+				return "", err
+			}
+			g.collect(func() {
+				for i := range l.Items {
+					snap.Namespaces = append(snap.Namespaces, meta("Namespace", l.Items[i].ObjectMeta))
+				}
+			})
+			return l.Continue, nil
+		})
+	})
+
 	gaps, truncated, err := g.wait()
 	if err != nil {
 		return application.Snapshot{}, err
@@ -223,11 +257,12 @@ func Collect(ctx context.Context, cs kubernetes.Interface, opts Options) (applic
 // a full copy of the last applied manifest, and keeping every one of them for
 // every object in a cluster would cost more than the rest of the snapshot put
 // together.
-var managerAnnotations = []string{
+var managerAnnotations = append([]string{
 	"meta.helm.sh/release-name",
 	"meta.helm.sh/release-namespace",
 	"argocd.argoproj.io/instance",
-}
+	"argocd.argoproj.io/tracking-id",
+}, application.TraitAnnotations...)
 
 func meta(kind string, m metav1.ObjectMeta) application.Meta {
 	out := application.Meta{
@@ -309,15 +344,27 @@ func fromJob(j *batchv1.Job) application.Workload {
 		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
 			out.Failed, out.FailedReason, out.FailedMessage = true, c.Reason, c.Message
 		}
+		if c.Type == batchv1.JobComplete && c.Status == corev1.ConditionTrue {
+			out.Completed = true
+		}
 	}
 	return out
 }
 
 func fromCronJob(c *batchv1.CronJob) application.Workload {
-	return application.Workload{
+	out := application.Workload{
 		Meta:      meta("CronJob", c.ObjectMeta),
 		Suspended: c.Spec.Suspend != nil && *c.Spec.Suspend,
+		Schedule:  c.Spec.Schedule,
+		Active:    len(c.Status.Active),
 	}
+	if t := c.Status.LastScheduleTime; t != nil {
+		out.LastSchedule = t.Time
+	}
+	if t := c.Status.LastSuccessfulTime; t != nil {
+		out.LastSuccess = t.Time
+	}
+	return out
 }
 
 func fromService(s *corev1.Service) application.Service {

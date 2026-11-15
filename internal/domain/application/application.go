@@ -85,9 +85,43 @@ type Workload struct {
 	Failed        bool
 	FailedReason  string
 	FailedMessage string
+	// Completed is a Job that finished successfully.
+	Completed bool
+	// The rest describes a CronJob: its schedule as written, when it last
+	// started a run, when a run last succeeded, and how many are running.
+	// The two times are the whole of what Kubernetes remembers about a
+	// CronJob once its Jobs have been cleaned up.
+	Schedule     string
+	LastSchedule time.Time
+	LastSuccess  time.Time
+	Active       int
 	// GroupedBy is why this workload belongs to its application, captured at
 	// grouping time so it never has to be recomputed to answer for itself.
 	GroupedBy Reason
+}
+
+// Superseded reports a Job that a later run of the same CronJob has made
+// history: it failed, and a newer Job with the same owner did not.
+//
+// The comparison is only among runs of one CronJob. A CronJob keeps its last
+// failed run for reference, and that is not the state of a job that has
+// succeeded since. A Job nobody schedules has no later run to be superseded
+// by — a failed migration stays failed, whatever else ran after it.
+func (w *Workload) Superseded(siblings []Workload) bool {
+	owner, ok := w.Controller()
+	if !ok || owner.Kind != "CronJob" || w.CreatedAt.IsZero() {
+		return false
+	}
+	for i := range siblings {
+		s := &siblings[i]
+		if s.Kind != "Job" || s.Failed || !s.CreatedAt.After(w.CreatedAt) {
+			continue
+		}
+		if o, ok := s.Controller(); ok && o.Kind == "CronJob" && o.UID == owner.UID && o.Name == owner.Name {
+			return true
+		}
+	}
+	return false
 }
 
 // Pod is one pod, reduced to what health and grouping need.
@@ -100,7 +134,10 @@ type Pod struct {
 	// CrashLoopBackOff, ImagePullBackOff, OOMKilled, Unschedulable, Evicted,
 	// Terminating. It is what the cluster reports, never an interpretation of
 	// it — explaining the cause is the diagnosis engine's job (SPEC 11).
-	Reason   string
+	Reason string
+	// Message is the pod-level status message, which a failed pod uses to
+	// say what its Reason alone does not: why it was evicted.
+	Message  string
 	Restarts int32
 	Node     string
 	// Containers carry the detail a diagnosis reasons about: which container,
@@ -114,6 +151,19 @@ type Pod struct {
 	// Claims are the PersistentVolumeClaims the pod mounts, in the order the
 	// spec lists them.
 	Claims []string
+	// References are the hosts the pod's environment points at, each with the
+	// variable that names it. The values themselves are never kept: a
+	// connection string is where passwords live.
+	References []Reference
+	// ConfigSources are the ConfigMaps the environment is filled from, which
+	// is where a connection string lives as often as in the pod itself.
+	ConfigSources []ConfigSource
+	// Overhead is what the pod's RuntimeClass adds on top of its containers —
+	// a sandbox such as Kata or gVisor — and the scheduler reserves it too.
+	Overhead Amounts
+	// Spread is true when the pod template asks the scheduler to keep its
+	// replicas apart: a topology spread constraint or pod anti-affinity.
+	Spread bool
 	// DeletingSince is when the pod was asked to go away, zero while it is not
 	// being deleted; Finalizers are what may be holding it.
 	DeletingSince time.Time
@@ -220,6 +270,31 @@ func max64(a, b int64) int64 {
 // this is called once per pod per render.
 func (p *Pod) Terminal() bool { return p.Phase == "Succeeded" }
 
+// Failed reports a pod whose phase is Failed: every container has stopped and
+// the kubelet will not start them again. Under a controller that keeps a
+// replica count this is a corpse, already replaced; on its own, or under a
+// Job, it is the outcome.
+func (p *Pod) Failed() bool { return p.Phase == "Failed" }
+
+// Discarded reports a failed pod that its node gave up on rather than one
+// that ran and failed: evicted, shut down with the machine, preempted. Under
+// a controller with a replica count such a pod has been replaced. A Job's
+// pod that exited with an error is not this — it is the Job's result — even
+// when a Deployment happens to share its application.
+func (p *Pod) Discarded() bool {
+	if !p.Failed() {
+		return false
+	}
+	if ref, ok := p.Controller(); ok && ref.Kind == "Job" {
+		return false
+	}
+	switch p.Reason {
+	case "Evicted", "Shutdown", "NodeShutdown", "Terminated", "NodeAffinity", "Preempting", "NodeLost":
+		return true
+	}
+	return false
+}
+
 // Service is one service and the pods it selects.
 type Service struct {
 	Meta
@@ -251,6 +326,15 @@ type Ingress struct {
 	Backends []string
 	// TLSSecrets are the Secrets the ingress serves certificates from.
 	TLSSecrets []string
+	// Gateways are the Gateways a Gateway API route attaches to, and Rejected
+	// what those Gateways said when they did not take it: one line each, in
+	// the controller's words. Both are empty for an Ingress, which has no
+	// such handshake. The Kind in Meta says which of the two this is.
+	Gateways []string
+	Rejected []string
+	// Unresolved is the other thing a Gateway reports: it took the route, and
+	// a backend the route names does not resolve.
+	Unresolved []string
 	// GroupedBy is why this ingress belongs to its application, captured at
 	// grouping time so it never has to be recomputed to answer for itself.
 	GroupedBy Reason
@@ -353,8 +437,11 @@ type Context struct {
 	Certificates []Certificate
 	GitOps       []GitOpsObject
 	Releases     []HelmRelease
-	Gaps         []Gap
-	FetchedAt    time.Time
+	// ConfigReferences are the hosts named in the ConfigMaps the pods take
+	// their environment from, reduced to key and host at collection.
+	ConfigReferences []ConfigReference
+	Gaps             []Gap
+	FetchedAt        time.Time
 }
 
 // NetworkPolicy is the part of a policy that decides whether traffic to a
@@ -457,6 +544,9 @@ type Certificate struct {
 	Reason     string
 	Message    string
 	NotAfter   time.Time
+	// RenewalTime is when cert-manager plans to renew, zero when it has not
+	// said. A certificate is only late once this has passed.
+	RenewalTime time.Time
 }
 
 // GitOpsObject is a Flux Kustomization or HelmRelease with its Ready
@@ -470,6 +560,17 @@ type GitOpsObject struct {
 	Suspended  bool
 	// Revision is the source revision last applied.
 	Revision string
+	// The rest is Argo CD's vocabulary, empty for a Flux object. Sync is
+	// "Synced" or "OutOfSync" and Health its roll-up of the resources.
+	// Operation is how the last sync ended ("Succeeded", "Failed", "Error",
+	// "Running") with the controller's message. Automated says whether Argo
+	// syncs by itself, and Errors are its *Error conditions, quoted.
+	Sync             string
+	Health           string
+	Operation        string
+	OperationMessage string
+	Automated        bool
+	Errors           []string
 }
 
 // HelmRelease is the newest revision Helm recorded for one release, read
@@ -558,7 +659,12 @@ type Snapshot struct {
 	Pods      []Pod
 	Services  []Service
 	Ingresses []Ingress
-	Gaps      []Gap
+	// Namespaces are the namespaces in scope with their labels, which is
+	// where many teams write down who owns what. It is empty for an account
+	// that may not read namespaces, and that is not a gap worth reporting:
+	// nothing on screen is missing, only less of it is labelled.
+	Namespaces []Meta
+	Gaps       []Gap
 	// Truncated is true when a list hit its page limit, so the applications
 	// derived from it are a subset rather than the whole scope.
 	Truncated bool
@@ -587,6 +693,7 @@ func MergeSnapshots(snaps ...Snapshot) Snapshot {
 		out.Pods = append(out.Pods, s.Pods...)
 		out.Services = append(out.Services, s.Services...)
 		out.Ingresses = append(out.Ingresses, s.Ingresses...)
+		out.Namespaces = append(out.Namespaces, s.Namespaces...)
 		for _, gap := range s.Gaps {
 			// The same kind denied in three namespaces is one fact about the
 			// cluster, not three.
@@ -668,6 +775,16 @@ type Application struct {
 	// Manager is what deployed this, when it left a trace saying so.
 	Manager  Manager
 	Problems []Problem
+	// Traits are what its labels say about it: system, version, team, role.
+	Traits Traits
+	// DependsOn are the applications this one names as something it talks
+	// to, and UsedBy the ones that name it. See linkDependencies.
+	DependsOn []Dependency
+	UsedBy    []string
+	// Leftover counts pods that failed for good and were replaced — evicted,
+	// shut down with their node — and are still listed. They are not part of
+	// the application any more, and they are not nothing either.
+	Leftover int
 	// CreatedAt is the age of the oldest object in the application.
 	CreatedAt time.Time
 }

@@ -390,6 +390,11 @@ func (m *Model) statusData() components.StatusData {
 				{Group: components.HintView, Key: m.keys.Key(ActionSort), Desc: m.sortHint(), Priority: 60},
 				{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.showingWide()), Priority: 50},
 			}, app...)
+			// Offered only where it does something (SPEC 17).
+			if m.groupable() {
+				app = append(app, components.KeyHint{Group: components.HintView,
+					Key: m.keys.Key(ActionGroupBy), Desc: m.groupHint(), Priority: 74})
+			}
 		}
 		hints = append(app, hints...)
 	case viewUsage:
@@ -804,8 +809,53 @@ func (m *Model) overviewData() screens.OverviewData {
 	})
 
 	return screens.OverviewData{
-		Panels: []screens.Panel{connection, m.problemsPanel(), session, environment},
+		Panels: []screens.Panel{connection, m.problemsPanel(), session, m.permissionsPanel(), environment},
 	}
+}
+
+// permissionsPanel says what this account may do in the active scope, asked
+// of the API server rather than found out by trying. The list is the actions
+// Correlux offers; what the cluster refuses is named, so a key that will be
+// turned down is known before it is pressed in the middle of an incident.
+func (m *Model) permissionsPanel() screens.Panel {
+	panel := screens.Panel{Title: "What you may do in " + m.scopeLabel()}
+	switch m.permissions.State() {
+	case async.Idle, async.Loading:
+		panel.Fields = []screens.Field{{Label: "Status", Value: "Asking the API server…"}}
+		return panel
+	case async.Failed:
+		panel.Fields = []screens.Field{{Label: "Status", Value: "Could not ask: " + shortError(m.permissions.Err()),
+			Status: theme.StatusWarning, Glyph: true}}
+		return panel
+	}
+	var allowed, denied, unknown []string
+	for _, p := range m.permissions.Get() {
+		switch {
+		case !p.Known:
+			unknown = append(unknown, p.Label)
+		case p.Allowed:
+			allowed = append(allowed, p.Label)
+		default:
+			denied = append(denied, p.Label)
+		}
+	}
+	if len(allowed) > 0 {
+		panel.Fields = append(panel.Fields, screens.Field{Label: "Allowed", Value: strings.Join(allowed, ", "),
+			Status: theme.StatusHealthy, Glyph: true})
+	}
+	if len(denied) > 0 {
+		panel.Fields = append(panel.Fields, screens.Field{Label: "Refused", Value: strings.Join(denied, ", "),
+			Status: theme.StatusWarning, Glyph: true})
+	}
+	if len(unknown) > 0 {
+		panel.Fields = append(panel.Fields, screens.Field{Label: "No answer", Value: strings.Join(unknown, ", ")})
+	}
+	if reason, readOnly := m.readOnlyReason(); readOnly {
+		panel.Note = "Whatever the cluster allows, Correlux refuses every change here: " + reason + "."
+	} else {
+		panel.Note = "Asked with SelfSubjectAccessReview for Deployments and Pods; other kinds may differ, and admission webhooks can still refuse."
+	}
+	return panel
 }
 
 // problemsPanel is the bounded cluster triage pass. It combines application
@@ -1106,6 +1156,8 @@ func (m *Model) helpTextAt(width int) string {
 			{"Enter", "Open the application: its workloads, pods and network"},
 			{m.keys.Key(ActionWhy), "Explain why it is unhealthy, from the cluster's own evidence"},
 			{m.keys.Key(ActionGrouping), "Show which signal grouped each object, and how sure it is"},
+			{m.keys.Key(ActionGroupBy), "Group the dashboard: by namespace, role, system, team, or what manages them"},
+			{"role=ingress", "Filter by a label column: role, system, version, team, env"},
 		}},
 		{"Inspect an application or an object", [][2]string{
 			{"↑ ↓ / j k", "Move between the objects; the page follows"},

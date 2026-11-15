@@ -284,8 +284,9 @@ func describeAutoscaler(doc map[string]any) []Section {
 	overview := Section{Title: "Status", Columns: []string{"Field", "Value"}}
 	overview.add("Scales", str(target, "kind")+"/"+str(target, "name"))
 	overview.add("Replicas", strconv.Itoa(number(status, "currentReplicas"))+" now, "+strconv.Itoa(number(status, "desiredReplicas"))+" wanted")
+	// Absent means one; an explicit zero is scale-to-zero and means zero.
 	minimum := number(spec, "minReplicas")
-	if minimum == 0 {
+	if _, set := spec["minReplicas"]; !set {
 		minimum = 1
 	}
 	overview.add("Range", strconv.Itoa(minimum)+"–"+strconv.Itoa(number(spec, "maxReplicas")))
@@ -349,8 +350,9 @@ func describeBudget(doc map[string]any) []Section {
 	default:
 		overview.add("Applies to", selectorOf(selector))
 	}
-	overview.add("Min available", value(spec["minAvailable"]))
-	overview.add("Max unavailable", value(spec["maxUnavailable"]))
+	// A zero here is the classic reason a node drain hangs, so it is kept.
+	overview.set("Min available", value(spec["minAvailable"]))
+	overview.set("Max unavailable", value(spec["maxUnavailable"]))
 	overview.Rows = append(overview.Rows,
 		[]string{"Healthy", strconv.Itoa(number(status, "currentHealthy")) + " of " + strconv.Itoa(number(status, "desiredHealthy")) + " required"},
 		[]string{"Disruptions allowed", strconv.Itoa(number(status, "disruptionsAllowed"))})
@@ -413,7 +415,12 @@ func describeQuota(doc map[string]any) []Section {
 	}
 	usage := Section{Title: "Usage", Columns: []string{"Resource", "Used", "Hard"}, Empty: "no limits"}
 	for _, k := range sortedKeys(hard) {
-		usage.Rows = append(usage.Rows, []string{k, orDash(value(used[k])), value(hard[k])})
+		// Nothing used is "0", and only nothing reported is a dash.
+		consumed := "—"
+		if _, reported := used[k]; reported {
+			consumed = value(used[k])
+		}
+		usage.Rows = append(usage.Rows, []string{k, consumed, value(hard[k])})
 	}
 	return []Section{usage}
 }

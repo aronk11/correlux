@@ -131,7 +131,10 @@ type Model struct {
 	// evidence is the extra context a diagnosis needs. It is loaded for the
 	// scope the user is looking at, never for the whole cluster.
 	evidence async.Value[application.Context]
-	object   async.Value[*resources.Object]
+	// permissions is what this account may do in the active scope, asked when
+	// the session screen is opened.
+	permissions async.Value[[]kubeclient.Permission]
+	object      async.Value[*resources.Object]
 	// usage is the rollup of where the pods are and what they use. The report
 	// is computed when its inputs land rather than on every frame, and
 	// usageLive keeps those inputs so a newer snapshot can be rolled up
@@ -286,7 +289,9 @@ type Model struct {
 	// dashboard by restarts says nothing about how somebody wants a list of
 	// nodes, and one screen quietly reordering another is a change nobody
 	// asked for.
-	appSort   tableSort
+	appSort tableSort
+	// appGroup is what the dashboard is grouped by, if anything.
+	appGroup  groupMode
 	tableSort tableSort
 	fleetSort tableSort
 

@@ -197,3 +197,25 @@ func TestTheSameNameInSeveralNamespacesStaysDistinguishable(t *testing.T) {
 			[]string{rows[0].Instances[0].Namespace, rows[0].Instances[1].Namespace})
 	}
 }
+
+func TestDriftIsAnApplicationThatDoesNotRunTheSameVersionEverywhere(t *testing.T) {
+	at := func(context, namespace, version string) Instance {
+		return Instance{Context: context, Namespace: namespace, Version: version}
+	}
+	rows := []Row{
+		{Name: "checkout", Instances: []Instance{
+			at("prod-eu", "shop", "1.9"), at("prod-us", "shop", "1.8"), at("prod-ap", "shop", "1.9"),
+			at("prod-eu", "sandbox", "0.1"), // another namespace is another application
+		}},
+		{Name: "cart", Instances: []Instance{at("prod-eu", "shop", "2.0"), at("prod-us", "shop", "2.0")}},
+		{Name: "api", Instances: []Instance{at("prod-eu", "shop", "3.1"), at("prod-us", "shop", ""), at("prod-ap", "shop", "3.1, 3.2")}},
+	}
+	got := Drifts(rows)
+	if len(got) != 1 || got[0].Name != "checkout" || got[0].Namespace != "shop" {
+		t.Fatalf("drifts = %+v, want only checkout in shop", got)
+	}
+	v := got[0].Versions
+	if len(v) != 2 || v[0].Version != "1.9" || len(v[0].Contexts) != 2 || v[1].Version != "1.8" || v[1].Contexts[0] != "prod-us" {
+		t.Errorf("versions = %+v, want the widespread one first and the straggler named", v)
+	}
+}

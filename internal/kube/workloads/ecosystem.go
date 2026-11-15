@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -82,7 +81,7 @@ func collectEcosystem(ctx context.Context, g *group, cs kubernetes.Interface, op
 		path := collectionPath("/apis/cert-manager.io/v1", opts.Namespace, "certificates")
 		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			var list itemList[certificateItem]
-			found, err := getJSON(ctx, rc, path, nil, o, &list)
+			found, err := getJSON(ctx, rc, path, o, &list)
 			if err != nil || !found {
 				return "", err
 			}
@@ -103,6 +102,25 @@ func collectEcosystem(ctx context.Context, g *group, cs kubernetes.Interface, op
 		g.run("HelmRelease", func() (bool, error) {
 			return readFlux(ctx, g, rc, opts, out, ns, "HelmRelease",
 				[]string{"/apis/helm.toolkit.fluxcd.io/v2", "/apis/helm.toolkit.fluxcd.io/v2beta2"}, "helmreleases")
+		})
+	}
+
+	for _, ns := range gitOpsScopes(opts) {
+		g.run("Argo CD Application", func() (bool, error) {
+			path := collectionPath("/apis/argoproj.io/v1alpha1", ns, "applications")
+			return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+				var list itemList[argoItem]
+				found, err := getJSON(ctx, rc, path, o, &list)
+				if err != nil || !found {
+					return "", err
+				}
+				g.collect(func() {
+					for i := range list.Items {
+						out.GitOps = append(out.GitOps, list.Items[i].toGitOps())
+					}
+				})
+				return list.Metadata.Continue, nil
+			})
 		})
 	}
 
@@ -161,7 +179,7 @@ func readFlux(ctx context.Context, g *group, rc rest.Interface, opts Options, ou
 		served := true
 		truncated, err := page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			var list itemList[fluxItem]
-			found, err := getJSON(ctx, rc, path, nil, o, &list)
+			found, err := getJSON(ctx, rc, path, o, &list)
 			if err != nil {
 				return "", err
 			}
@@ -205,8 +223,8 @@ func collectionPath(prefix, namespace, resource string) string {
 
 // getJSON reads one page of a collection. found is false when the API is not
 // served at all.
-func getJSON(ctx context.Context, rc rest.Interface, path string, query map[string]string, o metav1.ListOptions, into any) (bool, error) {
-	return get(ctx, rc, path, query, o, "", into)
+func getJSON(ctx context.Context, rc rest.Interface, path string, o metav1.ListOptions, into any) (bool, error) {
+	return get(ctx, rc, path, nil, o, "", into)
 }
 
 // getMetadata reads only the metadata of a collection, which for Secrets is
@@ -284,6 +302,8 @@ type certificateItem struct {
 	Status struct {
 		Conditions []condition `json:"conditions"`
 		NotAfter   *time.Time  `json:"notAfter"`
+		// RenewalTime is when cert-manager intends to renew.
+		RenewalTime *time.Time `json:"renewalTime"`
 	} `json:"status"`
 }
 
@@ -292,10 +312,20 @@ func (c *certificateItem) toCertificate() application.Certificate {
 		Meta:       c.Metadata.toMeta("Certificate"),
 		SecretName: c.Spec.SecretName,
 		DNSNames:   c.Spec.DNSNames,
-		Issuer:     strings.TrimPrefix(c.Spec.IssuerRef.Kind+"/"+c.Spec.IssuerRef.Name, "/"),
+	}
+	if name := c.Spec.IssuerRef.Name; name != "" {
+		// cert-manager reads an absent kind as Issuer.
+		kind := c.Spec.IssuerRef.Kind
+		if kind == "" {
+			kind = "Issuer"
+		}
+		out.Issuer = kind + "/" + name
 	}
 	if r, ok := ready(c.Status.Conditions); ok {
-		out.ReadyKnown, out.Ready, out.Reason, out.Message = true, r.Status == "True", r.Reason, r.Message
+		out.ReadyKnown, out.Ready, out.Reason, out.Message = conditionDecided(r), r.Status == "True", r.Reason, r.Message
+	}
+	if c.Status.RenewalTime != nil {
+		out.RenewalTime = *c.Status.RenewalTime
 	}
 	if c.Status.NotAfter != nil {
 		out.NotAfter = *c.Status.NotAfter
@@ -322,9 +352,73 @@ func (f *fluxItem) toGitOps(kind string) application.GitOpsObject {
 		Revision:  f.Status.LastAppliedRevision,
 	}
 	if r, ok := ready(f.Status.Conditions); ok {
-		out.ReadyKnown, out.Ready, out.Reason, out.Message = true, r.Status == "True", r.Reason, r.Message
+		out.ReadyKnown, out.Ready, out.Reason, out.Message = conditionDecided(r), r.Status == "True", r.Reason, r.Message
 	}
 	return out
+}
+
+// conditionDecided reports whether a Ready condition is a verdict. Unknown is
+// what Flux and cert-manager write while they are still working — every
+// reconcile of a Kustomization that waits on health checks passes through it
+// — and reading that as "not ready" reported a failure on every deploy.
+func conditionDecided(c condition) bool { return c.Status == "True" || c.Status == "False" }
+
+// argoItem is an Argo CD Application, reduced to what it says about itself.
+type argoItem struct {
+	Metadata objectMeta `json:"metadata"`
+	Spec     struct {
+		SyncPolicy struct {
+			Automated *struct {
+				Enabled *bool `json:"enabled"`
+			} `json:"automated"`
+		} `json:"syncPolicy"`
+	} `json:"spec"`
+	Status struct {
+		Sync struct {
+			Status   string `json:"status"`
+			Revision string `json:"revision"`
+		} `json:"sync"`
+		Health struct {
+			Status  string `json:"status"`
+			Message string `json:"message"`
+		} `json:"health"`
+		OperationState struct {
+			Phase   string `json:"phase"`
+			Message string `json:"message"`
+		} `json:"operationState"`
+		Conditions []struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"conditions"`
+	} `json:"status"`
+}
+
+func (a *argoItem) toGitOps() application.GitOpsObject {
+	out := application.GitOpsObject{
+		Meta:             a.Metadata.toMeta("Application"),
+		Revision:         a.Status.Sync.Revision,
+		Sync:             a.Status.Sync.Status,
+		Health:           a.Status.Health.Status,
+		Message:          a.Status.Health.Message,
+		Operation:        a.Status.OperationState.Phase,
+		OperationMessage: a.Status.OperationState.Message,
+		Automated:        a.automated(),
+	}
+	// Argo CD's conditions are not all complaints; the ones that are end in
+	// "Error" by its own convention (ComparisonError, SyncError, …).
+	for _, c := range a.Status.Conditions {
+		if len(c.Type) > 5 && c.Type[len(c.Type)-5:] == "Error" && len(out.Errors) < 3 {
+			out.Errors = append(out.Errors, c.Type+": "+c.Message)
+		}
+	}
+	return out
+}
+
+// automated reports whether Argo CD syncs this Application by itself: the
+// block is present, and not switched off inside.
+func (a *argoItem) automated() bool {
+	auto := a.Spec.SyncPolicy.Automated
+	return auto != nil && (auto.Enabled == nil || *auto.Enabled)
 }
 
 type metadataItem struct {

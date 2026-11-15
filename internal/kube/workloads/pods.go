@@ -30,6 +30,13 @@ func fromPod(p *corev1.Pod) application.Pod {
 	for i := range p.Status.ContainerStatuses {
 		out.Restarts += p.Status.ContainerStatuses[i].RestartCount
 	}
+	// Init containers restart too, and a pod stuck in Init:CrashLoopBackOff
+	// has all of its restarts here. kubectl counts them; a dashboard that
+	// showed 0 beside a pod on its fortieth attempt would hide it from
+	// `restarts>5`, which is the filter somebody reaches for to find it.
+	for i := range p.Status.InitContainerStatuses {
+		out.Restarts += p.Status.InitContainerStatuses[i].RestartCount
+	}
 	out.Reason = podReason(p)
 	out.Containers = containers(p)
 	out.Scheduled, out.ScheduledReason, out.ScheduledMessage = scheduled(p)
@@ -40,9 +47,75 @@ func fromPod(p *corev1.Pod) application.Pod {
 		}
 		out.Finalizers = p.Finalizers
 	}
+	out.Message = p.Status.Message
+	out.Overhead = amountsOf(p.Spec.Overhead)
+	out.References = references(p)
+	out.ConfigSources = configSources(p)
+	out.Spread = len(p.Spec.TopologySpreadConstraints) > 0 ||
+		(p.Spec.Affinity != nil && p.Spec.Affinity.PodAntiAffinity != nil)
 	for i := range p.Spec.Volumes {
 		if claim := p.Spec.Volumes[i].PersistentVolumeClaim; claim != nil {
 			out.Claims = append(out.Claims, claim.ClaimName)
+		}
+	}
+	return out
+}
+
+// maxReferences bounds what one pod contributes. A pod names a handful of
+// things it talks to; one with fifty address-shaped variables is a config
+// dump, and keeping all of it for every pod in a cluster is not worth it.
+const maxReferences = 12
+
+// references reads the hosts the pod's environment points at. Only literal
+// values are read: a variable filled from a Secret or ConfigMap is not in the
+// pod, and fetching every one of those to follow a connection string would
+// be reading secrets to draw an arrow.
+func references(p *corev1.Pod) []application.Reference {
+	var out []application.Reference
+	seen := map[string]bool{}
+	for i := range p.Spec.Containers {
+		for _, env := range p.Spec.Containers[i].Env {
+			if env.Value == "" {
+				continue
+			}
+			for _, ref := range application.ReferencesIn(env.Name, env.Value) {
+				if seen[ref.Host] {
+					continue
+				}
+				seen[ref.Host] = true
+				out = append(out, ref)
+				if len(out) == maxReferences {
+					return out
+				}
+			}
+		}
+	}
+	return out
+}
+
+// configSources lists the ConfigMaps the pod's environment is filled from.
+// Secrets are left out on purpose and for good: see references.
+func configSources(p *corev1.Pod) []application.ConfigSource {
+	var out []application.ConfigSource
+	seen := map[application.ConfigSource]bool{}
+	add := func(s application.ConfigSource) {
+		if s.ConfigMap != "" && !seen[s] && len(out) < maxReferences {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	for i := range p.Spec.Containers {
+		c := &p.Spec.Containers[i]
+		for _, from := range c.EnvFrom {
+			if from.ConfigMapRef != nil {
+				add(application.ConfigSource{ConfigMap: from.ConfigMapRef.Name, Prefix: from.Prefix})
+			}
+		}
+		for _, env := range c.Env {
+			if env.ValueFrom != nil && env.ValueFrom.ConfigMapKeyRef != nil {
+				ref := env.ValueFrom.ConfigMapKeyRef
+				add(application.ConfigSource{ConfigMap: ref.Name, Key: ref.Key, Env: env.Name})
+			}
 		}
 	}
 	return out

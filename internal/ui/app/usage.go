@@ -182,7 +182,17 @@ func (m *Model) usageView() (screens.UsageData, []objectRef) {
 	d.Subtitle = m.usageSubtitle(&report, time.Now())
 	d.Notes = m.usageNotes(&report)
 
-	sections := []detailSection{m.usageNodeSection(&report), m.usageUnscheduledSection(&report)}
+	sections := []detailSection{m.usageNodeSection(&report)}
+	// Zones and pools come after the machines they are made of, and only
+	// where there is more than one to compare: a single zone's row would
+	// repeat the totals above it.
+	if len(report.Zones) > 1 {
+		sections = append(sections, m.usagePlacementSection("Zones", "Zone", report.Zones, &report))
+	}
+	if len(report.Pools) > 1 {
+		sections = append(sections, m.usagePlacementSection("Node pools", "Pool", report.Pools, &report))
+	}
+	sections = append(sections, m.usageUnscheduledSection(&report))
 	if m.allNamespaces {
 		sections = append([]detailSection{m.usageNamespaceSection(&report)}, sections...)
 	} else {
@@ -274,6 +284,11 @@ func (m *Model) usageNotes(report *usage.Report) []string {
 		return append(notes, "Requests, limits and capacity below come from the pod specs "+
 			"and the nodes themselves; none of them needs Metrics Server.")
 	}
+	if cpu, memory, covered := usage.Idle(report.Apps); covered > 0 && (cpu >= 1000 || memory >= 1<<30) {
+		notes = append(notes, "Reserved and not in use right now: "+formatCPU(cpu)+" CPU and "+formatMemory(memory)+
+			" memory across "+itoa(covered)+" fully measured "+plural(covered, "application")+
+			". One sample is not a sizing recommendation; it is where to look.")
+	}
 	if unmeasured := report.Totals.Pods - report.Totals.Measured; unmeasured > 0 {
 		notes = append(notes, itoa(unmeasured)+" "+plural(unmeasured, "pod")+
 			" had no live sample, so every used total covering one is a floor.")
@@ -285,7 +300,22 @@ func (m *Model) usageNotes(report *usage.Report) []string {
 // is each machine they landed on.
 func (m *Model) usageNodeSection(report *usage.Report) detailSection {
 	live := report.Metrics.Available
-	columns := []string{"Node", "State", "Pods"}
+	// Zone and pool are drawn where the nodes carry the labels — on a cloud,
+	// they are how "which nodes are full" turns into "which pool do I grow"
+	// and "is this one zone".
+	zones, placed := false, false
+	for i := range report.Nodes {
+		zones = zones || report.Nodes[i].Node.Zone() != ""
+		placed = placed || report.Nodes[i].Node.Placement() != ""
+	}
+	columns := []string{"Node", "State"}
+	if zones {
+		columns = append(columns, "Zone")
+	}
+	if placed {
+		columns = append(columns, "Pool")
+	}
+	columns = append(columns, "Pods")
 	if live {
 		columns = append(columns, "CPU used")
 	}
@@ -305,8 +335,14 @@ func (m *Model) usageNodeSection(report *usage.Report) detailSection {
 		cells := []string{
 			n.Node.Name,
 			m.theme.Glyph(status) + " " + state,
-			podsCell(n.Pods, n.Node.Allocatable.Pods),
 		}
+		if zones {
+			cells = append(cells, orDash(n.Node.Zone()))
+		}
+		if placed {
+			cells = append(cells, orDash(n.Node.Placement()))
+		}
+		cells = append(cells, podsCell(n.Pods, n.Node.Allocatable.Pods))
 		if live {
 			cells = append(cells, m.sampleShare(n.Used.HasCPU, n.Used.CPUMilli,
 				n.Node.Allocatable.CPUMilli, formatCPU))
@@ -330,6 +366,62 @@ func (m *Model) usageNodeSection(report *usage.Report) detailSection {
 		section.Rows = append(section.Rows, detailRow{Cells: []string{
 			m.theme.Glyphs.Ellipsis + " " + itoa(extra) + " more nodes",
 		}})
+	}
+	return section
+}
+
+// usagePlacementSection is one roll-up of the nodes: by zone or by pool.
+func (m *Model) usagePlacementSection(title, heading string, groups []usage.PlacementUsage, report *usage.Report) detailSection {
+	live := report.Metrics.Available
+	columns := []string{heading, "Nodes", "Pods"}
+	if live {
+		columns = append(columns, "CPU used")
+	}
+	columns = append(columns, "CPU requested")
+	if live {
+		columns = append(columns, "Mem used")
+	}
+	columns = append(columns, "Mem requested", "Machines")
+
+	section := detailSection{Title: title, Columns: columns}
+	for i := range groups {
+		g := &groups[i]
+		name := g.Name
+		if name == "" {
+			name = "(unlabelled)"
+		}
+		nodes := itoa(g.Nodes)
+		if g.Unready > 0 {
+			nodes += " (" + itoa(g.Unready) + " not schedulable)"
+		}
+		cells := []string{name, nodes, podsCell(g.Pods, g.Allocatable.Pods)}
+		if live {
+			cells = append(cells, m.sampleShare(g.Used.HasCPU, g.Used.CPUMilli, g.Allocatable.CPUMilli, formatCPU))
+		}
+		cells = append(cells, m.requestShare(g.Requests.HasCPU, g.Requests.CPUMilli, g.Allocatable.CPUMilli, formatCPU))
+		if live {
+			cells = append(cells, m.sampleShare(g.Used.HasMemory, g.Used.MemoryBytes, g.Allocatable.MemoryBytes, formatMemory))
+		}
+		cells = append(cells, m.requestShare(g.Requests.HasMemory, g.Requests.MemoryBytes, g.Allocatable.MemoryBytes, formatMemory))
+
+		machines := strings.Join(g.Types, ", ")
+		if len(g.Types) > 3 {
+			machines = itoa(len(g.Types)) + " types"
+		}
+		if g.Spot > 0 {
+			spot := itoa(g.Spot) + " spot"
+			if g.Spot == g.Nodes {
+				spot = "spot"
+			}
+			machines = strings.TrimPrefix(machines+" · "+spot, " · ")
+		}
+		cells = append(cells, orDash(machines))
+
+		row := detailRow{Cells: cells}
+		if g.Unready > 0 {
+			row.Status = theme.StatusWarning
+		}
+		section.Rows = append(section.Rows, row)
 	}
 	return section
 }
@@ -376,6 +468,17 @@ func (m *Model) usageApplicationSection(report *usage.Report) detailSection {
 		columns = append(columns, "Namespace")
 	}
 	columns = append(columns, "Pods", "Nodes", cpuHeading(live), memoryHeading(live))
+	// Sizing is drawn when some application has something to be said about
+	// it; a column of blanks would only narrow the others.
+	sizing := false
+	for i := range report.Apps {
+		if text, _ := usage.Sizing(&report.Apps[i]); text != "" && i < maxUsageApps {
+			sizing = true
+		}
+	}
+	if sizing {
+		columns = append(columns, "Sizing")
+	}
 
 	section := detailSection{
 		Title:   "Applications",
@@ -405,6 +508,13 @@ func (m *Model) usageApplicationSection(report *usage.Report) detailSection {
 			// Every pod unsized: the scheduler is placing this application
 			// blind, which is worth noticing before anything goes wrong.
 			row.Status = theme.StatusWarning
+		}
+		if sizing {
+			text, level := usage.Sizing(a)
+			row.Cells = append(row.Cells, text)
+			if level == usage.SizingRisk {
+				row.Status = theme.StatusWarning
+			}
 		}
 		section.Rows = append(section.Rows, row)
 	}

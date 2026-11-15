@@ -92,6 +92,11 @@ type AppUsage struct {
 	Requests application.Amounts
 	Limits   application.Amounts
 	Used     application.Amounts
+	// MemoryBounded is true when every container of every pod counted has a
+	// memory limit. Only then is the summed limit a ceiling for the summed
+	// usage: with one unlimited container beside a limited sidecar, the sum
+	// is the sidecar's limit and the usage is the whole pod's.
+	MemoryBounded bool
 }
 
 // NamespaceUsage is one namespace's share of a cluster-wide reading. It is
@@ -146,12 +151,90 @@ type Report struct {
 	// first drill-down level before the per-application rows.
 	Namespaces []NamespaceUsage
 	Apps       []AppUsage
-	Totals     Totals
+	// Zones and Pools roll the nodes up by availability zone and by node
+	// pool, fullest first. Either is empty when no node carries the label.
+	Zones  []PlacementUsage
+	Pools  []PlacementUsage
+	Totals Totals
 	// Unscheduled are the pods no node has accepted, worst question first.
 	Unscheduled []Unscheduled
 	// Notes qualify the report itself: a scope that hides other namespaces'
 	// pods, nodes that could not be listed, half the metrics missing.
 	Notes []string
+}
+
+// PlacementUsage is a set of machines taken together: one zone, or one node
+// pool. It answers the questions a single node row cannot — which pool has
+// to grow, and whether one zone is carrying the cluster.
+type PlacementUsage struct {
+	Name  string
+	Nodes int
+	// Unready counts the machines that are not ready or are cordoned: capacity
+	// that is listed and cannot be scheduled on.
+	Unready     int
+	Pods        int
+	Requests    application.Amounts
+	Used        application.Amounts
+	Allocatable application.Capacity
+	// Types are the distinct instance types in it, sorted, and Spot how many
+	// of its machines the cloud may reclaim.
+	Types []string
+	Spot  int
+}
+
+// rollUp groups nodes by a label. Nodes without it are gathered under the
+// empty name only when some node has it, so a cluster with no zones gets no
+// zone table rather than one row called nothing.
+func rollUp(nodes []NodeUsage, of func(*application.Node) string) []PlacementUsage {
+	groups := map[string]*PlacementUsage{}
+	types := map[string]map[string]bool{}
+	labelled := false
+	for i := range nodes {
+		n := &nodes[i]
+		name := of(&n.Node)
+		labelled = labelled || name != ""
+		g := groups[name]
+		if g == nil {
+			g = &PlacementUsage{Name: name}
+			groups[name] = g
+			types[name] = map[string]bool{}
+		}
+		g.Nodes++
+		if !n.Node.Ready || n.Node.Unschedulable {
+			g.Unready++
+		}
+		g.Pods += n.Pods
+		g.Requests = g.Requests.Add(n.Requests)
+		g.Used = g.Used.Add(n.Used)
+		g.Allocatable = addCapacity(g.Allocatable, n.Node.Allocatable)
+		if t := n.Node.InstanceType(); t != "" {
+			types[name][t] = true
+		}
+		if n.Node.Spot() {
+			g.Spot++
+		}
+	}
+	if !labelled {
+		return nil
+	}
+	out := make([]PlacementUsage, 0, len(groups))
+	for name, g := range groups {
+		g.Types = keys(types[name])
+		out = append(out, *g)
+	}
+	// Fullest first, by whichever of CPU and memory is closer to the limit:
+	// the group that runs out first is the one worth reading first.
+	fill := func(p *PlacementUsage) int {
+		return max(Percent(p.Requests.CPUMilli, p.Allocatable.CPUMilli),
+			Percent(p.Requests.MemoryBytes, p.Allocatable.MemoryBytes))
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if fi, fj := fill(&out[i]), fill(&out[j]); fi != fj {
+			return fi > fj
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
 }
 
 // maxUnscheduled bounds the list of pods that are nowhere. A cluster that
@@ -192,17 +275,12 @@ func Build(live Live, snapshot application.Snapshot, apps []application.Applicat
 			continue
 		}
 		requests, limits := Requests(pod), Limits(pod)
-		report.Totals.Pods++
-		if !requests.HasCPU && !requests.HasMemory {
-			report.Totals.Unsized++
-		}
-		report.Totals.Requests = report.Totals.Requests.Add(requests)
-		report.Totals.Limits = report.Totals.Limits.Add(limits)
-		if sample, ok := podSamples[pod.Namespace+"/"+pod.Name]; ok {
-			report.Totals.Used = report.Totals.Used.Add(sample)
-			report.Totals.Measured++
-		}
 
+		// A pod no node has taken holds no slot and reserves nothing yet. It
+		// is counted on its own, before the totals: forty pending pods added
+		// to "requested" made a cluster that could not fit them look fuller
+		// than the scheduler sees it, and the share disagree with the sum of
+		// the node rows under it.
 		if pod.Node == "" {
 			report.Totals.Unscheduled++
 			if len(report.Unscheduled) < maxUnscheduled {
@@ -214,6 +292,17 @@ func Build(live Live, snapshot application.Snapshot, apps []application.Applicat
 				})
 			}
 			continue
+		}
+
+		report.Totals.Pods++
+		if !requests.HasCPU && !requests.HasMemory {
+			report.Totals.Unsized++
+		}
+		report.Totals.Requests = report.Totals.Requests.Add(requests)
+		report.Totals.Limits = report.Totals.Limits.Add(limits)
+		if sample, ok := podSamples[pod.Namespace+"/"+pod.Name]; ok {
+			report.Totals.Used = report.Totals.Used.Add(sample)
+			report.Totals.Measured++
 		}
 
 		node, known := byNode[pod.Node]
@@ -238,6 +327,8 @@ func Build(live Live, snapshot application.Snapshot, apps []application.Applicat
 	}
 	report.Totals.Nodes = len(report.Nodes)
 	sortNodes(report.Nodes)
+	report.Zones = rollUp(report.Nodes, func(n *application.Node) string { return n.Zone() })
+	report.Pools = rollUp(report.Nodes, func(n *application.Node) string { return n.Pool() })
 
 	report.Apps = buildApps(apps, podSamples)
 	if snapshot.Scope == "" {
@@ -316,7 +407,7 @@ func buildApps(apps []application.Application, podSamples map[string]application
 	out := make([]AppUsage, 0, len(apps))
 	for i := range apps {
 		app := &apps[i]
-		usage := AppUsage{Name: app.Name, Namespace: app.Namespace}
+		usage := AppUsage{Name: app.Name, Namespace: app.Namespace, MemoryBounded: true}
 		nodes := map[string]bool{}
 		for j := range app.Pods {
 			pod := &app.Pods[j]
@@ -327,6 +418,11 @@ func buildApps(apps []application.Application, podSamples map[string]application
 			usage.Pods++
 			usage.Requests = usage.Requests.Add(requests)
 			usage.Limits = usage.Limits.Add(Limits(pod))
+			for k := range pod.Containers {
+				if c := &pod.Containers[k]; (!c.Init || c.Sidecar) && !c.Limits.HasMemory {
+					usage.MemoryBounded = false
+				}
+			}
 			if !requests.HasCPU && !requests.HasMemory {
 				usage.Unsized++
 			}
@@ -450,17 +546,33 @@ func Limits(pod *application.Pod) application.Amounts {
 }
 
 func effective(pod *application.Pod, of func(*application.Container) application.Amounts) application.Amounts {
-	var running, init application.Amounts
+	// The scheduler's own formula, in spec order: a sidecar is still running
+	// when everything after it starts, so each init container needs its own
+	// amount on top of the sidecars declared before it.
+	var apps, sidecars, initPeak application.Amounts
 	for i := range pod.Containers {
 		c := &pod.Containers[i]
 		switch {
-		case c.Init && !c.Sidecar:
-			init = init.Max(of(c))
+		case c.Init && c.Sidecar:
+			sidecars = sidecars.Add(of(c))
+			initPeak = initPeak.Max(sidecars)
+		case c.Init:
+			initPeak = initPeak.Max(of(c).Add(sidecars))
 		default:
-			running = running.Add(of(c))
+			apps = apps.Add(of(c))
 		}
 	}
-	return running.Max(init)
+	total := apps.Add(sidecars).Max(initPeak)
+	// Overhead is reserved on top of whatever the containers come to. It adds
+	// to an amount that was set; it does not turn an unsized pod into a
+	// sized one.
+	if total.HasCPU {
+		total.CPUMilli += pod.Overhead.CPUMilli
+	}
+	if total.HasMemory {
+		total.MemoryBytes += pod.Overhead.MemoryBytes
+	}
+	return total
 }
 
 // Percent renders part of whole as a whole-number percentage, and -1 when

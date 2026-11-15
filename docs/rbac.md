@@ -30,6 +30,8 @@ rules:
   # it reads the controllers and the pods underneath them together.
   - apiGroups: [""]
     resources:
+      # Namespaces are also read for their labels: team and environment are
+      # usually written there. Without this the columns are simply shorter.
       - namespaces
       - nodes
       - pods
@@ -68,13 +70,25 @@ rules:
   - apiGroups: ["storage.k8s.io"]
     resources: ["storageclasses", "volumeattachments"]
     verbs: ["get", "list"]
+  # All three of these are optional and only read where the cluster serves
+  # them: Gateway API routes are where an application's traffic comes in, an
+  # Argo Rollout stands where a Deployment would, and an Argo CD Application
+  # says why Git is not being applied. A group that is not installed is asked
+  # once per session and not again.
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes", "grpcroutes"]
+    verbs: ["get", "list"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["rollouts", "applications"]
+    verbs: ["get", "list"]
   # Usage is optional: without the Metrics API the rest of Correlux works and
   # the usage view says the numbers are unavailable.
   - apiGroups: ["metrics.k8s.io"]
     resources: ["nodes", "pods"]
     verbs: ["list"]
-  # This is what `correlux doctor` asks, and it is why it can report what you
-  # may do instead of attempting operations and interpreting the failures.
+  # This is what `correlux doctor` and the session screen ask, and it is why
+  # they can report what you may do instead of attempting operations and
+  # interpreting the failures.
   - apiGroups: ["authorization.k8s.io"]
     resources: ["selfsubjectaccessreviews"]
     verbs: ["create"]
@@ -103,7 +117,10 @@ with `fleetNamespaces` keeps it from asking for cluster-wide reads at all.
 ### Secrets and ConfigMaps are not in it
 
 Correlux reads neither on its own: no screen loads them to render something
-else. They appear in the resource browser only because it lists every kind the
+else. The one exception is opt-in: with `dependencies.fromConfigMaps: true` in
+the config file, the ConfigMaps that pods take their environment from are
+fetched by name — `get`, never `list` — to find the addresses in them, and
+only the host names are kept. Secrets are never read for that. They appear in the resource browser only because it lists every kind the
 cluster serves, and an object inspection links to them by name without opening
 them. Add them if you want them browsable — descriptions redact Secret values
 and show a TLS certificate's public fields without decoding its key — and leave

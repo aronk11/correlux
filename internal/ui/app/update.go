@@ -8,6 +8,7 @@ import (
 
 	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/ui/async"
 	"github.com/aronk11/correlux/internal/ui/layout"
 	"github.com/aronk11/correlux/internal/ui/theme"
 )
@@ -114,7 +115,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.tryRestoreInvestigation()
 
 	case applicationsLoadedMsg:
-		cmd := m.applyApplications(msg)
+		cmd := m.applyApplications(&msg)
 		return m, tea.Batch(cmd, m.tryRestoreInvestigation())
 
 	case fleetStartedMsg:
@@ -232,6 +233,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// The explanation improves as soon as the evidence lands.
 			m.rediagnose()
 		}
+		return m, nil
+
+	case permissionsLoadedMsg:
+		if msg.err != nil {
+			m.permissions.Fail(msg.gen, msg.err)
+			return m, nil
+		}
+		m.permissions.Succeed(msg.gen, msg.permissions)
 		return m, nil
 
 	case tableLoadedMsg:
@@ -424,6 +433,11 @@ func (m *Model) autoReload() []tea.Cmd {
 		if !m.evidenceLoading {
 			cmds = append(cmds, m.loadEvidence())
 		}
+		// Asked again only when there is no answer on screen: what an account
+		// may do does not change from one tick to the next.
+		if s := m.permissions.State(); s == async.Idle || s == async.Failed {
+			cmds = append(cmds, m.loadPermissions())
+		}
 		return cmds
 	}
 	return nil
@@ -448,7 +462,7 @@ func (m *Model) autoRefreshDelay() time.Duration {
 
 // applyApplications stores a freshly grouped dashboard, keeping the cursor on
 // the application it was on rather than on the row number it was at.
-func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
+func (m *Model) applyApplications(msg *applicationsLoadedMsg) tea.Cmd {
 	if m.apps.Accepts(msg.gen) {
 		m.appsLoading = false
 	}
@@ -975,6 +989,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.explain()
 	case ActionGrouping:
 		return m.toggleGrouping()
+	case ActionGroupBy:
+		return m.cycleGrouping()
 	case ActionYAML:
 		if m.view == viewObject {
 			m.toggleObjectYAML()

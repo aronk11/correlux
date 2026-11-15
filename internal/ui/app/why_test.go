@@ -24,6 +24,7 @@ func brokenApplication() application.Application {
 			LastReason:   "OOMKilled",
 			LastExitCode: 137,
 			OOMKilled:    true,
+			Limits:       application.Amounts{MemoryBytes: 256 << 20, HasMemory: true},
 		}}
 	}
 	return a

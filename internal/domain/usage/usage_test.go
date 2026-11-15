@@ -156,6 +156,21 @@ func TestUnscheduledPodsAreListedWithTheSchedulersVerdict(t *testing.T) {
 	if report.Nodes[0].Pods != 0 {
 		t.Error("a pod with no node must not be counted on one")
 	}
+	if report.Totals.Pods != 0 || report.Totals.Requests.CPUMilli != 0 {
+		t.Errorf("a pending pod reserves nothing yet: totals = %d pods, %dm", report.Totals.Pods, report.Totals.Requests.CPUMilli)
+	}
+}
+
+func TestAnInitContainerRunsOnTopOfTheSidecarsStartedBeforeIt(t *testing.T) {
+	proxy := container("proxy", cpu(100), application.Amounts{})
+	proxy.Init, proxy.Sidecar = true, true
+	migrate := container("migrate", cpu(2000), application.Amounts{})
+	migrate.Init = true
+	p := pod("api", "node-1", proxy, migrate, container("app", cpu(500), application.Amounts{}))
+
+	if got := Requests(&p).CPUMilli; got != 2100 {
+		t.Errorf("requests = %dm, want 2100m: the sidecar is still running while the migration does", got)
+	}
 }
 
 func TestANodeWithNoSampleIsNotANodeUsingNothing(t *testing.T) {
@@ -377,5 +392,58 @@ func TestNamespacedUsageDoesNotPretendToBeAClusterRollup(t *testing.T) {
 	report := Build(Live{}, application.Snapshot{Scope: "payments", Pods: []application.Pod{p}}, nil)
 	if len(report.Namespaces) != 0 {
 		t.Errorf("namespaces = %+v, want none for an already-scoped report", report.Namespaces)
+	}
+}
+
+func TestNodesRollUpByZoneAndPoolFullestFirst(t *testing.T) {
+	labelled := func(name, zone, pool string, spot bool) application.Node {
+		n := node(name, 4000, 8*gib, 110)
+		n.Labels = map[string]string{"topology.kubernetes.io/zone": zone, "eks.amazonaws.com/nodegroup": pool,
+			"node.kubernetes.io/instance-type": "m6i.large"}
+		if spot {
+			n.Labels["eks.amazonaws.com/capacityType"] = "SPOT"
+		}
+		return n
+	}
+	report := Build(
+		Live{Nodes: []application.Node{labelled("n1", "eu-1a", "general", false),
+			labelled("n2", "eu-1a", "batch", true), labelled("n3", "eu-1b", "general", false)}},
+		application.Snapshot{Pods: []application.Pod{
+			pod("a", "n3", container("app", cpu(3000), application.Amounts{})),
+			pod("b", "n1", container("app", cpu(500), application.Amounts{})),
+		}}, nil)
+
+	if len(report.Zones) != 2 || report.Zones[0].Name != "eu-1b" {
+		t.Fatalf("zones = %+v, want eu-1b first: it is the fuller one", report.Zones)
+	}
+	if z := report.Zones[1]; z.Nodes != 2 || z.Pods != 1 || z.Requests.CPUMilli != 500 || z.Allocatable.CPUMilli != 8000 {
+		t.Errorf("eu-1a = %+v", z)
+	}
+	var batch PlacementUsage
+	for _, p := range report.Pools {
+		if p.Name == "batch" {
+			batch = p
+		}
+	}
+	if batch.Spot != 1 || len(batch.Types) != 1 || batch.Types[0] != "m6i.large" {
+		t.Errorf("batch pool = %+v", batch)
+	}
+
+	bare := Build(Live{Nodes: []application.Node{node("n1", 4000, 8*gib, 110)}}, application.Snapshot{}, nil)
+	if bare.Zones != nil || bare.Pools != nil {
+		t.Error("nodes without the labels get no roll-up, not a row called nothing")
+	}
+}
+
+func TestASandboxedPodsOverheadIsReservedToo(t *testing.T) {
+	p := pod("api", "node-1", container("app", both(500, 512<<20), application.Amounts{}))
+	p.Overhead = both(250, 120<<20)
+	if got := Requests(&p); got.CPUMilli != 750 || got.MemoryBytes != (512+120)<<20 {
+		t.Errorf("requests = %+v, want the containers plus the RuntimeClass overhead", got)
+	}
+	bare := pod("batch", "node-1", container("app", application.Amounts{}, application.Amounts{}))
+	bare.Overhead = both(250, 120<<20)
+	if got := Requests(&bare); got.HasCPU || got.HasMemory {
+		t.Errorf("overhead does not make an unsized pod sized: %+v", got)
 	}
 }

@@ -133,6 +133,9 @@ type Input struct {
 	// cannot be answered from one application alone — whether an ingress points
 	// at a service that exists at all, for one.
 	Scope application.Snapshot
+	// Apps are the other applications in scope, which is what lets a rule
+	// say that the database this one points at is itself down.
+	Apps []application.Application
 	// Now is the reference time, so tests are not clock-dependent.
 	Now time.Time
 }
@@ -157,6 +160,7 @@ var rules = []rule{
 	replicasMissing,
 	serviceWithoutEndpoints,
 	ingressWithoutBackend,
+	routeRejected,
 	rolloutPaused,
 	rolloutStalled,
 	rolloutChanged,
@@ -168,7 +172,10 @@ var rules = []rule{
 	autoscaling,
 	disruptionBudget,
 	jobFailed,
+	cronJobNotSucceeding,
 	stuckTerminating,
+	dependencies,
+	placement,
 }
 
 // Diagnose explains an application, worst first.
