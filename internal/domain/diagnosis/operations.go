@@ -28,6 +28,11 @@ func autoscaling(in *Input) []Diagnosis {
 			Command: describeCommand("hpa", h.Namespace, h.Name)}
 		evidence := []Evidence{{Kind: "HorizontalPodAutoscaler", Name: h.Name, Detail: hpaDetail(h)}}
 
+		if c, ok := h.Conditions["ScalingActive"]; ok && c.Status == "False" && c.Reason == "ScalingDisabled" {
+			// The target is at zero replicas, where an autoscaler stands down
+			// by design. Its metrics are not the problem and there is none.
+			continue
+		}
 		if c, ok := h.Conditions["ScalingActive"]; ok && c.Status == "False" {
 			cause := orUnknown(c.Message)
 			suggestions := []Suggestion{describe}
@@ -132,10 +137,22 @@ func disruptionBudget(in *Input) []Diagnosis {
 
 // jobFailed reports a Job its controller gave up on.
 func jobFailed(in *Input) []Diagnosis {
+	// A CronJob keeps its last failed run for reference. Once a later run has
+	// not failed, the old one is history, not the state of the job.
+	var newestOK time.Time
+	for i := range in.App.Workloads {
+		w := &in.App.Workloads[i]
+		if w.Kind == "Job" && !w.Failed && w.CreatedAt.After(newestOK) {
+			newestOK = w.CreatedAt
+		}
+	}
 	var out []Diagnosis
 	for i := range in.App.Workloads {
 		w := &in.App.Workloads[i]
 		if w.Kind != "Job" || !w.Failed {
+			continue
+		}
+		if !w.CreatedAt.IsZero() && newestOK.After(w.CreatedAt) {
 			continue
 		}
 		cause := orUnknown(w.FailedMessage)
@@ -167,7 +184,7 @@ func jobFailed(in *Input) []Diagnosis {
 func stuckTerminating(in *Input) []Diagnosis {
 	var pods []*application.Pod
 	for _, p := range sortedNames(livePods(&in.App)) {
-		if !p.DeletingSince.IsZero() && in.Now.Sub(p.DeletingSince) > p.Grace+stuckAfter {
+		if !p.DeletingSince.IsZero() && in.Now.Sub(p.DeletingSince) > stuckAfter {
 			pods = append(pods, p)
 		}
 	}

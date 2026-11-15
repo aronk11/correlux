@@ -463,6 +463,9 @@ type Certificate struct {
 	Reason     string
 	Message    string
 	NotAfter   time.Time
+	// RenewalTime is when cert-manager plans to renew, zero when it has not
+	// said. A certificate is only late once this has passed.
+	RenewalTime time.Time
 }
 
 // GitOpsObject is a Flux Kustomization or HelmRelease with its Ready

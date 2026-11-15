@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
@@ -284,6 +283,8 @@ type certificateItem struct {
 	Status struct {
 		Conditions []condition `json:"conditions"`
 		NotAfter   *time.Time  `json:"notAfter"`
+		// RenewalTime is when cert-manager intends to renew.
+		RenewalTime *time.Time `json:"renewalTime"`
 	} `json:"status"`
 }
 
@@ -292,10 +293,20 @@ func (c *certificateItem) toCertificate() application.Certificate {
 		Meta:       c.Metadata.toMeta("Certificate"),
 		SecretName: c.Spec.SecretName,
 		DNSNames:   c.Spec.DNSNames,
-		Issuer:     strings.TrimPrefix(c.Spec.IssuerRef.Kind+"/"+c.Spec.IssuerRef.Name, "/"),
+	}
+	if name := c.Spec.IssuerRef.Name; name != "" {
+		// cert-manager reads an absent kind as Issuer.
+		kind := c.Spec.IssuerRef.Kind
+		if kind == "" {
+			kind = "Issuer"
+		}
+		out.Issuer = kind + "/" + name
 	}
 	if r, ok := ready(c.Status.Conditions); ok {
-		out.ReadyKnown, out.Ready, out.Reason, out.Message = true, r.Status == "True", r.Reason, r.Message
+		out.ReadyKnown, out.Ready, out.Reason, out.Message = conditionDecided(r), r.Status == "True", r.Reason, r.Message
+	}
+	if c.Status.RenewalTime != nil {
+		out.RenewalTime = *c.Status.RenewalTime
 	}
 	if c.Status.NotAfter != nil {
 		out.NotAfter = *c.Status.NotAfter
@@ -322,10 +333,16 @@ func (f *fluxItem) toGitOps(kind string) application.GitOpsObject {
 		Revision:  f.Status.LastAppliedRevision,
 	}
 	if r, ok := ready(f.Status.Conditions); ok {
-		out.ReadyKnown, out.Ready, out.Reason, out.Message = true, r.Status == "True", r.Reason, r.Message
+		out.ReadyKnown, out.Ready, out.Reason, out.Message = conditionDecided(r), r.Status == "True", r.Reason, r.Message
 	}
 	return out
 }
+
+// conditionDecided reports whether a Ready condition is a verdict. Unknown is
+// what Flux and cert-manager write while they are still working — every
+// reconcile of a Kustomization that waits on health checks passes through it
+// — and reading that as "not ready" reported a failure on every deploy.
+func conditionDecided(c condition) bool { return c.Status == "True" || c.Status == "False" }
 
 type metadataItem struct {
 	Metadata objectMeta `json:"metadata"`

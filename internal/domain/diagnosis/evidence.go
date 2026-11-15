@@ -15,10 +15,28 @@ const maxEvidence = 3
 
 // livePods are the pods that are still meant to be running. A Job's completed
 // pods are not a problem to explain.
+//
+// Neither is a pod that failed for good under a controller that keeps a
+// replica count: evicted or shut down with its node, it has already been
+// replaced, and it stays listed until the garbage collector gets to it. Read
+// as live, it produced "2 pods have failed and are not running" on an
+// application with every replica ready — and a crash-loop finding, with a
+// logs command, for a container that will never start again.
 func livePods(app *application.Application) []*application.Pod {
+	// "Replaced" is only claimed where the replica counts bear it out. While
+	// a replica is missing, the pod that was evicted is part of the story.
+	replaced, short := false, false
+	for i := range app.Workloads {
+		w := &app.Workloads[i]
+		if w.Replicated {
+			replaced = true
+			short = short || w.Ready < w.Desired
+		}
+	}
+	replaced = replaced && !short
 	out := make([]*application.Pod, 0, len(app.Pods))
 	for i := range app.Pods {
-		if app.Pods[i].Terminal() {
+		if app.Pods[i].Terminal() || (replaced && app.Pods[i].Failed()) {
 			continue
 		}
 		out = append(out, &app.Pods[i])

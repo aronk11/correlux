@@ -30,20 +30,28 @@ func CollectContext(ctx context.Context, cs kubernetes.Interface, opts Options) 
 	out := application.Context{Scope: opts.Namespace, FetchedAt: time.Now()}
 	var g group
 
+	// Events are paged like everything else. The API server returns them in
+	// the order of their keys — namespace, then name — not by time, so one
+	// page of them is the events of whatever sorts first: in a busy scope the
+	// pod that broke a minute ago had none, and its explanation fell back to
+	// "Kubernetes has not said why" while the reason sat on page two. When
+	// even the page budget is not enough, that is said rather than hidden.
+	eventsTruncated := false
 	g.run("Event", func() (bool, error) {
-		// One page only: events are ordered by nothing in particular, and
-		// paging through a week of them to explain a pod that broke a minute
-		// ago is work nobody asked for.
-		l, err := cs.CoreV1().Events(opts.Namespace).List(ctx, metav1.ListOptions{Limit: eventLimit})
-		if err != nil {
-			return false, err
-		}
-		g.collect(func() {
-			for i := range l.Items {
-				out.Events = append(out.Events, fromEvent(&l.Items[i]))
+		truncated, err := page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
+			l, err := cs.CoreV1().Events(opts.Namespace).List(ctx, o)
+			if err != nil {
+				return "", err
 			}
+			g.collect(func() {
+				for i := range l.Items {
+					out.Events = append(out.Events, fromEvent(&l.Items[i]))
+				}
+			})
+			return l.Continue, nil
 		})
-		return l.Continue != "", nil
+		g.collect(func() { eventsTruncated = truncated })
+		return truncated, err
 	})
 
 	g.run("EndpointSlice", func() (bool, error) {
@@ -66,6 +74,9 @@ func CollectContext(ctx context.Context, cs kubernetes.Interface, opts Options) 
 				out.Endpoints = append(out.Endpoints, *set)
 			}
 			sort.Slice(out.Endpoints, func(i, j int) bool {
+				if out.Endpoints[i].Namespace != out.Endpoints[j].Namespace {
+					return out.Endpoints[i].Namespace < out.Endpoints[j].Namespace
+				}
 				return out.Endpoints[i].Service < out.Endpoints[j].Service
 			})
 		})
@@ -129,6 +140,10 @@ func CollectContext(ctx context.Context, cs kubernetes.Interface, opts Options) 
 		return application.Context{}, err
 	}
 	out.Gaps = gaps
+	if eventsTruncated {
+		out.Gaps = append(out.Gaps, application.Gap{Kind: "Event",
+			Reason: "there are more than were read, so a cause may be missing"})
+	}
 	out.Revisions = pruneRevisions(out.Revisions)
 	return out, nil
 }
@@ -141,10 +156,14 @@ func addSlice(into map[string]*application.EndpointSet, slice *discoveryv1.Endpo
 	if service == "" {
 		return
 	}
-	set, ok := into[service]
+	// Keyed by namespace as well as name: read across all namespaces, two
+	// services called "web" are two services, and folding their slices
+	// together reported the healthy one as having no endpoints.
+	key := slice.Namespace + "/" + service
+	set, ok := into[key]
 	if !ok {
 		set = &application.EndpointSet{Service: service, Namespace: slice.Namespace}
-		into[service] = set
+		into[key] = set
 	}
 	for _, endpoint := range slice.Endpoints {
 		// Conditions are three-valued: a nil Ready means the publisher does not

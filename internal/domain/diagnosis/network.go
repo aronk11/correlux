@@ -19,6 +19,23 @@ import (
 //     problem, already explained by a pod rule;
 //   - the pods are ready and the endpoints are still empty: rarer, and worth
 //     saying plainly rather than guessing about.
+//
+// scaledToZero reports an application whose workloads all want no pods.
+func scaledToZero(app *application.Application) bool {
+	replicated := false
+	for i := range app.Workloads {
+		w := &app.Workloads[i]
+		if !w.Replicated {
+			continue
+		}
+		replicated = true
+		if w.Desired > 0 {
+			return false
+		}
+	}
+	return replicated
+}
+
 func serviceWithoutEndpoints(in *Input) []Diagnosis {
 	if len(in.Context.Endpoints) == 0 && len(in.Context.Gaps) > 0 {
 		// Endpoints could not be read at all; saying "no endpoints" would be a
@@ -43,6 +60,12 @@ func serviceWithoutEndpoints(in *Input) []Diagnosis {
 		}
 
 		selected, ready := selectedPods(&in.App, svc.Selector)
+		if len(selected) == 0 && scaledToZero(&in.App) {
+			// Nothing is meant to be running: a workload at zero replicas has
+			// no endpoints by design, and calling that a selector typo would
+			// raise a critical on every service KEDA parks overnight.
+			continue
+		}
 		var (
 			cause      string
 			confidence Confidence
