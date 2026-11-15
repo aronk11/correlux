@@ -81,7 +81,7 @@ func collectEcosystem(ctx context.Context, g *group, cs kubernetes.Interface, op
 		path := collectionPath("/apis/cert-manager.io/v1", opts.Namespace, "certificates")
 		return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			var list itemList[certificateItem]
-			found, err := getJSON(ctx, rc, path, nil, o, &list)
+			found, err := getJSON(ctx, rc, path, o, &list)
 			if err != nil || !found {
 				return "", err
 			}
@@ -110,7 +110,7 @@ func collectEcosystem(ctx context.Context, g *group, cs kubernetes.Interface, op
 			path := collectionPath("/apis/argoproj.io/v1alpha1", ns, "applications")
 			return page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 				var list itemList[argoItem]
-				found, err := getJSON(ctx, rc, path, nil, o, &list)
+				found, err := getJSON(ctx, rc, path, o, &list)
 				if err != nil || !found {
 					return "", err
 				}
@@ -179,7 +179,7 @@ func readFlux(ctx context.Context, g *group, rc rest.Interface, opts Options, ou
 		served := true
 		truncated, err := page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 			var list itemList[fluxItem]
-			found, err := getJSON(ctx, rc, path, nil, o, &list)
+			found, err := getJSON(ctx, rc, path, o, &list)
 			if err != nil {
 				return "", err
 			}
@@ -223,8 +223,8 @@ func collectionPath(prefix, namespace, resource string) string {
 
 // getJSON reads one page of a collection. found is false when the API is not
 // served at all.
-func getJSON(ctx context.Context, rc rest.Interface, path string, query map[string]string, o metav1.ListOptions, into any) (bool, error) {
-	return get(ctx, rc, path, query, o, "", into)
+func getJSON(ctx context.Context, rc rest.Interface, path string, o metav1.ListOptions, into any) (bool, error) {
+	return get(ctx, rc, path, nil, o, "", into)
 }
 
 // getMetadata reads only the metadata of a collection, which for Secrets is

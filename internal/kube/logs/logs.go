@@ -260,6 +260,15 @@ func scan(
 	reader := bufio.NewReaderSize(r, 64*1024)
 	var line []byte
 	oversized := false
+	flush := func() {
+		if oversized {
+			emit(Line{Source: source, Text: "[a log line longer than " +
+				itoa(MaxLineBytes/1024) + "KiB was skipped]"})
+		} else {
+			emit(parse(strings.TrimRight(string(line), "\r\n"), source, timestamps))
+		}
+		line, oversized = line[:0], false
+	}
 	for {
 		chunk, err := reader.ReadSlice('\n')
 		if cerr := ctx.Err(); cerr != nil {
@@ -267,30 +276,24 @@ func scan(
 		}
 		if !oversized {
 			line = append(line, chunk...)
-			if len(line) > MaxLineBytes {
+			// The limit is on the line, not on the newline that ends it.
+			if len(line) > MaxLineBytes && len(strings.TrimRight(string(line[MaxLineBytes:]), "\r\n")) > 0 {
 				oversized, line = true, line[:0]
 			}
 		}
+		ended := errors.Is(err, io.EOF)
 		switch {
 		case errors.Is(err, bufio.ErrBufferFull):
-			continue // the rest of the same line follows
-		case err == nil || (errors.Is(err, io.EOF) && (len(line) > 0 || oversized)):
-			if oversized {
-				emit(Line{Source: source, Text: "[a log line longer than " +
-					itoa(MaxLineBytes/1024) + "KiB was skipped]"})
-			} else {
-				emit(parse(strings.TrimRight(string(line), "\r\n"), source, timestamps))
+			// The rest of the same line follows.
+		case err == nil:
+			flush()
+		case ended:
+			// A last line with no newline is still a line.
+			if len(line) > 0 || oversized {
+				flush()
 			}
-			line, oversized = line[:0], false
-			if err != nil {
-				return nil
-			}
-		case errors.Is(err, io.EOF):
 			return nil
 		default:
-			if cerr := ctx.Err(); cerr != nil {
-				return cerr
-			}
 			return err
 		}
 	}

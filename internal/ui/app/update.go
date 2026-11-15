@@ -114,7 +114,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.tryRestoreInvestigation()
 
 	case applicationsLoadedMsg:
-		cmd := m.applyApplications(msg)
+		cmd := m.applyApplications(&msg)
 		return m, tea.Batch(cmd, m.tryRestoreInvestigation())
 
 	case fleetStartedMsg:
@@ -456,7 +456,7 @@ func (m *Model) autoRefreshDelay() time.Duration {
 
 // applyApplications stores a freshly grouped dashboard, keeping the cursor on
 // the application it was on rather than on the row number it was at.
-func (m *Model) applyApplications(msg applicationsLoadedMsg) tea.Cmd {
+func (m *Model) applyApplications(msg *applicationsLoadedMsg) tea.Cmd {
 	if m.apps.Accepts(msg.gen) {
 		m.appsLoading = false
 	}

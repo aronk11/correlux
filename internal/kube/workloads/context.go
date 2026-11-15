@@ -14,11 +14,6 @@ import (
 	"github.com/aronk11/correlux/internal/domain/application"
 )
 
-// eventLimit bounds how many events one pass reads. A busy namespace produces
-// thousands of them and only the most recent ones explain anything; the rest
-// are history the cluster will drop within the hour anyway.
-const eventLimit = int64(500)
-
 // CollectContext reads the evidence a diagnosis reasons about: what the cluster
 // said (events), what a service actually routes to (endpoints), where the pods
 // are running (nodes), whether their storage is bound (claims) and what the
