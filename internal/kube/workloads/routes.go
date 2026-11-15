@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -31,6 +32,20 @@ var routeKinds = []struct {
 // is that a Gateway API installed mid-session is seen after a restart.
 var routesAbsent sync.Map // kubernetes.Interface + kind → struct{}
 
+// optionalRefused reports a refusal to read one of the optional kinds.
+//
+// It is treated like the kind not being there. The API server authorises a
+// request before it looks the resource up, so an account whose role does not
+// mention gateway.networking.k8s.io is answered 403 whether or not the
+// Gateway API is installed — and reporting that as a gap put "HTTPRoutes not
+// permitted" on every application of every cluster that has never had one,
+// and asked again on every refresh. A role that covers the Deployments and
+// leaves the routes out loses the routes, quietly, like any other optional
+// read.
+func optionalRefused(err error) bool {
+	return apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err)
+}
+
 type absentKey struct {
 	cs   kubernetes.Interface
 	kind string
@@ -53,6 +68,9 @@ func collectRoutes(ctx context.Context, g *group, cs kubernetes.Interface, opts 
 				truncated, err := page(ctx, opts, func(ctx context.Context, o metav1.ListOptions) (string, error) {
 					var list itemList[routeItem]
 					found, err := getJSON(ctx, rc, path, o, &list)
+					if optionalRefused(err) {
+						found, err = false, nil
+					}
 					if err != nil {
 						return "", err
 					}
@@ -135,7 +153,11 @@ func (r *routeItem) toIngress(kind string) application.Ingress {
 				if c.Message != "" {
 					line += " — " + c.Message
 				}
-				out.Rejected = append(out.Rejected, line)
+				if c.Type == "Accepted" {
+					out.Rejected = append(out.Rejected, line)
+				} else {
+					out.Unresolved = append(out.Unresolved, line)
+				}
 			}
 		}
 	}

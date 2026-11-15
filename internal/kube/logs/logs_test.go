@@ -390,3 +390,28 @@ func TestLineEndingsAndTheLastLineAreReadAsLines(t *testing.T) {
 		t.Errorf("a line of exactly the limit is kept: %d lines, first is %d bytes", len(got), len(got[0]))
 	}
 }
+
+type brokenReader struct {
+	data string
+	done bool
+}
+
+func (b *brokenReader) Read(p []byte) (int, error) {
+	if b.done {
+		return 0, errors.New("connection reset by peer")
+	}
+	b.done = true
+	return copy(p, b.data), nil
+}
+
+func TestWhatArrivedBeforeTheConnectionBrokeIsKept(t *testing.T) {
+	var got []string
+	err := scan(context.Background(), &brokenReader{data: "full\npartial"}, source(), false,
+		func(l Line) { got = append(got, l.Text) })
+	if err == nil {
+		t.Error("the broken connection must still be reported")
+	}
+	if len(got) != 2 || got[1] != "partial" {
+		t.Errorf("lines = %q, want the partial last line too", got)
+	}
+}

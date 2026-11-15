@@ -22,6 +22,10 @@ func TestReferencesKeepTheHostAndNothingElse(t *testing.T) {
 		{"REDIS_HOST", "redis", []string{"redis"}},
 		{"KAFKA_BROKERS", "kafka-0.kafka:9092,kafka-1.kafka:9092", []string{"kafka-0.kafka", "kafka-1.kafka"}},
 		{"DB_DSN", "app:pw@tcp(mysql:3306)/shop", []string{"mysql"}},
+		{"MYSQL_DSN", "user:p/w@tcp(mysql:3306)/shop", []string{"mysql"}},
+		{"DATABASE_URL", "postgres://user:pa#ss@db:5432/x", []string{"db"}},
+		{"DATABASE_URL", "postgres://user:pa/ss@db:5432/x", []string{"db"}},
+		{"NOTIFY_URL", "https://hooks.example.com/send?to=ops@example.com", []string{"hooks.example.com"}},
 		{"SPRING_DATASOURCE_URL", "jdbc:postgresql://orders-db:5432/orders", []string{"orders-db"}},
 		{"UPSTREAM", "payments.shop.svc", []string{"payments.shop.svc"}},
 		// A value is an address only where the variable says so.

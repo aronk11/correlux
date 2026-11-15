@@ -422,8 +422,11 @@ func routeNote(ing *application.Ingress) string {
 		return "—"
 	}
 	note := "via " + strings.Join(ing.Gateways, ", ")
-	if len(ing.Rejected) > 0 {
+	switch {
+	case len(ing.Rejected) > 0:
 		note += " (not accepted)"
+	case len(ing.Unresolved) > 0:
+		note += " (backend unresolved)"
 	}
 	return note
 }

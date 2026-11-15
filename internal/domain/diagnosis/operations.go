@@ -137,22 +137,15 @@ func disruptionBudget(in *Input) []Diagnosis {
 
 // jobFailed reports a Job its controller gave up on.
 func jobFailed(in *Input) []Diagnosis {
-	// A CronJob keeps its last failed run for reference. Once a later run has
-	// not failed, the old one is history, not the state of the job.
-	var newestOK time.Time
-	for i := range in.App.Workloads {
-		w := &in.App.Workloads[i]
-		if w.Kind == "Job" && !w.Failed && w.CreatedAt.After(newestOK) {
-			newestOK = w.CreatedAt
-		}
-	}
 	var out []Diagnosis
 	for i := range in.App.Workloads {
 		w := &in.App.Workloads[i]
 		if w.Kind != "Job" || !w.Failed {
 			continue
 		}
-		if !w.CreatedAt.IsZero() && newestOK.After(w.CreatedAt) {
+		// A CronJob keeps its last failed run for reference. Once a later run
+		// of the same CronJob has not failed, the old one is history.
+		if w.Superseded(in.App.Workloads) {
 			continue
 		}
 		cause := orUnknown(w.FailedMessage)

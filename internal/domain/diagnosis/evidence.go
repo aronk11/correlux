@@ -36,7 +36,7 @@ func livePods(app *application.Application) []*application.Pod {
 	replaced = replaced && !short
 	out := make([]*application.Pod, 0, len(app.Pods))
 	for i := range app.Pods {
-		if app.Pods[i].Terminal() || (replaced && app.Pods[i].Failed()) {
+		if app.Pods[i].Terminal() || (replaced && app.Pods[i].Discarded()) {
 			continue
 		}
 		out = append(out, &app.Pods[i])

@@ -185,6 +185,9 @@ func TestRolesAreRecognisedByWholeNamesOnly(t *testing.T) {
 		{"csi driver", workload("ebs-csi-controller", nil), "ebs-csi-controller", RoleStorage},
 		{"operator label", workload("pg", map[string]string{"cnpg.io/cluster": "orders-db"}), "orders-db", RoleDatabase},
 		{"a substring is not a match", workload("kongregate-api", nil), "kongregate-api", ""},
+		{"a family prefix needs the chart's own label", workload("istio-demo", map[string]string{"app": "istio-demo"}), "istio-demo", ""},
+		{"an ordinary word in a loose label", workload("registry", map[string]string{"app": "registry"}), "registry", ""},
+		{"the same word from the chart's label", workload("x", map[string]string{"app.kubernetes.io/name": "vector"}), "vector", RoleLogging},
 		{"somebody's own app", workload("checkout", map[string]string{"app": "checkout"}), "checkout", ""},
 	}
 	for _, c := range cases {
@@ -236,7 +239,8 @@ func TestEvictedPodsThatWereReplacedDoNotDegradeTheApplication(t *testing.T) {
 func TestOnlyTheNewestJobDecidesWhetherACronJobIsFailing(t *testing.T) {
 	at := func(hours int) time.Time { return time.Date(2026, 9, 1, hours, 0, 0, 0, time.UTC) }
 	job := func(name string, created time.Time, failed bool) Workload {
-		w := Workload{Meta: Meta{Kind: "Job", Name: name, CreatedAt: created}, Failed: failed}
+		w := Workload{Meta: Meta{Kind: "Job", Name: name, CreatedAt: created,
+			Owners: []OwnerRef{{Kind: "CronJob", Name: "backup", UID: "cj", Controller: true}}}, Failed: failed}
 		if failed {
 			w.FailedReason = "BackoffLimitExceeded"
 		}
@@ -252,6 +256,25 @@ func TestOnlyTheNewestJobDecidesWhetherACronJobIsFailing(t *testing.T) {
 	recovered := app([]Workload{cron, job("backup-1", at(1), true), job("backup-2", at(2), false)})
 	if recovered.Health == Degraded {
 		t.Errorf("an old failed run kept for reference is not the state of the job: %q", recovered.Summary)
+	}
+}
+
+func TestAFailedJobNobodySchedulesIsNotHiddenByALaterUnrelatedJob(t *testing.T) {
+	at := func(hours int) time.Time { return time.Date(2026, 9, 1, hours, 0, 0, 0, time.UTC) }
+	migrate := Workload{Meta: Meta{Kind: "Job", Name: "migrate", CreatedAt: at(1)}, Failed: true, FailedReason: "BackoffLimitExceeded"}
+	seed := Workload{Meta: Meta{Kind: "Job", Name: "seed", CreatedAt: at(2)}, Completed: true}
+	a := app([]Workload{migrate, seed})
+	if a.Health != Degraded || a.Summary != "Job migrate failed: BackoffLimitExceeded" {
+		t.Errorf("got %v %q: a failed migration stays failed whatever ran after it", a.Health, a.Summary)
+	}
+}
+
+func TestAFailedJobPodIsNotACorpseSomebodyReplaced(t *testing.T) {
+	failed := pod(false, "Failed", "Error", 0)
+	failed.Owners = []OwnerRef{{Kind: "Job", Name: "migrate", Controller: true}}
+	a := app(replicaSet(1, 1), pod(true, "Running", "", 0), failed)
+	if a.Leftover != 0 || a.Health == Healthy {
+		t.Errorf("health %v, leftover %d: a Job's failed pod is its result, even next to a healthy Deployment", a.Health, a.Leftover)
 	}
 }
 

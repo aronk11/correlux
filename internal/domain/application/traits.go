@@ -194,16 +194,11 @@ func imageVersion(pods []Pod) string {
 		if p.Terminal() || p.Phase == "Failed" {
 			continue
 		}
-		for j := range p.Containers {
-			c := &p.Containers[j]
-			if c.Init {
-				continue
-			}
+		if c := mainContainer(p); c != nil {
 			if tag := ImageTag(c.Image); tag != "" && !seen[tag] {
 				seen[tag] = true
 				tags = append(tags, tag)
 			}
-			break
 		}
 	}
 	sort.Strings(tags)
@@ -217,6 +212,30 @@ func imageVersion(pods []Pod) string {
 	default:
 		return "mixed"
 	}
+}
+
+// meshProxies are the containers a service mesh puts into a pod. With
+// holdApplicationUntilProxyStarts Istio lists its proxy first, and the proxy
+// is never the application.
+var meshProxies = map[string]bool{"istio-proxy": true, "linkerd-proxy": true}
+
+// mainContainer is the container that is the application: the first regular
+// one, by every chart's convention, that is not a mesh proxy.
+func mainContainer(p *Pod) *Container {
+	var first *Container
+	for i := range p.Containers {
+		c := &p.Containers[i]
+		if c.Init {
+			continue
+		}
+		if !meshProxies[c.Name] {
+			return c
+		}
+		if first == nil {
+			first = c
+		}
+	}
+	return first
 }
 
 // ImageTag is the tag of an image reference, or a shortened digest for an

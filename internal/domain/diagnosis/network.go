@@ -143,10 +143,34 @@ func routeRejected(in *Input) []Diagnosis {
 	var out []Diagnosis
 	for i := range in.App.Ingresses {
 		r := &in.App.Ingresses[i]
+		name := routeKind(r) + "/" + r.Name
+		if len(r.Rejected) == 0 && len(r.Unresolved) > 0 {
+			// Taken by its Gateway, and pointing at something that is not
+			// there: a different fault with a different fix.
+			d := Diagnosis{
+				Rule:       "route.rejected",
+				Severity:   Warning,
+				Confidence: High,
+				Subject:    application.ObjectRef{Kind: routeKind(r), Name: r.Name, UID: r.UID},
+				Problem:    name + " was accepted by its Gateway, but a backend it names does not resolve",
+				Cause:      r.Unresolved[0],
+				Chain:      chain(&in.App, name, "backend unresolved"),
+				Suggestions: []Suggestion{
+					{Text: "Check that the backend Service exists and the port is one it serves",
+						Command: describeCommand(strings.ToLower(routeKind(r)), r.Namespace, r.Name)},
+					{Text: "A backend in another namespace needs a ReferenceGrant there",
+						Command: "kubectl get referencegrants -A"},
+				},
+			}
+			for _, line := range r.Unresolved {
+				d.Evidence = append(d.Evidence, Evidence{Kind: routeKind(r), Name: r.Name, Detail: line})
+			}
+			out = append(out, d)
+			continue
+		}
 		if len(r.Rejected) == 0 {
 			continue
 		}
-		name := routeKind(r) + "/" + r.Name
 		d := Diagnosis{
 			Rule:       "route.rejected",
 			Severity:   Warning,

@@ -159,3 +159,17 @@ func TestARouteItsGatewayRefusedIsTheFirstThingToRead(t *testing.T) {
 	a.Ingresses[0].Rejected = nil
 	none(t, diagnose(t, &Input{App: a}), "route.rejected")
 }
+
+func TestARouteWithAnUnresolvedBackendIsNotCalledRefused(t *testing.T) {
+	p := pod("payments-1")
+	p.Ready = true
+	a := app(p)
+	a.Ingresses = []application.Ingress{{
+		Meta:       application.Meta{Kind: "HTTPRoute", Name: "shop", Namespace: "shop"},
+		Unresolved: []string{"Gateway/public: ResolvedRefs=False (BackendNotFound) — service \"checkout\" not found"},
+	}}
+	d := find(t, diagnose(t, &Input{App: a}), "route.rejected")
+	if !strings.Contains(d.Problem, "was accepted by its Gateway") || strings.Contains(d.Problem, "did not accept") {
+		t.Errorf("problem = %q", d.Problem)
+	}
+}

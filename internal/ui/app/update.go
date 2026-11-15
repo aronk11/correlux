@@ -8,6 +8,7 @@ import (
 
 	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	"github.com/aronk11/correlux/internal/kube/resources"
+	"github.com/aronk11/correlux/internal/ui/async"
 	"github.com/aronk11/correlux/internal/ui/layout"
 	"github.com/aronk11/correlux/internal/ui/theme"
 )
@@ -431,6 +432,11 @@ func (m *Model) autoReload() []tea.Cmd {
 		}
 		if !m.evidenceLoading {
 			cmds = append(cmds, m.loadEvidence())
+		}
+		// Asked again only when there is no answer on screen: what an account
+		// may do does not change from one tick to the next.
+		if s := m.permissions.State(); s == async.Idle || s == async.Failed {
+			cmds = append(cmds, m.loadPermissions())
 		}
 		return cmds
 	}

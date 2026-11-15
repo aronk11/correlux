@@ -47,7 +47,7 @@ func Sizing(a *AppUsage) (string, SizingLevel) {
 		return "", SizingFine
 	}
 
-	if a.Limits.HasMemory && a.Used.HasMemory && a.Limits.MemoryBytes > 0 {
+	if a.MemoryBounded && a.Limits.HasMemory && a.Used.HasMemory && a.Limits.MemoryBytes > 0 {
 		if p := Percent(a.Used.MemoryBytes, a.Limits.MemoryBytes); p >= nearLimitPercent {
 			return "memory at " + strconv.Itoa(p) + "% of its limit", SizingRisk
 		}

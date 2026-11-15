@@ -301,7 +301,36 @@ var roleLabels = []struct{ key, role string }{
 
 // roleNameLabels are the labels whose value is the software's name, in the
 // order they are trusted.
-var roleNameLabels = []string{"app.kubernetes.io/name", "k8s-app", "app", "app.kubernetes.io/part-of"}
+//
+// The first two are written by the software's own chart and are trusted with
+// the whole catalogue. The other two — and the application's name — are
+// whatever somebody typed, so they match exact names only, never a family
+// prefix, and never a name that is also an ordinary word: "app: registry" is
+// as likely a team's own service as a container registry, and "istio-demo"
+// is a demo.
+var (
+	roleNameLabels      = []string{"app.kubernetes.io/name", "k8s-app"}
+	roleLooseNameLabels = []string{"app", "app.kubernetes.io/part-of"}
+)
+
+// ordinaryWords are catalogue names that are also words people give their
+// own services. They are recognised from a chart's name label or an image,
+// and from nothing looser.
+var ordinaryWords = map[string]bool{
+	"registry": true, "vector": true, "canal": true, "flux": true, "tempo": true, "alloy": true,
+	"contour": true, "harbor": true, "cortex": true, "vault": true, "kong": true, "dex": true,
+	"nats": true, "opa": true,
+}
+
+// lookupLooseRole matches a name somebody typed: exact, and not a word.
+func lookupLooseRole(name string) (string, bool) {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" || ordinaryWords[name] {
+		return "", false
+	}
+	role, ok := roleNames[name]
+	return role, ok
+}
 
 // lookupRole matches one name against the catalogue.
 func lookupRole(name string) (string, bool) {
@@ -361,7 +390,16 @@ func roleOf(a *Application) Role {
 			}
 		}
 	}
-	if role, ok := lookupRole(a.Name); ok {
+	for _, key := range roleLooseNameLabels {
+		for i := range metas {
+			if v := metas[i].Labels[key]; v != "" {
+				if role, ok := lookupLooseRole(v); ok {
+					return Role{Name: role, By: key + "=" + v}
+				}
+			}
+		}
+	}
+	if role, ok := lookupLooseRole(a.Name); ok {
 		return Role{Name: role, By: "name " + a.Name}
 	}
 	// The image of the main container only — the first regular one, by every
@@ -370,15 +408,10 @@ func roleOf(a *Application) Role {
 	// and reading sidecars made a "secrets" role of everything Vault injects
 	// into.
 	for i := range a.Pods {
-		for j := range a.Pods[i].Containers {
-			c := &a.Pods[i].Containers[j]
-			if c.Init {
-				continue
-			}
+		if c := mainContainer(&a.Pods[i]); c != nil {
 			if role, ok := roleOfImage(c.Image); ok {
 				return Role{Name: role, By: "image " + ImageRepository(c.Image)}
 			}
-			break
 		}
 	}
 	return Role{}

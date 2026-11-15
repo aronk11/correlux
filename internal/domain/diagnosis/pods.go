@@ -105,14 +105,19 @@ func crashLoop(in *Input) []Diagnosis {
 	return []Diagnosis{d}
 }
 
-// anySignalled reports whether a restarting container's last run ended on a
-// signal: 137 is SIGKILL and 143 SIGTERM, the two the kubelet sends.
+// anySignalled reports whether a restarting container's last run ended the
+// way a kubelet's kill ends one: on SIGKILL (137) or SIGTERM (143), or with a
+// clean exit, which is what a server that shuts down gracefully on SIGTERM
+// returns. What it rules out is a process that exited with an error of its
+// own, where the failed probe is a symptom.
 func anySignalled(hits []affected) bool {
 	for _, h := range hits {
-		for _, code := range []int32{h.container.LastExitCode, h.container.ExitCode} {
-			if code == 137 || code == 143 {
-				return true
-			}
+		c := h.container
+		if c.LastExitCode == 137 || c.LastExitCode == 143 || c.ExitCode == 137 || c.ExitCode == 143 {
+			return true
+		}
+		if c.LastReason == "Completed" || (c.Restarts > 0 && c.LastExitCode == 0 && c.LastReason == "") {
+			return true
 		}
 	}
 	return false
