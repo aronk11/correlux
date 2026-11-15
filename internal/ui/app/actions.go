@@ -1100,6 +1100,9 @@ func (m *Model) backToOverview() tea.Cmd {
 	if m.evidence.State() == async.Idle {
 		cmds = append(cmds, m.loadEvidence())
 	}
+	if m.permissions.State() == async.Idle {
+		cmds = append(cmds, m.loadPermissions())
+	}
 	return tea.Batch(cmds...)
 }
 
@@ -1343,6 +1346,7 @@ func (m *Model) switchContextScoped(name, namespace string) tea.Cmd {
 	m.table.Reset()
 	m.apps.Reset()
 	m.evidence.Reset()
+	m.permissions.Reset()
 	m.object.Reset()
 	m.resetUsage()
 	m.usageDrilledIn = false
@@ -1395,6 +1399,7 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	// The dashboard is always scoped, so it always reloads.
 	m.apps.Reset()
 	m.evidence.Reset()
+	m.permissions.Reset()
 	m.object.Reset()
 	m.resetUsage()
 	m.stopLogs()

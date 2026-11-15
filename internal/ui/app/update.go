@@ -234,6 +234,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case permissionsLoadedMsg:
+		if msg.err != nil {
+			m.permissions.Fail(msg.gen, msg.err)
+			return m, nil
+		}
+		m.permissions.Succeed(msg.gen, msg.permissions)
+		return m, nil
+
 	case tableLoadedMsg:
 		return m, m.applyTablePage(msg)
 
