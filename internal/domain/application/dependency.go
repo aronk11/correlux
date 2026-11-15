@@ -15,6 +15,70 @@ type Reference struct {
 	Env string
 	// Host is the host part alone — no scheme, credentials, port or path.
 	Host string
+	// Source is where the variable is defined when that is not the pod
+	// itself: "ConfigMap/shop-config".
+	Source string
+}
+
+// via renders the evidence for one reference.
+func (r Reference) via() string {
+	if r.Source != "" {
+		return r.Source + " key " + r.Env
+	}
+	return "env " + r.Env
+}
+
+// ConfigSource is one place a pod's environment comes from: a whole
+// ConfigMap (envFrom, with its prefix), or one key of one.
+type ConfigSource struct {
+	ConfigMap string
+	// Key is the key taken, empty for envFrom, which takes them all.
+	Key string
+	// Env is the variable a single key becomes; Prefix what envFrom puts in
+	// front of every key.
+	Env    string
+	Prefix string
+}
+
+// ConfigReference is one host a ConfigMap's value points at. Like Reference
+// it keeps the key and the host and never the value.
+type ConfigReference struct {
+	Namespace string
+	ConfigMap string
+	Key       string
+	Host      string
+}
+
+// LinkConfigDependencies recomputes every application's dependencies with
+// what the ConfigMaps say added to what the pods say.
+//
+// It runs when the evidence arrives, because the ConfigMaps are read then and
+// not on the dashboard's timer. The slice is updated in place; with no
+// references it leaves the pod-only reading exactly as Group made it.
+func LinkConfigDependencies(apps []Application, refs []ConfigReference) {
+	byMap := map[string][]ConfigReference{}
+	for _, r := range refs {
+		key := r.Namespace + "/" + r.ConfigMap
+		byMap[key] = append(byMap[key], r)
+	}
+	extra := map[string][]Reference{}
+	for i := range apps {
+		a := &apps[i]
+		for j := range a.Pods {
+			for _, src := range a.Pods[j].ConfigSources {
+				for _, r := range byMap[a.Namespace+"/"+src.ConfigMap] {
+					if src.Key != "" && src.Key != r.Key {
+						continue
+					}
+					extra[a.Key()] = append(extra[a.Key()], Reference{
+						Env: r.Key, Host: r.Host, Source: "ConfigMap/" + src.ConfigMap,
+					})
+				}
+			}
+		}
+		a.DependsOn, a.UsedBy = nil, nil
+	}
+	linkDependenciesWith(apps, extra)
 }
 
 // Dependency is one application another one talks to, and how that is known.
@@ -46,7 +110,11 @@ type Dependency struct {
 // It is a reading of configuration, not of traffic. An application may talk
 // to things its environment never mentions, and may never call what it does
 // mention. Every dependency therefore carries how it is known.
-func linkDependencies(apps []Application) {
+func linkDependencies(apps []Application) { linkDependenciesWith(apps, nil) }
+
+// linkDependenciesWith is linkDependencies with further references per
+// application key, read from somewhere other than the pods.
+func linkDependenciesWith(apps []Application, extra map[string][]Reference) {
 	type target struct{ app, name, namespace, service string }
 	services := map[string]target{} // "namespace/service" → owning application
 	namespaces := map[string]bool{}
@@ -105,8 +173,16 @@ func linkDependencies(apps []Application) {
 					t, ok := services[key]
 					return t, ok
 				}); ok {
-					add(t, "env "+ref.Env, false)
+					add(t, ref.via(), false)
 				}
+			}
+		}
+		for _, ref := range extra[a.Key()] {
+			if t, ok := resolveHost(ref.Host, a.Namespace, namespaces, func(key string) (target, bool) {
+				t, ok := services[key]
+				return t, ok
+			}); ok {
+				add(t, ref.via(), false)
 			}
 		}
 		sort.Slice(a.DependsOn, func(x, y int) bool { return a.DependsOn[x].App < a.DependsOn[y].App })

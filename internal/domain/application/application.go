@@ -121,6 +121,9 @@ type Pod struct {
 	// variable that names it. The values themselves are never kept: a
 	// connection string is where passwords live.
 	References []Reference
+	// ConfigSources are the ConfigMaps the environment is filled from, which
+	// is where a connection string lives as often as in the pod itself.
+	ConfigSources []ConfigSource
 	// Overhead is what the pod's RuntimeClass adds on top of its containers —
 	// a sandbox such as Kata or gVisor — and the scheduler reserves it too.
 	Overhead Amounts
@@ -378,8 +381,11 @@ type Context struct {
 	Certificates []Certificate
 	GitOps       []GitOpsObject
 	Releases     []HelmRelease
-	Gaps         []Gap
-	FetchedAt    time.Time
+	// ConfigReferences are the hosts named in the ConfigMaps the pods take
+	// their environment from, reduced to key and host at collection.
+	ConfigReferences []ConfigReference
+	Gaps             []Gap
+	FetchedAt        time.Time
 }
 
 // NetworkPolicy is the part of a policy that decides whether traffic to a

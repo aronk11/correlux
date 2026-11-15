@@ -264,6 +264,17 @@ func (m *Model) loadEvidence() tea.Cmd {
 		opts.Namespace = m.namespace
 	}
 	apps := m.applications()
+	seenConfig := map[string]bool{}
+	for i := range apps {
+		for j := range apps[i].Pods {
+			for _, src := range apps[i].Pods[j].ConfigSources {
+				if key := apps[i].Namespace + "/" + src.ConfigMap; !seenConfig[key] {
+					seenConfig[key] = true
+					opts.ConfigMaps = append(opts.ConfigMaps, key)
+				}
+			}
+		}
+	}
 	for i := range apps {
 		switch apps[i].Manager.Tool {
 		case "Flux":

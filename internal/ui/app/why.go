@@ -27,6 +27,12 @@ func (m *Model) rediagnose() {
 	}
 	list := m.apps.Get()
 	evidence := m.evidence.Get()
+	// What the ConfigMaps say is added to what the pods say, every time
+	// either arrives: the applications are reloaded on a timer and the
+	// evidence is not, so the join has to be redone here to survive a refresh.
+	if len(evidence.ConfigReferences) > 0 {
+		application.LinkConfigDependencies(apps, evidence.ConfigReferences)
+	}
 
 	findings := make(map[string][]diagnosis.Diagnosis, len(apps))
 	for i := range apps {

@@ -1,12 +1,14 @@
 package workloads
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/aronk11/correlux/internal/domain/application"
 )
@@ -155,5 +157,34 @@ func TestAnArgoRolloutIsAWorkloadWithAReplicaCount(t *testing.T) {
 		Workloads: []application.Workload{r.toWorkload()}, Owners: []application.Meta{rs}, Pods: []application.Pod{pod}})
 	if len(apps) != 1 || apps[0].DesiredPods != 5 || len(apps[0].Pods) != 1 {
 		t.Errorf("apps = %+v", apps)
+	}
+}
+
+func TestConfigMapsAreReducedToTheHostsTheyName(t *testing.T) {
+	cs := fake.NewSimpleClientset(&corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "shop-config", Namespace: "shop"},
+		Data: map[string]string{
+			"DATABASE_URL": "postgres://app:s3cr3t@postgres:5432/shop",
+			"LOG_LEVEL":    "debug",
+		},
+	})
+	p := fromPod(&corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{{
+		EnvFrom: []corev1.EnvFromSource{{ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "shop-config"}}}},
+		Env:     []corev1.EnvVar{{Name: "TOKEN", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{Key: "t"}}}},
+	}}}})
+	if len(p.ConfigSources) != 1 || p.ConfigSources[0].ConfigMap != "shop-config" {
+		t.Fatalf("config sources = %+v, want the ConfigMap and never the Secret", p.ConfigSources)
+	}
+
+	evidence, err := CollectContext(context.Background(), cs, Options{Namespace: "shop",
+		ConfigMaps: []string{"shop/shop-config", "shop/gone"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evidence.ConfigReferences) != 1 {
+		t.Fatalf("references = %+v", evidence.ConfigReferences)
+	}
+	if r := evidence.ConfigReferences[0]; r.Host != "postgres" || r.Key != "DATABASE_URL" {
+		t.Errorf("reference = %+v, want the key and the host, nothing of the value", r)
 	}
 }

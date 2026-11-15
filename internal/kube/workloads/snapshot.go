@@ -46,6 +46,10 @@ type Options struct {
 	MaxPages int
 	// Labels are the organisation's own label spellings, handed to grouping.
 	Labels application.Labels
+	// ConfigMaps are the ConfigMaps the evidence pass should read for the
+	// hosts they name, as "namespace/name": the ones the pods in scope take
+	// their environment from, and no others.
+	ConfigMaps []string
 	// GitOpsNamespaces are where the applications' Flux objects live, when
 	// that is not the scope itself.
 	GitOpsNamespaces []string
