@@ -344,15 +344,27 @@ func fromJob(j *batchv1.Job) application.Workload {
 		if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
 			out.Failed, out.FailedReason, out.FailedMessage = true, c.Reason, c.Message
 		}
+		if c.Type == batchv1.JobComplete && c.Status == corev1.ConditionTrue {
+			out.Completed = true
+		}
 	}
 	return out
 }
 
 func fromCronJob(c *batchv1.CronJob) application.Workload {
-	return application.Workload{
+	out := application.Workload{
 		Meta:      meta("CronJob", c.ObjectMeta),
 		Suspended: c.Spec.Suspend != nil && *c.Spec.Suspend,
+		Schedule:  c.Spec.Schedule,
+		Active:    len(c.Status.Active),
 	}
+	if t := c.Status.LastScheduleTime; t != nil {
+		out.LastSchedule = t.Time
+	}
+	if t := c.Status.LastSuccessfulTime; t != nil {
+		out.LastSuccess = t.Time
+	}
+	return out
 }
 
 func fromService(s *corev1.Service) application.Service {

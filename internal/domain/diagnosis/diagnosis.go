@@ -172,6 +172,7 @@ var rules = []rule{
 	autoscaling,
 	disruptionBudget,
 	jobFailed,
+	cronJobNotSucceeding,
 	stuckTerminating,
 	dependencies,
 	placement,

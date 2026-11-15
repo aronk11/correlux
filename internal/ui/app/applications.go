@@ -428,6 +428,27 @@ func routeNote(ing *application.Ingress) string {
 	return note
 }
 
+// cronStatus is what a CronJob says about itself on one line: when it runs,
+// when it last did, and when that last worked.
+func cronStatus(w *application.Workload, now time.Time) string {
+	parts := []string{}
+	if w.Schedule != "" {
+		parts = append(parts, w.Schedule)
+	}
+	switch {
+	case w.Active > 0:
+		parts = append(parts, "running now")
+	case !w.LastSchedule.IsZero():
+		parts = append(parts, "last run "+formatAge(w.LastSchedule, now)+" ago")
+	default:
+		parts = append(parts, "never run")
+	}
+	if !w.LastSuccess.IsZero() {
+		parts = append(parts, "last success "+formatAge(w.LastSuccess, now)+" ago")
+	}
+	return strings.Join(parts, " · ")
+}
+
 func orDash(s string) string {
 	if s == "" {
 		return "—"
@@ -616,13 +637,23 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 			status = "⏸ Suspended"
 		case w.Stalled:
 			status = "⛔ Stalled"
+		case w.Failed:
+			status = "✖ Failed"
+			if w.FailedReason != "" {
+				status += ": " + w.FailedReason
+			}
+		case w.Completed:
+			status = "✓ Complete"
+		}
+		if w.Kind == "CronJob" {
+			status = strings.TrimSpace(status + " " + cronStatus(w, now))
 		}
 		row := detailRow{
 			Cells: []string{w.Kind, w.Name, ready, updated, status, formatAge(w.CreatedAt, now)},
 			Ref:   objectRef{Kind: w.Kind, Name: w.Name, Namespace: w.Namespace},
 		}
 		switch {
-		case w.Stalled:
+		case w.Stalled, w.Failed:
 			row.Status = theme.StatusCritical
 		case w.Replicated && w.Desired > 0 && w.Ready == 0:
 			row.Status = theme.StatusCritical
