@@ -13,6 +13,7 @@ package fleet
 
 import (
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/aronk11/correlux/internal/domain/application"
@@ -152,6 +153,74 @@ type Instance struct {
 	ReadyPods   int32
 	DesiredPods int32
 	Problems    []application.Problem
+	// Version is what this instance runs and Role what it is to its cluster,
+	// both as the application's own labels and images state them.
+	Version string
+	Role    string
+}
+
+// Drift is one application that does not run the same version everywhere.
+type Drift struct {
+	Name      string
+	Namespace string
+	// Versions are the distinct versions, each with the clusters running it,
+	// the most widespread first.
+	Versions []VersionAt
+}
+
+// VersionAt is one version and where it runs.
+type VersionAt struct {
+	Version  string
+	Contexts []string
+}
+
+// Drifts finds the applications whose instances disagree about their
+// version: the same name in the same namespace, in two or more clusters,
+// with two or more versions between them.
+//
+// It is the question a fleet exists to answer and no single cluster can:
+// which region did the rollout not reach. Instances with no version stated
+// are left out rather than counted as a version of their own, and an
+// instance mid-rollout — two versions at once — is left out too, because it
+// is about to stop being true.
+func Drifts(rows []Row) []Drift {
+	var out []Drift
+	for _, row := range rows {
+		byNamespace := map[string]map[string][]string{}
+		for _, i := range row.Instances {
+			if i.Version == "" || i.Version == "mixed" || strings.Contains(i.Version, ", ") {
+				continue
+			}
+			if byNamespace[i.Namespace] == nil {
+				byNamespace[i.Namespace] = map[string][]string{}
+			}
+			byNamespace[i.Namespace][i.Version] = append(byNamespace[i.Namespace][i.Version], i.Context)
+		}
+		for namespace, versions := range byNamespace {
+			if len(versions) < 2 {
+				continue
+			}
+			d := Drift{Name: row.Name, Namespace: namespace}
+			for version, contexts := range versions {
+				sort.Strings(contexts)
+				d.Versions = append(d.Versions, VersionAt{Version: version, Contexts: contexts})
+			}
+			sort.Slice(d.Versions, func(i, j int) bool {
+				if len(d.Versions[i].Contexts) != len(d.Versions[j].Contexts) {
+					return len(d.Versions[i].Contexts) > len(d.Versions[j].Contexts)
+				}
+				return d.Versions[i].Version < d.Versions[j].Version
+			})
+			out = append(out, d)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		return out[i].Namespace < out[j].Namespace
+	})
+	return out
 }
 
 // Row is one application across the fleet.
@@ -221,6 +290,8 @@ func Rows(members []Member) []Row {
 				ReadyPods:   app.ReadyPods,
 				DesiredPods: app.DesiredPods,
 				Problems:    app.Problems,
+				Version:     app.Traits.Version,
+				Role:        app.Traits.Role.Name,
 			})
 		}
 	}

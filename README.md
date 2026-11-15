@@ -717,6 +717,22 @@ WHAT IS BROKEN
   payments     staging        shop       degraded  2/3   1 ImagePullBackOff
 ```
 
+When the same application runs different versions in different clusters, the
+fleet says so — the question no single cluster can answer, which region the
+rollout did not reach:
+
+```
+VERSION DRIFT
+  APPLICATION  NAMESPACE  VERSIONS
+  checkout     shop       1.9 in prod-ap, prod-eu · 1.8 in prod-us
+```
+
+The version is the application's version label, or the image tag its pods run.
+An instance in the middle of a rollout is left out, because it is about to
+stop being true. A broken piece of a cluster's platform leads its line with
+what it is — `[ingress] 0 of 2 pods ready` — so it does not read like one
+team's frontend.
+
 Everything unusual is on that one screen, not only what has failed: a node that
 is merely cordoned is named too, because it is the reason a rollout will not
 land there, and a kind Correlux was not allowed to read is counted rather than
