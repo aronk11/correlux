@@ -298,3 +298,16 @@ func TestArgoCDIsRecognisedHoweverItTracks(t *testing.T) {
 		}
 	}
 }
+
+func TestAGatewayRouteJoinsTheApplicationItRoutesTo(t *testing.T) {
+	dep := meta("Deployment", "checkout", map[string]string{"app": "checkout"})
+	apps := Group(Snapshot{
+		Workloads: []Workload{{Meta: dep, Desired: 1, Ready: 1, Replicated: true, Selector: map[string]string{"app": "checkout"}}},
+		Services:  []Service{{Meta: meta("Service", "checkout", nil), Selector: map[string]string{"app": "checkout"}}},
+		Ingresses: []Ingress{{Meta: meta("HTTPRoute", "shop", nil), Backends: []string{"checkout"}}},
+	})
+	got := find(t, apps, "checkout").Ingresses
+	if len(got) != 1 || got[0].Kind != "HTTPRoute" || got[0].GroupedBy.Signal != SignalBackend {
+		t.Errorf("routes = %+v", got)
+	}
+}

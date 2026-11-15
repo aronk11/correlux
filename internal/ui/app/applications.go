@@ -407,6 +407,27 @@ func (m *Model) dependencyNotes(a *application.Application) []string {
 	return out
 }
 
+// routeKindOf is "Ingress", or the Gateway API kind the route really is.
+func routeKindOf(ing *application.Ingress) string {
+	if ing.Kind == "" {
+		return "Ingress"
+	}
+	return ing.Kind
+}
+
+// routeNote is the last cell of a route's row: the Gateway it hangs off, and
+// whether that Gateway took it.
+func routeNote(ing *application.Ingress) string {
+	if len(ing.Gateways) == 0 {
+		return "—"
+	}
+	note := "via " + strings.Join(ing.Gateways, ", ")
+	if len(ing.Rejected) > 0 {
+		note += " (not accepted)"
+	}
+	return note
+}
+
 func orDash(s string) string {
 	if s == "" {
 		return "—"
@@ -726,8 +747,8 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 			backends = "—"
 		}
 		network.Rows = append(network.Rows, detailRow{
-			Cells: []string{"Ingress", ing.Name, hosts, backends, "—"},
-			Ref:   objectRef{Kind: "Ingress", Name: ing.Name, Namespace: ing.Namespace},
+			Cells: []string{routeKindOf(ing), ing.Name, hosts, backends, routeNote(ing)},
+			Ref:   objectRef{Kind: routeKindOf(ing), Name: ing.Name, Namespace: ing.Namespace},
 		})
 	}
 
@@ -780,7 +801,7 @@ func (m *Model) groupingSection(a *application.Application) detailSection {
 	}
 	for i := range a.Ingresses {
 		ing := &a.Ingresses[i]
-		add("Ingress", ing.Name, ing.Namespace, ing.GroupedBy)
+		add(routeKindOf(ing), ing.Name, ing.Namespace, ing.GroupedBy)
 	}
 	return section
 }

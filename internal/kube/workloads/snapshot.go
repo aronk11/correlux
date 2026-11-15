@@ -213,6 +213,8 @@ func Collect(ctx context.Context, cs kubernetes.Interface, opts Options) (applic
 		})
 	})
 
+	collectRoutes(ctx, &g, cs, opts, &snap)
+
 	// Namespaces, for their labels. One namespace is a single GET; all of
 	// them is a list most namespace-scoped accounts are refused, and the
 	// refusal costs a column rather than a warning.

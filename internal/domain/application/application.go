@@ -264,6 +264,12 @@ type Ingress struct {
 	Backends []string
 	// TLSSecrets are the Secrets the ingress serves certificates from.
 	TLSSecrets []string
+	// Gateways are the Gateways a Gateway API route attaches to, and Rejected
+	// what those Gateways said when they did not take it: one line each, in
+	// the controller's words. Both are empty for an Ingress, which has no
+	// such handshake. The Kind in Meta says which of the two this is.
+	Gateways []string
+	Rejected []string
 	// GroupedBy is why this ingress belongs to its application, captured at
 	// grouping time so it never has to be recomputed to answer for itself.
 	GroupedBy Reason
