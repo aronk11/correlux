@@ -355,8 +355,8 @@ func traitNotes(a *application.Application, health application.Health) []string 
 	add("part of", t.System)
 	add("components", strings.Join(t.Components, ", "))
 	add("version", t.Version)
-	add("team", t.Team)
-	add("env", t.Environment)
+	add("team", inherited(t.Team, t.TeamFrom))
+	add("env", inherited(t.Environment, t.EnvironmentFrom))
 	if len(labels) > 0 {
 		out = append(out, strings.Join(labels, " · "))
 	}
@@ -368,6 +368,42 @@ func traitNotes(a *application.Application, health application.Health) []string 
 	add("Runbook", t.Runbook)
 	add("Repository", t.Repository)
 	add("Chat", t.Chat)
+	return out
+}
+
+// inherited marks a label that was read off the namespace.
+func inherited(value, from string) string {
+	if value == "" || from == "" {
+		return value
+	}
+	return value + " (" + from + ")"
+}
+
+// dependencyNotes say what the application points at and what points at it,
+// each with its health: the two lines that turn one broken row into a guess
+// at where the fault started and how far it reaches.
+func (m *Model) dependencyNotes(a *application.Application) []string {
+	var out []string
+	if len(a.DependsOn) > 0 {
+		health := map[string]application.Health{}
+		apps := m.applications()
+		for i := range apps {
+			health[apps[i].Key()] = diagnosedHealth(apps[i].Health, m.findingsFor(apps[i].Key()))
+		}
+		parts := make([]string, 0, len(a.DependsOn))
+		for _, dep := range a.DependsOn {
+			h := health[dep.App]
+			name := dep.Name
+			if dep.Namespace != a.Namespace {
+				name = dep.Namespace + "/" + dep.Name
+			}
+			parts = append(parts, m.theme.Glyph(healthStatus(h))+" "+name+" "+h.String()+" ("+dep.Via+")")
+		}
+		out = append(out, "Depends on: "+strings.Join(parts, " · "))
+	}
+	if len(a.UsedBy) > 0 {
+		out = append(out, "Used by: "+strings.Join(a.UsedBy, ", "))
+	}
 	return out
 }
 
@@ -533,6 +569,7 @@ func (m *Model) applicationView() (screens.ApplicationData, []objectRef) {
 			" left behind (evicted or shut down, already replaced)")
 	}
 	d.Notes = append(d.Notes, traitNotes(&a, health)...)
+	d.Notes = append(d.Notes, m.dependencyNotes(&a)...)
 	if gaps := m.apps.Get().Snapshot.Gaps; len(gaps) > 0 {
 		d.Notes = append(d.Notes, gapSummary(gaps))
 	}

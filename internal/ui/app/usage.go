@@ -182,7 +182,17 @@ func (m *Model) usageView() (screens.UsageData, []objectRef) {
 	d.Subtitle = m.usageSubtitle(&report, time.Now())
 	d.Notes = m.usageNotes(&report)
 
-	sections := []detailSection{m.usageNodeSection(&report), m.usageUnscheduledSection(&report)}
+	sections := []detailSection{m.usageNodeSection(&report)}
+	// Zones and pools come after the machines they are made of, and only
+	// where there is more than one to compare: a single zone's row would
+	// repeat the totals above it.
+	if len(report.Zones) > 1 {
+		sections = append(sections, m.usagePlacementSection("Zones", "Zone", report.Zones, &report))
+	}
+	if len(report.Pools) > 1 {
+		sections = append(sections, m.usagePlacementSection("Node pools", "Pool", report.Pools, &report))
+	}
+	sections = append(sections, m.usageUnscheduledSection(&report))
 	if m.allNamespaces {
 		sections = append([]detailSection{m.usageNamespaceSection(&report)}, sections...)
 	} else {
@@ -351,6 +361,62 @@ func (m *Model) usageNodeSection(report *usage.Report) detailSection {
 		section.Rows = append(section.Rows, detailRow{Cells: []string{
 			m.theme.Glyphs.Ellipsis + " " + itoa(extra) + " more nodes",
 		}})
+	}
+	return section
+}
+
+// usagePlacementSection is one roll-up of the nodes: by zone or by pool.
+func (m *Model) usagePlacementSection(title, heading string, groups []usage.PlacementUsage, report *usage.Report) detailSection {
+	live := report.Metrics.Available
+	columns := []string{heading, "Nodes", "Pods"}
+	if live {
+		columns = append(columns, "CPU used")
+	}
+	columns = append(columns, "CPU requested")
+	if live {
+		columns = append(columns, "Mem used")
+	}
+	columns = append(columns, "Mem requested", "Machines")
+
+	section := detailSection{Title: title, Columns: columns}
+	for i := range groups {
+		g := &groups[i]
+		name := g.Name
+		if name == "" {
+			name = "(unlabelled)"
+		}
+		nodes := itoa(g.Nodes)
+		if g.Unready > 0 {
+			nodes += " (" + itoa(g.Unready) + " not schedulable)"
+		}
+		cells := []string{name, nodes, podsCell(g.Pods, g.Allocatable.Pods)}
+		if live {
+			cells = append(cells, m.sampleShare(g.Used.HasCPU, g.Used.CPUMilli, g.Allocatable.CPUMilli, formatCPU))
+		}
+		cells = append(cells, m.requestShare(g.Requests.HasCPU, g.Requests.CPUMilli, g.Allocatable.CPUMilli, formatCPU))
+		if live {
+			cells = append(cells, m.sampleShare(g.Used.HasMemory, g.Used.MemoryBytes, g.Allocatable.MemoryBytes, formatMemory))
+		}
+		cells = append(cells, m.requestShare(g.Requests.HasMemory, g.Requests.MemoryBytes, g.Allocatable.MemoryBytes, formatMemory))
+
+		machines := strings.Join(g.Types, ", ")
+		if len(g.Types) > 3 {
+			machines = itoa(len(g.Types)) + " types"
+		}
+		if g.Spot > 0 {
+			spot := itoa(g.Spot) + " spot"
+			if g.Spot == g.Nodes {
+				spot = "spot"
+			}
+			machines = strings.TrimPrefix(machines+" · "+spot, " · ")
+		}
+		cells = append(cells, orDash(machines))
+
+		row := detailRow{Cells: cells}
+		if g.Unready > 0 {
+			row.Status = theme.StatusWarning
+		}
+		section.Rows = append(section.Rows, row)
 	}
 	return section
 }

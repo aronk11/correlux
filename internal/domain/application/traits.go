@@ -31,6 +31,11 @@ type Traits struct {
 	// handful of common spellings are read.
 	Team        string
 	Environment string
+	// TeamFrom and EnvironmentFrom are "namespace" when the label was read
+	// off the namespace because no workload carried one. Inherited is still
+	// read, never guessed, and it is still worth saying which it was.
+	TeamFrom        string
+	EnvironmentFrom string
 	// Runbook, Repository and Chat are the a8r.io annotations: where to read
 	// what to do, where the code lives and where to ask.
 	Runbook    string
@@ -62,13 +67,36 @@ const (
 
 // TraitAnnotations are the annotation keys a collector must keep for traits
 // to be readable. Everything else in an object's annotations is dropped.
-var TraitAnnotations = []string{annotationOwner, annotationRunbook, annotationRepository, annotationChat}
+var TraitAnnotations = []string{annotationOwner, annotationRunbook, annotationRepository, annotationChat,
+	annotationDependencies}
+
+// Labels are an organisation's own spellings of the labels no standard
+// names. They are read before the built-in ones, so a cluster that carries
+// both acme.io/team and a stray "owner" label shows the one its people use.
+type Labels struct {
+	Team        []string
+	Environment []string
+	System      []string
+}
+
+func withCustom(custom, builtin []string) []string {
+	if len(custom) == 0 {
+		return builtin
+	}
+	out := make([]string, 0, len(custom)+len(builtin))
+	out = append(out, custom...)
+	return append(out, builtin...)
+}
 
 // readTraits derives the traits from the application's members. Workloads
 // speak first, because their labels are what somebody wrote; pods are asked
 // only where no workload answered, which is every application an operator
 // runs without a Deployment in between.
-func (a *Application) readTraits() {
+func (a *Application) readTraits(custom Labels, namespace Meta) {
+	teams := withCustom(custom.Team, teamLabels)
+	environments := withCustom(custom.Environment, environmentLabels)
+	systems := withCustom(custom.System, systemLabels)
+
 	metas := make([]Meta, 0, len(a.Workloads)+len(a.Pods))
 	for i := range a.Workloads {
 		metas = append(metas, a.Workloads[i].Meta)
@@ -78,16 +106,35 @@ func (a *Application) readTraits() {
 	}
 
 	t := Traits{
-		System:      firstLabel(metas, systemLabels),
+		System:      firstLabel(metas, systems),
 		Version:     firstLabel(metas, versionLabels),
-		Team:        firstLabel(metas, teamLabels),
-		Environment: firstLabel(metas, environmentLabels),
+		Team:        firstLabel(metas, teams),
+		Environment: firstLabel(metas, environments),
 		Runbook:     firstAnnotation(metas, annotationRunbook),
 		Repository:  firstAnnotation(metas, annotationRepository),
 		Chat:        firstAnnotation(metas, annotationChat),
 	}
 	if t.Team == "" {
 		t.Team = firstAnnotation(metas, annotationOwner)
+	}
+	// The namespace speaks where no workload did. Teams label the namespace
+	// they were given far more often than every Deployment in it.
+	inherit := []Meta{namespace}
+	if t.Team == "" {
+		if t.Team = firstLabel(inherit, teams); t.Team == "" {
+			t.Team = firstAnnotation(inherit, annotationOwner)
+		}
+		if t.Team != "" {
+			t.TeamFrom = "namespace"
+		}
+	}
+	if t.Environment == "" {
+		if t.Environment = firstLabel(inherit, environments); t.Environment != "" {
+			t.EnvironmentFrom = "namespace"
+		}
+	}
+	if t.System == "" {
+		t.System = firstLabel(inherit, systems)
 	}
 	if t.Version == "" {
 		t.Version = imageVersion(a.Pods)

@@ -190,6 +190,13 @@ dns (1)              ✓ healthy   coredns        2/2          0  41d
 | Team | `team`, `owner`, `app.kubernetes.io/team`, `a8r.io/owner` and a few other spellings |
 | Env | `environment`, `env`, `stage` |
 
+Team, environment and system are read from the **namespace** where no workload
+carries them — most teams label the namespace they were given, not every
+Deployment in it — and the application says which it was: `team payments
+(namespace)`. An organisation that spells them differently names its keys
+under `labels:` in the [configuration](#configuration), and those are read
+first.
+
 A column appears only where some application carries the label, and each can be
 filtered on: `/role=ingress`, `/team=payments health!=healthy`, `/version=1.9`.
 `a` groups the dashboard by one of them — or by namespace, or by Helm, Flux and
@@ -205,6 +212,36 @@ because the ingress controller being down and one frontend being down are not
 the same size of problem. `a8r.io/runbook`, `a8r.io/repository` and
 `a8r.io/chat` annotations are shown where the workloads carry them
 ([ADR 30](docs/adr/0030-labels-roles-and-grouping.md)).
+
+### What it depends on
+
+Kubernetes records no dependencies, and two things in a cluster still say what
+an application talks to: an `a8r.io/dependencies` annotation, where somebody
+wrote it down, and the environment of its pods, where a `DATABASE_URL` names a
+Service. Correlux reads both, resolves them against the Services that actually
+exist — `postgres`, `postgres.data`, `kafka-0.kafka.data.svc.cluster.local` —
+and shows the result with each one's health:
+
+```
+checkout  payments
+⚠ degraded   1 of 3 pods ready
+3 pods restart in a loop — the process exits with code 1; depends on postgres, which is down
+Depends on: ✖ postgres down (env DATABASE_URL) · ✓ redis healthy (env REDIS_URL)
+```
+
+and from the other side, `Used by: checkout, cart` on the database — how far
+its outage reaches. A failing application whose dependency is failing too says
+so on the dashboard and in WHY, as its own finding.
+
+It is a reading of configuration, not of traffic, and it says that: the finding
+never outranks what the pods themselves report, never changes how unhealthy an
+application is counted, and states that whether one failure caused the other
+is not something the cluster shows. A variable counts only when its value is a
+URL or cluster DNS name, or its own name says it holds an address
+(`REDIS_HOST`, `KAFKA_BROKERS`): `MODE=api` next to a Service called `api` is a
+coincidence. Only the host is kept — never the value, which is where the
+password is — and variables filled from Secrets and ConfigMaps are not
+followed ([ADR 31](docs/adr/0031-dependencies-and-placement.md)).
 
 Health starts with what the cluster reports in replica counts and pod states.
 Evicted pods that were already replaced do not count against an application;
@@ -242,15 +279,16 @@ model anywhere near it:
   confidence: high
 ```
 
-Twenty-five rules cover crash loops (including the liveness probe that causes
+Twenty-seven rules cover crash loops (including the liveness probe that causes
 them), image pulls (including registry rate limits), missing config, pods stuck
 creating their containers or stuck terminating, OOM kills, unschedulable pods,
 failing probes, missing replicas and the quota that blocks them, failed Jobs,
 stalled rollouts, autoscalers that cannot read their metrics or are at their
 maximum, PodDisruptionBudgets that block node drains, services without
 endpoints or with a targetPort nothing listens on, NetworkPolicies that cut an
-application off, ingresses without a backend, unhealthy nodes, unbound volumes
-— and what the last rollout changed.
+application off, ingresses without a backend, unhealthy nodes, unbound volumes,
+a dependency that is itself down, replicas that all sit on one node or in one
+zone — and what the last rollout changed.
 
 The tools most clusters run are read when they are there and skipped when they
 are not, with nothing to configure: cert-manager certificates that cannot be
@@ -402,6 +440,28 @@ and how full each node is. A node the metrics API said nothing about reads `no
 sample`, a pod that reserved nothing reads `none set`, and neither is ever drawn
 as a zero: an unsized pod is placed anywhere and throttled by nothing, which is
 the opposite of idle.
+
+On a cloud the nodes say which zone and pool they are in, and the screen uses
+it: each node row carries its zone, pool, machine type and whether it is spot,
+and two roll-ups follow, fullest first — which is how "the nodes are full"
+turns into "the batch pool has to grow" or "eu-1a is carrying the cluster":
+
+```
+ZONES
+  ZONE   NODES                   PODS     CPU REQUESTED  MEM REQUESTED  MACHINES
+  eu-1a  4                       212/440  █████░ 81%     ████░░ 64%     m6i.xlarge
+  eu-1b  4 (1 not schedulable)   96/440   ██░░░░ 37%     ██░░░░ 31%     m6i.xlarge · 2 spot
+NODE POOLS
+  POOL     NODES  PODS     CPU REQUESTED  MEM REQUESTED  MACHINES
+  general  6      250/660  ████░░ 66%     ███░░░ 52%     m6i.xlarge
+  batch    2      58/220   ██░░░░ 40%     ██░░░░ 35%     c6i.2xlarge · spot
+```
+
+The labels of EKS, GKE, AKS, Karpenter, kOps and Cluster API are all read. WHY
+uses the same placement: an application whose replicas all landed on one node,
+or in one zone of a cluster that has several, is told so while it is still
+healthy — three replicas on one machine are one drain away from none — along
+with whether its pod template asked to be spread at all.
 
 Pods that no node has taken get their own section with the scheduler's own
 verdict, because "where are the pods" is not answered by the ones that are
@@ -989,16 +1049,24 @@ fleetNamespaces: []
 
 refresh:
   auto: false # start with the timed reload running
-  every: 2s   # floored at 2s
+  every: 500ms # floored at 200ms
 
 update:
   check: true # ask the public release feed for a newer Correlux, once a day
+
+# Your organisation's own label keys, read before the built-in spellings
+# (team, owner, environment, env, app.kubernetes.io/part-of, …) on workloads
+# and, where a workload has none, on its namespace.
+labels:
+  team: []        # e.g. [acme.io/team]
+  environment: [] # e.g. [acme.io/stage]
+  system: []
 
 dangerousActions:
   productionConfirmation: true
   # Matched case-insensitively against context name, cluster name and server URL.
   productionPatterns:
-    - '(^|[-_./])(prod|prd|production|live)([-_./]|$)'
+    - '(^|[^a-z])(prod|prd|production|live)\d*([^a-z]|$)'
   productionContexts: []
   readOnly: false           # refuse every change in every context (also --read-only)
   readOnlyProduction: false # refuse every change in production contexts

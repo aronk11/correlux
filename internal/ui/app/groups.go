@@ -237,3 +237,12 @@ func (m *Model) groupHint() string {
 	}
 	return "Group"
 }
+
+// labels are the organisation's own label spellings from the config file.
+func (m *Model) labels() application.Labels {
+	return application.Labels{
+		Team:        m.cfg.Labels.Team,
+		Environment: m.cfg.Labels.Environment,
+		System:      m.cfg.Labels.System,
+	}
+}

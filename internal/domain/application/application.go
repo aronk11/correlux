@@ -114,6 +114,13 @@ type Pod struct {
 	// Claims are the PersistentVolumeClaims the pod mounts, in the order the
 	// spec lists them.
 	Claims []string
+	// References are the hosts the pod's environment points at, each with the
+	// variable that names it. The values themselves are never kept: a
+	// connection string is where passwords live.
+	References []Reference
+	// Spread is true when the pod template asks the scheduler to keep its
+	// replicas apart: a topology spread constraint or pod anti-affinity.
+	Spread bool
 	// DeletingSince is when the pod was asked to go away, zero while it is not
 	// being deleted; Finalizers are what may be holding it.
 	DeletingSince time.Time
@@ -567,7 +574,12 @@ type Snapshot struct {
 	Pods      []Pod
 	Services  []Service
 	Ingresses []Ingress
-	Gaps      []Gap
+	// Namespaces are the namespaces in scope with their labels, which is
+	// where many teams write down who owns what. It is empty for an account
+	// that may not read namespaces, and that is not a gap worth reporting:
+	// nothing on screen is missing, only less of it is labelled.
+	Namespaces []Meta
+	Gaps       []Gap
 	// Truncated is true when a list hit its page limit, so the applications
 	// derived from it are a subset rather than the whole scope.
 	Truncated bool
@@ -596,6 +608,7 @@ func MergeSnapshots(snaps ...Snapshot) Snapshot {
 		out.Pods = append(out.Pods, s.Pods...)
 		out.Services = append(out.Services, s.Services...)
 		out.Ingresses = append(out.Ingresses, s.Ingresses...)
+		out.Namespaces = append(out.Namespaces, s.Namespaces...)
 		for _, gap := range s.Gaps {
 			// The same kind denied in three namespaces is one fact about the
 			// cluster, not three.
@@ -679,6 +692,10 @@ type Application struct {
 	Problems []Problem
 	// Traits are what its labels say about it: system, version, team, role.
 	Traits Traits
+	// DependsOn are the applications this one names as something it talks
+	// to, and UsedBy the ones that name it. See linkDependencies.
+	DependsOn []Dependency
+	UsedBy    []string
 	// Leftover counts pods that failed for good and were replaced — evicted,
 	// shut down with their node — and are still listed. They are not part of
 	// the application any more, and they are not nothing either.

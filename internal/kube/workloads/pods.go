@@ -47,9 +47,44 @@ func fromPod(p *corev1.Pod) application.Pod {
 		}
 		out.Finalizers = p.Finalizers
 	}
+	out.References = references(p)
+	out.Spread = len(p.Spec.TopologySpreadConstraints) > 0 ||
+		(p.Spec.Affinity != nil && p.Spec.Affinity.PodAntiAffinity != nil)
 	for i := range p.Spec.Volumes {
 		if claim := p.Spec.Volumes[i].PersistentVolumeClaim; claim != nil {
 			out.Claims = append(out.Claims, claim.ClaimName)
+		}
+	}
+	return out
+}
+
+// maxReferences bounds what one pod contributes. A pod names a handful of
+// things it talks to; one with fifty address-shaped variables is a config
+// dump, and keeping all of it for every pod in a cluster is not worth it.
+const maxReferences = 12
+
+// references reads the hosts the pod's environment points at. Only literal
+// values are read: a variable filled from a Secret or ConfigMap is not in the
+// pod, and fetching every one of those to follow a connection string would
+// be reading secrets to draw an arrow.
+func references(p *corev1.Pod) []application.Reference {
+	var out []application.Reference
+	seen := map[string]bool{}
+	for i := range p.Spec.Containers {
+		for _, env := range p.Spec.Containers[i].Env {
+			if env.Value == "" {
+				continue
+			}
+			for _, ref := range application.ReferencesIn(env.Name, env.Value) {
+				if seen[ref.Host] {
+					continue
+				}
+				seen[ref.Host] = true
+				out = append(out, ref)
+				if len(out) == maxReferences {
+					return out
+				}
+			}
 		}
 	}
 	return out

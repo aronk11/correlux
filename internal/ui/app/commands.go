@@ -204,7 +204,7 @@ func (m *Model) loadApplications() tea.Cmd {
 
 	factory := m.factory
 	name := m.contextName
-	opts := workloads.Options{}
+	opts := workloads.Options{Labels: m.labels()}
 	if !m.allNamespaces {
 		opts.Namespace = m.namespace
 	}

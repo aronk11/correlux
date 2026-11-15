@@ -221,6 +221,7 @@ func (m *Model) startFleet(contexts []string) tea.Cmd {
 	classifier := m.kubeconfig
 	results := make(chan fleet.Member, len(contexts))
 
+	labels := m.labels()
 	return func() tea.Msg {
 		go func() {
 			defer close(results)
@@ -243,7 +244,7 @@ func (m *Model) startFleet(contexts []string) tea.Cmd {
 						// must not hold up the rest of the fleet.
 						readCtx, readCancel := context.WithTimeout(ctx, factory.Timeout())
 						apps, snapshot, err := factory.ApplicationsIn(
-							readCtx, name, namespaces, workloads.Options{})
+							readCtx, name, namespaces, workloads.Options{Labels: labels})
 						// The machines are read in the same breath: a broken
 						// node belongs to no application, and a fleet that
 						// counts only applications would never mention it.

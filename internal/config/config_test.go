@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"testing"
 	"time"
@@ -353,5 +354,38 @@ dangerousActions:
 	cfg.Safety.ReadOnly = true
 	if reason, ro := cfg.Safety.ReadOnlyIn("staging", false); !ro || reason != "this session is read-only" {
 		t.Errorf("readOnly must cover every context, got %q, %v", reason, ro)
+	}
+}
+
+func TestAnOrganisationsLabelKeysAreConfigurable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	write(t, path, `
+labels:
+  team: [acme.io/squad, acme.io/owner]
+  environment: [acme.io/stage]
+`)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Labels.Team) != 2 || cfg.Labels.Team[0] != "acme.io/squad" || cfg.Labels.Environment[0] != "acme.io/stage" {
+		t.Errorf("labels = %+v", cfg.Labels)
+	}
+	if len(cfg.Labels.System) != 0 {
+		t.Errorf("an unset list stays empty and the built-in spellings apply: %+v", cfg.Labels.System)
+	}
+}
+
+func TestTheDefaultProductionPatternCatchesHowContextsAreReallyNamed(t *testing.T) {
+	re := regexp.MustCompile("(?i)" + DefaultProductionPatterns[0])
+	for _, name := range []string{"prod-eu", "admin@prod", "prod1", "Prod Cluster", "arn:aws:eks:eu-west-1:1:cluster/prod"} {
+		if !re.MatchString(name) {
+			t.Errorf("%q must be treated as production", name)
+		}
+	}
+	for _, name := range []string{"product-team", "reproducer", "staging"} {
+		if re.MatchString(name) {
+			t.Errorf("%q is not production", name)
+		}
 	}
 }
