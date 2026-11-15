@@ -11,12 +11,57 @@ import (
 // application — which is what an operator means by "the payments app", while
 // the name label identifies the software and would merge two independent
 // installations of the same chart into one row.
+//
+// Between the recommended labels and the loose ones sit the labels operators
+// write on what they create. They are narrower than "app" — a controller sets
+// them on exactly the objects of one cluster, pipeline or service — and
+// without them the things those operators run fall apart on the dashboard:
+// every Knative revision, every Tekton TaskRun and every Spark executor would
+// be an application of its own.
 var groupLabels = []string{
 	"app.kubernetes.io/instance",
 	"app.kubernetes.io/name",
+
+	"cnpg.io/cluster", // CloudNativePG
+	"postgres-operator.crunchydata.com/cluster", // Crunchy PGO
+	"strimzi.io/cluster",                        // Strimzi Kafka
+	"serving.knative.dev/service",               // Knative: one service, many revisions
+	"tekton.dev/pipeline",                       // Tekton: every run of one pipeline
+	"workflows.argoproj.io/workflow",            // Argo Workflows
+	"sparkoperator.k8s.io/app-name",             // Spark operator: driver and executors
+	"spark-app-name",
+	"ray.io/cluster",                    // KubeRay: head and workers
+	"training.kubeflow.org/job-name",    // Kubeflow training jobs
+	"leaderworkerset.sigs.k8s.io/name",  // LeaderWorkerSet
+	"actions.github.com/scale-set-name", // GitHub Actions runner scale sets
+
 	"app",
 	"k8s-app",
+	"run", // what `kubectl run` writes
 }
+
+// operatorLabels are the entries of groupLabels an operator wrote rather than
+// a person, for naming the signal that matched.
+var operatorLabels = map[string]bool{
+	"cnpg.io/cluster": true,
+	"postgres-operator.crunchydata.com/cluster": true,
+	"strimzi.io/cluster":                        true,
+	"serving.knative.dev/service":               true,
+	"tekton.dev/pipeline":                       true,
+	"workflows.argoproj.io/workflow":            true,
+	"sparkoperator.k8s.io/app-name":             true,
+	"spark-app-name":                            true,
+	"ray.io/cluster":                            true,
+	"training.kubeflow.org/job-name":            true,
+	"leaderworkerset.sigs.k8s.io/name":          true,
+	"actions.github.com/scale-set-name":         true,
+	staticPodComponent:                          true,
+}
+
+// staticPodComponent is the label kubeadm writes on the control plane's static
+// pods, and the only thing that names them: their owner is the Node they run
+// on, and their own name has that node's name appended.
+const staticPodComponent = "component"
 
 // maxOwnerDepth bounds the owner walk. Kubernetes' own chains are two links
 // long (Pod, ReplicaSet, Deployment); a custom controller may add one or two.
@@ -148,6 +193,7 @@ func (a *Application) finish() {
 		}
 	}
 
+	a.readTraits()
 	a.evaluate()
 }
 
@@ -200,6 +246,27 @@ func attachService(groups map[string]*Application, svc *Service) (*Application, 
 		// always produces the same screen.
 		if count > bestCount || (count == bestCount && count > 0 && best != nil && g.Name < best.Name) {
 			best, bestCount = g, count
+		}
+	}
+	if best == nil {
+		// No pod to match: the application is scaled to zero, or so broken that
+		// it has no pods at all — which is exactly when somebody opens it and
+		// wants to see the service in front of it. A workload whose own pod
+		// selector contains every pair the service selects on can only ever
+		// make pods the service matches, so the relationship holds without one.
+		for _, g := range groups {
+			if g.Namespace != svc.Namespace {
+				continue
+			}
+			for i := range g.Workloads {
+				if !selects(svc.Selector, g.Workloads[i].Selector) {
+					continue
+				}
+				if best == nil || g.Name < best.Name {
+					best = g
+				}
+				break
+			}
 		}
 	}
 	if best == nil {
@@ -317,6 +384,12 @@ func (ix *index) reasonFor(m Meta) Reason {
 	if len(chain) > 0 {
 		return Reason{Signal: SignalOwner, Chain: chain}
 	}
+	if name, ok := staticPodName(m); ok {
+		if m.Labels[staticPodComponent] == name {
+			return Reason{Signal: SignalOperatorLabel, Key: staticPodComponent, Value: name}
+		}
+		return Reason{Signal: SignalNone}
+	}
 	// A label on the object itself outranks an owner reference that could not
 	// be followed, exactly as appName reads root's own label before falling
 	// back to root's controller.
@@ -331,6 +404,9 @@ func (ix *index) reasonFor(m Meta) Reason {
 
 // appName names the application an object belongs to.
 func appName(m Meta) string {
+	if name, ok := staticPodName(m); ok {
+		return name
+	}
 	if name := labelName(m); name != "" {
 		return name
 	}
@@ -338,9 +414,42 @@ func appName(m Meta) string {
 	// "payments-7d8f" beats "payments-7d8f-2xk9l" for a pod whose ReplicaSet
 	// was not readable.
 	if ref, ok := m.Controller(); ok && ref.Name != "" {
+		// And "payments" beats both. A Deployment's ReplicaSet is named after
+		// it plus the pod template hash, and the pod carries that hash as a
+		// label — so an account that may list pods but not ReplicaSets still
+		// gets its pods under the Deployment they belong to instead of beside
+		// it, one application per revision.
+		if hash := m.Labels["pod-template-hash"]; hash != "" && ref.Kind == "ReplicaSet" {
+			if base := strings.TrimSuffix(ref.Name, "-"+hash); base != "" && base != ref.Name {
+				return base
+			}
+		}
 		return ref.Name
 	}
 	return m.Name
+}
+
+// staticPodName names a static pod: the mirror of something a kubelet runs
+// from a file on its node, which is how kubeadm runs the control plane.
+//
+// Such a pod is "owned" by its Node, and following that reference like any
+// other would file the API server, the scheduler and etcd together under an
+// application named after a machine. What it is called is its component label
+// where kubeadm set one, and otherwise its own name without the node's.
+// Either way the three API servers of an HA control plane come out as one
+// application with three pods, which is what they are.
+func staticPodName(m Meta) (string, bool) {
+	ref, ok := m.Controller()
+	if !ok || ref.Kind != "Node" || m.Kind != "Pod" {
+		return "", false
+	}
+	if component := strings.TrimSpace(m.Labels[staticPodComponent]); component != "" {
+		return component, true
+	}
+	if base := strings.TrimSuffix(m.Name, "-"+ref.Name); base != "" {
+		return base, true
+	}
+	return m.Name, true
 }
 
 // The labels and annotations Helm, Flux and Argo CD write on what they create.
@@ -419,7 +528,12 @@ func signalForLabel(key string) Signal {
 		return SignalNameLabel
 	case "k8s-app":
 		return SignalK8sAppLabel
-	default: // "app"
+	case "run":
+		return SignalRunLabel
+	default:
+		if operatorLabels[key] {
+			return SignalOperatorLabel
+		}
 		return SignalAppLabel
 	}
 }

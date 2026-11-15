@@ -220,6 +220,12 @@ func max64(a, b int64) int64 {
 // this is called once per pod per render.
 func (p *Pod) Terminal() bool { return p.Phase == "Succeeded" }
 
+// Failed reports a pod whose phase is Failed: every container has stopped and
+// the kubelet will not start them again. Under a controller that keeps a
+// replica count this is a corpse, already replaced; on its own, or under a
+// Job, it is the outcome.
+func (p *Pod) Failed() bool { return p.Phase == "Failed" }
+
 // Service is one service and the pods it selects.
 type Service struct {
 	Meta
@@ -668,6 +674,12 @@ type Application struct {
 	// Manager is what deployed this, when it left a trace saying so.
 	Manager  Manager
 	Problems []Problem
+	// Traits are what its labels say about it: system, version, team, role.
+	Traits Traits
+	// Leftover counts pods that failed for good and were replaced — evicted,
+	// shut down with their node — and are still listed. They are not part of
+	// the application any more, and they are not nothing either.
+	Leftover int
 	// CreatedAt is the age of the oldest object in the application.
 	CreatedAt time.Time
 }

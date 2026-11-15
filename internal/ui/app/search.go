@@ -229,7 +229,7 @@ func (m *Model) visibleApplications() []application.Application {
 		}
 		apps = out
 	}
-	return ordered(apps, applicationColumns, applicationCells, m.appSort)
+	return grouped(ordered(apps, applicationColumns, applicationCells, m.appSort), m.appGroup)
 }
 
 // visibleFleetRows are the cross-cluster table's rows after the filter.
@@ -254,6 +254,7 @@ func (m *Model) visibleFleetRows() []resources.MergedRow {
 // somebody can read is what they can filter on.
 var applicationColumns = []string{
 	"Status", "Application", "Namespace", "Pods", "Workloads",
+	"Role", "System", "Version", "Team", "Env",
 	"Managed by", "Restarts", "Age", "Detail",
 }
 
@@ -268,6 +269,11 @@ func applicationCells(a *application.Application) []string {
 		a.Namespace,
 		itoa(int(a.ReadyPods)) + "/" + itoa(int(a.DesiredPods)),
 		workloadSummary(a),
+		a.Traits.Role.Name,
+		a.Traits.System,
+		a.Traits.Version,
+		a.Traits.Team,
+		a.Traits.Environment,
 		a.Manager.Label(),
 		itoa(int(a.Restarts)),
 		formatAge(a.CreatedAt, time.Now()),

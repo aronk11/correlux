@@ -31,6 +31,7 @@ const (
 	ActionSearch          = "search"
 	ActionWhy             = "why"
 	ActionGrouping        = "application.grouping"
+	ActionGroupBy         = "applications.group"
 	ActionYAML            = "object.yaml"
 	ActionDecode          = "object.decode"
 	ActionScale           = "scale"
@@ -80,6 +81,7 @@ var DefaultBindings = map[string]string{
 	ActionSearch:          "/",
 	ActionWhy:             "ctrl+w",
 	ActionGrouping:        "r",
+	ActionGroupBy:         "a",
 	ActionYAML:            "y",
 	ActionDecode:          "b",
 	ActionScale:           "S",

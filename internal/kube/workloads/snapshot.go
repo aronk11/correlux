@@ -223,11 +223,12 @@ func Collect(ctx context.Context, cs kubernetes.Interface, opts Options) (applic
 // a full copy of the last applied manifest, and keeping every one of them for
 // every object in a cluster would cost more than the rest of the snapshot put
 // together.
-var managerAnnotations = []string{
+var managerAnnotations = append([]string{
 	"meta.helm.sh/release-name",
 	"meta.helm.sh/release-namespace",
 	"argocd.argoproj.io/instance",
-}
+	"argocd.argoproj.io/tracking-id",
+}, application.TraitAnnotations...)
 
 func meta(kind string, m metav1.ObjectMeta) application.Meta {
 	out := application.Meta{

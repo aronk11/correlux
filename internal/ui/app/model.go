@@ -286,7 +286,9 @@ type Model struct {
 	// dashboard by restarts says nothing about how somebody wants a list of
 	// nodes, and one screen quietly reordering another is a change nobody
 	// asked for.
-	appSort   tableSort
+	appSort tableSort
+	// appGroup is what the dashboard is grouped by, if anything.
+	appGroup  groupMode
 	tableSort tableSort
 	fleetSort tableSort
 

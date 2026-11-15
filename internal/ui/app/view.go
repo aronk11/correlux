@@ -387,6 +387,7 @@ func (m *Model) statusData() components.StatusData {
 				{Key: "Enter", Desc: "Open", Priority: 72},
 				{Group: components.HintView, Key: m.keys.Key(ActionWhy), Desc: "Why", Priority: 88},
 				{Group: components.HintView, Key: m.keys.Key(ActionGrouping), Desc: "Grouping", Priority: 45},
+				{Group: components.HintView, Key: m.keys.Key(ActionGroupBy), Desc: m.groupHint(), Priority: 58},
 				{Group: components.HintView, Key: m.keys.Key(ActionSort), Desc: m.sortHint(), Priority: 60},
 				{Group: components.HintView, Key: m.keys.Key(ActionToggleWide), Desc: wideHint(m.showingWide()), Priority: 50},
 			}, app...)
@@ -1106,6 +1107,8 @@ func (m *Model) helpTextAt(width int) string {
 			{"Enter", "Open the application: its workloads, pods and network"},
 			{m.keys.Key(ActionWhy), "Explain why it is unhealthy, from the cluster's own evidence"},
 			{m.keys.Key(ActionGrouping), "Show which signal grouped each object, and how sure it is"},
+			{m.keys.Key(ActionGroupBy), "Group the dashboard: by namespace, role, system, team, or what manages them"},
+			{"role=ingress", "Filter by a label column: role, system, version, team, env"},
 		}},
 		{"Inspect an application or an object", [][2]string{
 			{"↑ ↓ / j k", "Move between the objects; the page follows"},
