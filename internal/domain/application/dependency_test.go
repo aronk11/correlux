@@ -26,6 +26,9 @@ func TestReferencesKeepTheHostAndNothingElse(t *testing.T) {
 		{"UPSTREAM", "payments.shop.svc", []string{"payments.shop.svc"}},
 		// A value is an address only where the variable says so.
 		{"MODE", "api", nil},
+		{"SERVER_MODE", "api", nil},
+		{"HOST_NETWORK_ENABLED", "true", nil},
+		{"KAFKA_BOOTSTRAP_SERVERS", "kafka:9092", []string{"kafka"}},
 		{"LOG_LEVEL", "debug", nil},
 		{"CACHE_HOST", "10.0.0.12", nil},
 		{"METRICS_URL", "http://localhost:9090/metrics", nil},

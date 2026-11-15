@@ -303,12 +303,18 @@ func hostLike(s string) bool {
 }
 
 // addressName reports whether a variable's name says its value is an address.
+// The last word decides: REDIS_HOST and KAFKA_BOOTSTRAP_SERVERS hold one,
+// SERVER_MODE and HOST_NETWORK_ENABLED do not.
 func addressName(name string) bool {
-	upper := strings.ToUpper(name)
-	for _, word := range []string{"HOST", "URL", "URI", "ADDR", "ENDPOINT", "SERVER", "DSN", "BROKER", "BOOTSTRAP", "UPSTREAM"} {
-		if strings.Contains(upper, word) {
-			return true
-		}
+	upper := strings.ToUpper(strings.TrimSpace(name))
+	last := upper
+	if i := strings.LastIndexAny(upper, "_.-"); i >= 0 {
+		last = upper[i+1:]
+	}
+	switch last {
+	case "HOST", "HOSTS", "HOSTNAME", "URL", "URLS", "URI", "ADDR", "ADDRESS", "ADDRESSES",
+		"ENDPOINT", "ENDPOINTS", "DSN", "BROKER", "BROKERS", "SERVER", "SERVERS", "UPSTREAM", "UPSTREAMS":
+		return true
 	}
 	return false
 }
