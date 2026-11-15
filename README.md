@@ -24,7 +24,8 @@ produce: **<https://aronk11.github.io/correlux/>**
 
 > **Status: early.** Implemented so far: the application dashboard, which infers
 > applications from the cluster's own ownership, labels and selectors and sorts
-> them worst first; cluster and namespace switching; the command palette; an
+> them worst first, grouped by namespace, team, system or platform role where
+> you want that, with what each one depends on; cluster and namespace switching; the command palette; an
 > optional timed refresh; the deterministic WHY engine that explains an
 > unhealthy application from the cluster's own evidence, including what the last
 > rollout changed; a resource browser that lists **every** kind the cluster
@@ -1204,6 +1205,9 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | 5 | Safe mutating actions: scale and edit | **done** |
 | — | Further safe actions: delete, restart, cordon | **done** |
 | — | What changed: rollout revisions in WHY, rollback, read-only contexts | **done** |
+| — | Labels, platform roles and grouping; dependencies between applications | **done** |
+| — | Zones and node pools, placement and sizing remarks, what the account may do | **done** |
+| — | Argo CD sync state, Argo Rollouts and Gateway API routes | **done** |
 | 6 | Large-cluster performance work, guided by the benchmarks | planned |
 | 7 | Platform polish across macOS, Linux and Windows | planned |
 
