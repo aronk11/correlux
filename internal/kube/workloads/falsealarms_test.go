@@ -123,3 +123,37 @@ func TestAGatewayRouteIsReadAsWhereTrafficComesIn(t *testing.T) {
 		t.Errorf("rejected = %v", got.Rejected)
 	}
 }
+
+func TestAnArgoRolloutIsAWorkloadWithAReplicaCount(t *testing.T) {
+	var r rolloutItem
+	if err := json.Unmarshal([]byte(`{"metadata":{"name":"checkout","namespace":"shop","uid":"ro-1"},
+		"spec":{"replicas":5,"selector":{"matchLabels":{"app":"checkout"}}},
+		"status":{"readyReplicas":2,"updatedReplicas":1,"phase":"Degraded","message":"RolloutAborted: metric \"success-rate\" assessed Failed"}}`), &r); err != nil {
+		t.Fatal(err)
+	}
+	w := r.toWorkload()
+	if w.Kind != "Rollout" || w.Desired != 5 || w.Ready != 2 || !w.Replicated || w.Selector["app"] != "checkout" {
+		t.Errorf("got %+v", w)
+	}
+	if !w.Stalled || w.StalledMessage == "" {
+		t.Errorf("a Degraded rollout is the controller giving up, in its words: %+v", w)
+	}
+
+	r.Status.Phase, r.Status.Message = "Paused", "CanaryPauseStep"
+	if w := r.toWorkload(); !w.Paused || w.Stalled {
+		t.Errorf("a canary waiting to be promoted is paused, not broken: %+v", w)
+	}
+
+	// The pods of a Rollout hang off its ReplicaSet, and the walk up the
+	// owners must end at the Rollout like it ends at a Deployment.
+	rs := application.Meta{Kind: "ReplicaSet", Name: "checkout-abc", Namespace: "shop", UID: "rs-1",
+		Owners: []application.OwnerRef{{Kind: "Rollout", Name: "checkout", UID: "ro-1", Controller: true}}}
+	pod := application.Pod{Meta: application.Meta{Kind: "Pod", Name: "checkout-abc-1", Namespace: "shop", UID: "p-1",
+		Owners: []application.OwnerRef{{Kind: "ReplicaSet", Name: "checkout-abc", UID: "rs-1", Controller: true}}},
+		Phase: "Running", Ready: true}
+	apps := application.Group(application.Snapshot{
+		Workloads: []application.Workload{r.toWorkload()}, Owners: []application.Meta{rs}, Pods: []application.Pod{pod}})
+	if len(apps) != 1 || apps[0].DesiredPods != 5 || len(apps[0].Pods) != 1 {
+		t.Errorf("apps = %+v", apps)
+	}
+}
