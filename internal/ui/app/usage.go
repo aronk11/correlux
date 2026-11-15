@@ -284,6 +284,11 @@ func (m *Model) usageNotes(report *usage.Report) []string {
 		return append(notes, "Requests, limits and capacity below come from the pod specs "+
 			"and the nodes themselves; none of them needs Metrics Server.")
 	}
+	if cpu, memory, covered := usage.Idle(report.Apps); covered > 0 && (cpu >= 1000 || memory >= 1<<30) {
+		notes = append(notes, "Reserved and not in use right now: "+formatCPU(cpu)+" CPU and "+formatMemory(memory)+
+			" memory across "+itoa(covered)+" fully measured "+plural(covered, "application")+
+			". One sample is not a sizing recommendation; it is where to look.")
+	}
 	if unmeasured := report.Totals.Pods - report.Totals.Measured; unmeasured > 0 {
 		notes = append(notes, itoa(unmeasured)+" "+plural(unmeasured, "pod")+
 			" had no live sample, so every used total covering one is a floor.")
@@ -463,6 +468,17 @@ func (m *Model) usageApplicationSection(report *usage.Report) detailSection {
 		columns = append(columns, "Namespace")
 	}
 	columns = append(columns, "Pods", "Nodes", cpuHeading(live), memoryHeading(live))
+	// Sizing is drawn when some application has something to be said about
+	// it; a column of blanks would only narrow the others.
+	sizing := false
+	for i := range report.Apps {
+		if text, _ := usage.Sizing(&report.Apps[i]); text != "" && i < maxUsageApps {
+			sizing = true
+		}
+	}
+	if sizing {
+		columns = append(columns, "Sizing")
+	}
 
 	section := detailSection{
 		Title:   "Applications",
@@ -492,6 +508,13 @@ func (m *Model) usageApplicationSection(report *usage.Report) detailSection {
 			// Every pod unsized: the scheduler is placing this application
 			// blind, which is worth noticing before anything goes wrong.
 			row.Status = theme.StatusWarning
+		}
+		if sizing {
+			text, level := usage.Sizing(a)
+			row.Cells = append(row.Cells, text)
+			if level == usage.SizingRisk {
+				row.Status = theme.StatusWarning
+			}
 		}
 		section.Rows = append(section.Rows, row)
 	}
