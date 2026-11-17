@@ -88,6 +88,9 @@ func (m *Model) focusPane(i int) tea.Cmd {
 	if i < 0 || i >= len(m.panes) || i == m.focus {
 		return nil
 	}
+	// A filter being typed stays as it is, but stops taking keys: the pane it
+	// belongs to no longer has the keyboard.
+	m.searching = false
 	m.focus = i
 	if m.focused().follow == followNone {
 		m.driverID = m.focused().id

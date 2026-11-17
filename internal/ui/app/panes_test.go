@@ -910,3 +910,25 @@ func TestChoosingASplitFromThePaletteOpensThePicker(t *testing.T) {
 		t.Errorf("the palette entry must open the same picker the key does, got overlay %v", m.overlay)
 	}
 }
+
+// A filter left open in one pane must not keep swallowing keys there after
+// the keyboard has moved on: coming back, "q" has to be a key again, not a
+// letter typed into a filter nobody was looking at.
+func TestMovingToAnotherPaneLeavesTheFilterButStopsTypingIntoIt(t *testing.T) {
+	m := newTestModel(t)
+	m.Update(tea.WindowSizeMsg{Width: 150, Height: 40})
+	loadCatalogInto(m, testCatalog())
+	loadApplicationsInto(m, dumpApplications()...)
+	m.openPane(followLogs, layout.SplitRight)
+
+	press(t, m, "/")
+	press(t, m, "p")
+	press(t, m, "tab")
+
+	if m.panes[0].searching {
+		t.Fatal("the first pane still takes keys for its filter after the focus left it")
+	}
+	if got := m.panes[0].search.Value(); got != "p" {
+		t.Fatalf("the filter that was typed must stay, got %q", got)
+	}
+}
