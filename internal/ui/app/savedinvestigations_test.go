@@ -12,6 +12,7 @@ import (
 
 // restoreFrom restores saved the way the palette does, with the focus on the
 // pane at index focus, and lets the cluster answer.
+//nolint:gocritic // hugeParam: a test helper, given its fixture by value on purpose
 func restoreFrom(t *testing.T, saved config.SavedInvestigation, focus int, open ...followKind) *Model {
 	t.Helper()
 	m := newTestModel(t)
