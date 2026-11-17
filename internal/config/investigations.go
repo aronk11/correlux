@@ -20,4 +20,10 @@ type SavedInvestigation struct {
 	TargetContext   string `json:"targetContext,omitempty" yaml:"targetContext,omitempty"`
 	TargetNamespace string `json:"targetNamespace,omitempty" yaml:"targetNamespace,omitempty"`
 	TargetName      string `json:"targetName,omitempty" yaml:"targetName,omitempty"`
+	// Panes are the companions open beside the main pane, in order: logs, why,
+	// details, yaml or events. Independent panes are not part of an
+	// investigation, so they are not listed.
+	Panes []string `json:"panes,omitempty" yaml:"panes,omitempty"`
+	// Split is "right" or "below"; empty lets the terminal decide.
+	Split string `json:"split,omitempty" yaml:"split,omitempty"`
 }
