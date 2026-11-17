@@ -33,7 +33,7 @@ produce: **<https://aronk11.github.io/correlux/>**
 > the changes it can make to a cluster — scale, edit, restart, roll back, delete
 > and cordon — each behind one confirmation that states the blast radius and
 > names the cluster, or refused outright in a read-only context; and split panes
-whose logs, diagnosis and events follow the selection, with tabs. See
+> whose logs, diagnosis and events follow the selection, with tabs. See
 > [the roadmap](#roadmap). Nothing in the UI is a mock-up: if Correlux does not
 > know something yet, it says so.
 
@@ -123,7 +123,7 @@ correlux version
 | `Tab` / `Shift+Tab` | Move between panes (a click does too) |
 | `z` | Zoom the focused pane, and back |
 | `P` | Pin a companion to what it shows, or let it follow again |
-| `X` | Close the focused pane (`Esc` closes a companion) |
+| `X` | Close the focused pane, or the tab when it is its last (`Esc` closes a companion) |
 | `I` | Incident layout: why, logs and events of the application in hand |
 | `T` | Open a tab |
 | `[` / `]` | Previous / next tab (`Alt+1` to `Alt+9` jump to one) |
