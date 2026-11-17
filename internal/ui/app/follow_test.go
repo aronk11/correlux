@@ -22,7 +22,7 @@ func TestALogsCompanionOpensTheLogsOfTheSelectedApplication(t *testing.T) {
 	if c.cancelLogs == nil {
 		t.Error("the companion's stream is open; closing the pane has to be able to cancel it")
 	}
-	if !strings.Contains(plainView(m), "Logs • payments") {
+	if !strings.Contains(plainView(m), "Logs "+m.theme.Glyphs.Bullet+" payments") {
 		t.Errorf("the title must name what the logs are of:\n%s", plainView(m))
 	}
 }
@@ -213,7 +213,7 @@ func TestAnEventsCompanionShowsTheScopesActivityWhateverIsSelected(t *testing.T)
 	if c.view != viewActivity {
 		t.Fatalf("got view %v", c.view)
 	}
-	if !strings.Contains(plainView(m), "Events • default") {
+	if !strings.Contains(plainView(m), "Events "+m.theme.Glyphs.Bullet+" default") {
 		t.Errorf("the title says whose events these are:\n%s", plainView(m))
 	}
 	press(t, m, "P")
