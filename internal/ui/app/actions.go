@@ -64,6 +64,8 @@ const (
 	paletteReloadConfig     palette.ActionID = "reload.kubeconfig"
 	paletteCheckUpdate      palette.ActionID = "update.check"
 	paletteInstallUpdate    palette.ActionID = "update.install"
+	palettePane             palette.ActionID = "pane"
+	paletteTab              palette.ActionID = "tab"
 	paletteHelp             palette.ActionID = "help"
 	paletteQuit             palette.ActionID = "quit"
 )
@@ -827,6 +829,8 @@ func (m *Model) rebuildCommands() {
 	cmds = append(cmds, m.forwardCommands()...)
 	cmds = append(cmds, m.inspectionCommands()...)
 	cmds = append(cmds, m.savedCommands()...)
+	cmds = append(cmds, m.paneCommands()...)
+	cmds = append(cmds, m.tabCommands()...)
 	if m.view == viewObject && (m.objectTarget.Resource == helmResource || m.objectTarget.Resource == debugResource || m.objectTarget.Resource == inspectionResource) {
 		filtered := cmds[:0]
 		for _, c := range cmds {
@@ -1296,7 +1300,11 @@ func (m *Model) runCommand(id string) tea.Cmd {
 	case paletteToggleAllNS:
 		return m.toggleAllNamespaces()
 	case paletteRefresh:
-		return m.refresh()
+		return m.refreshPanes()
+	case palettePane:
+		return m.runPaneCommand(cmd.Arg)
+	case paletteTab:
+		return m.runTabCommand(cmd.Arg)
 	case paletteAutoRefresh:
 		return m.toggleAutoRefresh()
 	case paletteCheckUpdate:
@@ -1340,23 +1348,27 @@ func (m *Model) switchContextScoped(name, namespace string) tea.Cmd {
 		m.namespace = namespace
 	}
 	m.allNamespaces = false
+	m.followKey = ""
 	m.cluster.Reset()
 	m.namespaces.Reset()
 	m.catalog.Reset()
-	m.table.Reset()
 	m.apps.Reset()
 	m.evidence.Reset()
 	m.permissions.Reset()
-	m.object.Reset()
 	m.resetUsage()
-	m.usageDrilledIn = false
-	m.stopLogs()
 	m.stopFleet()
 	m.findings = nil
-	m.appPort.Cursor, m.appPort.Offset, m.detailPort.Offset, m.detailPort.Cursor = 0, 0, 0, 0
-	m.selectedApp = ""
-	m.objectTarget, m.objectTrail = objectRef{}, nil
-	m.view = viewApplications
+	// What each pane had open belonged to the cluster that was just left.
+	m.eachPane(func() {
+		m.table.Reset()
+		m.object.Reset()
+		m.usageDrilledIn = false
+		m.stopLogs()
+		m.appPort.Cursor, m.appPort.Offset, m.detailPort.Offset, m.detailPort.Cursor = 0, 0, 0, 0
+		m.selectedApp = ""
+		m.objectTarget, m.objectTrail = objectRef{}, nil
+		m.leaveScope(true)
+	})
 	m.nsPicker.Reset()
 	m.resPicker.Reset()
 	m.rebuildCommands()
@@ -1376,6 +1388,20 @@ func (m *Model) switchContextScoped(name, namespace string) tea.Cmd {
 		m.loadApplications(),
 		m.expireNotice(),
 	)
+}
+
+// leaveScope takes the active pane off a screen whose subject belonged to the
+// scope that was just left. A companion keeps its place and says it is
+// waiting; the selection it follows arrives with the new scope's first load.
+func (m *Model) leaveScope(everything bool) {
+	if m.follow != followNone {
+		m.subject, m.subjectLabel = "", ""
+		m.blank = "Waiting for a selection in " + m.scopeLabel() + "."
+		return
+	}
+	if everything || m.view == viewApplication || m.view == viewWhy || m.view == viewObject || m.view == viewLogs {
+		m.view = viewApplications
+	}
 }
 
 // switchNamespace changes the active scope.
@@ -1400,18 +1426,24 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	m.apps.Reset()
 	m.evidence.Reset()
 	m.permissions.Reset()
-	m.object.Reset()
 	m.resetUsage()
-	m.stopLogs()
 	m.stopFleet()
 	m.findings = nil
-	m.appPort.Cursor, m.appPort.Offset, m.detailPort.Offset, m.detailPort.Cursor = 0, 0, 0, 0
-	m.selectedApp = ""
-	m.objectTarget, m.objectTrail = objectRef{}, nil
-	if m.view == viewApplication || m.view == viewWhy || m.view == viewObject || m.view == viewLogs {
-		m.view = viewApplications
-	}
-	reload := m.loadApplications()
+	m.followKey = ""
+	var others []tea.Cmd
+	focused := m.pane
+	m.eachPane(func() {
+		m.object.Reset()
+		m.stopLogs()
+		m.appPort.Cursor, m.appPort.Offset, m.detailPort.Offset, m.detailPort.Cursor = 0, 0, 0, 0
+		m.selectedApp = ""
+		m.objectTarget, m.objectTrail = objectRef{}, nil
+		m.leaveScope(false)
+		if m.pane != focused && m.follow == followNone {
+			others = append(others, tagCmd(m.pane.id, m.reloadScopedPane()))
+		}
+	})
+	reload := tea.Batch(append(others, m.loadApplications())...)
 	if m.view == viewOverview {
 		// The session screen is on screen and everything on it was just
 		// thrown away; nothing else would ask again until the user left.
@@ -1426,8 +1458,13 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 		reload = tea.Batch(reload, m.loadEvidence())
 	}
 
+	return tea.Batch(reload, m.reloadScopedPane())
+}
+
+// reloadScopedPane refetches the namespaced table the active pane has open.
+func (m *Model) reloadScopedPane() tea.Cmd {
 	if m.view != viewTable || !m.resource.Namespaced {
-		return reload
+		return nil
 	}
 	// Reset rather than refresh: the loaded rows belong to the previous scope,
 	// and leaving them on screen under a new heading is precisely the kind of
@@ -1436,7 +1473,7 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 	m.tablePort.Cursor = 0
 	m.tablePort.Offset = 0
 	m.loadingMore = false
-	return tea.Batch(reload, m.loadTable())
+	return m.loadTable()
 }
 
 func (m *Model) toggleAllNamespaces() tea.Cmd {
@@ -1497,6 +1534,24 @@ func autoRefreshSubtitle(on bool, every time.Duration) string {
 // cluster answered in a tenth of a second that refreshing takes five.
 func (m *Model) refresh() tea.Cmd {
 	cmds := []tea.Cmd{m.beginBusy(true), m.probeCluster(), m.loadNamespaces(), m.loadApplications()}
+	return tea.Batch(append(cmds, m.reloadView()...)...)
+}
+
+// refreshPanes is refresh for a divided screen: the cluster is asked once, and
+// every pane on it reloads what it shows.
+func (m *Model) refreshPanes() tea.Cmd {
+	cmds := []tea.Cmd{m.refresh()}
+	for _, p := range m.visiblePanes() {
+		if p != m.pane {
+			cmds = append(cmds, m.inPane(p, func() tea.Cmd { return tea.Batch(m.reloadView()...) }))
+		}
+	}
+	return tea.Batch(cmds...)
+}
+
+// reloadView refetches what only the active pane's view shows.
+func (m *Model) reloadView() []tea.Cmd {
+	var cmds []tea.Cmd
 	if m.view == viewTable {
 		cmds = append(cmds, m.loadTable())
 	}
@@ -1509,7 +1564,7 @@ func (m *Model) refresh() tea.Cmd {
 	if m.view == viewApplication || m.view == viewWhy || m.view == viewActivity {
 		cmds = append(cmds, m.loadEvidence())
 	}
-	return tea.Batch(cmds...)
+	return cmds
 }
 
 func firstOr(list []string, fallback string) string {

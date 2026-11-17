@@ -24,6 +24,8 @@ func (m *Model) activeSelector() *components.Selector {
 		return m.fleetNSPicker
 	case overlaySort:
 		return m.sortPicker
+	case overlaySplit:
+		return m.splitPicker
 	default:
 		return nil
 	}
@@ -226,6 +228,10 @@ func (m *Model) confirmSelection() tea.Cmd {
 			return choice.accept(m, item.ID)
 		}
 		return m.switchNamespace(item.ID)
+	case overlaySplit:
+		m.closeOverlay()
+		kind, _ := followKindOf(item.ID)
+		return m.openPane(kind, m.pendingSplit)
 	case overlaySort:
 		m.closeOverlay()
 		if item.ID == sortDefaultID {
@@ -254,7 +260,7 @@ func (m *Model) overlayRect() layout.Rect {
 			WidthRatio: 0.9, HeightRatio: 0.45,
 			MinWidth: 44, MaxWidth: 110, MinHeight: 8, MaxHeight: 18,
 		})
-		rect.Height = min(rect.Height, m.screen.Body.Height)
+		rect.Height = min(rect.Height, m.fullBody.Height)
 		rect.Y = m.screen.Status.Y - rect.Height
 		return rect
 	case overlayContexts, overlayNamespaces:
@@ -274,6 +280,11 @@ func (m *Model) overlayRect() layout.Rect {
 		return layout.Overlay(m.screen, layout.OverlayOptions{
 			WidthRatio: 0.6, HeightRatio: 0.65,
 			MinWidth: 44, MaxWidth: 88, MinHeight: 10, MaxHeight: 24,
+		})
+	case overlaySplit:
+		return layout.Overlay(m.screen, layout.OverlayOptions{
+			WidthRatio: 0.5, HeightRatio: 0.5,
+			MinWidth: 44, MaxWidth: 76, MinHeight: 10, MaxHeight: 12,
 		})
 	case overlaySort:
 		// Shorter than the kind picker: this list is one line per column of

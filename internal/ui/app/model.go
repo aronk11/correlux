@@ -17,13 +17,11 @@ import (
 	kubeclient "github.com/aronk11/correlux/internal/kube/client"
 	kubediscovery "github.com/aronk11/correlux/internal/kube/discovery"
 	"github.com/aronk11/correlux/internal/kube/kubeconfig"
-	"github.com/aronk11/correlux/internal/kube/logs"
 	"github.com/aronk11/correlux/internal/kube/resources"
 	"github.com/aronk11/correlux/internal/ui/async"
 	"github.com/aronk11/correlux/internal/ui/components"
 	"github.com/aronk11/correlux/internal/ui/layout"
 	"github.com/aronk11/correlux/internal/ui/palette"
-	"github.com/aronk11/correlux/internal/ui/screens"
 	"github.com/aronk11/correlux/internal/ui/theme"
 	"github.com/aronk11/correlux/internal/update"
 )
@@ -53,6 +51,8 @@ const (
 	// headings on screen, so what somebody can read is what they can sort on —
 	// the same rule the filter follows.
 	overlaySort
+	// overlaySplit chooses what a new pane shows.
+	overlaySplit
 )
 
 // viewKind identifies the full-window view behind any overlay.
@@ -103,6 +103,10 @@ type Options struct {
 
 // Model is the root Bubble Tea model.
 type Model struct {
+	// pane is the pane that has the focus, or the one a message is being
+	// handled for. Its fields are promoted, so m.view is that pane's view.
+	*pane
+
 	restorePending  *config.SavedInvestigation
 	localReports    map[string]inspection.Report
 	observations    map[string][]objectObservation
@@ -126,7 +130,6 @@ type Model struct {
 	cluster    async.Value[kubeclient.ClusterInfo]
 	namespaces async.Value[kubeclient.NamespaceList]
 	catalog    async.Value[*kubediscovery.Catalog]
-	table      async.Value[*resources.Table]
 	apps       async.Value[applicationList]
 	// evidence is the extra context a diagnosis needs. It is loaded for the
 	// scope the user is looking at, never for the whole cluster.
@@ -134,7 +137,6 @@ type Model struct {
 	// permissions is what this account may do in the active scope, asked when
 	// the session screen is opened.
 	permissions async.Value[[]kubeclient.Permission]
-	object      async.Value[*resources.Object]
 	// usage is the rollup of where the pods are and what they use. The report
 	// is computed when its inputs land rather than on every frame, and
 	// usageLive keeps those inputs so a newer snapshot can be rolled up
@@ -147,22 +149,6 @@ type Model struct {
 	// never read as "up to date".
 	updateCheck async.Value[update.Release]
 
-	// One viewport per scrollable screen. The rules they follow live in
-	// layout.Viewport, written once (ADR 4: arithmetic below the UI).
-	appPort        layout.Viewport
-	tablePort      layout.Viewport
-	detailPort     layout.Viewport
-	objectPort     layout.Viewport
-	whyPort        layout.Viewport
-	logPort        layout.Viewport
-	usagePort      layout.Viewport
-	activityPort   layout.Viewport
-	fleetPort      layout.Viewport
-	fleetTablePort layout.Viewport
-	helpPort       layout.Viewport
-	// savedViewports saves scroll positions when leaving a view, restoring them
-	// on return: land where the user left off (ADR 25).
-	savedViewports map[viewKind]layout.Viewport
 	// fleetDraft is the membership being edited in the picker, and
 	// fleetDraftGroup the group it belongs to. It is held here rather than in
 	// the selector because the list is rebuilt from the filter on every
@@ -172,66 +158,6 @@ type Model struct {
 	// fleetNSDraft is the namespace scope being edited, held here for the same
 	// reason: the rows are rebuilt from the filter on every keystroke.
 	fleetNSDraft map[string]bool
-
-	// usageDrilledIn records that the active namespace was entered from the
-	// cluster-wide usage screen, which is what Esc walks back out of there. A
-	// session that simply started in a namespace has nothing to walk back to,
-	// and Esc must leave the screen the way it does everywhere else.
-	usageDrilledIn bool
-	// selectedApp is the application the detail view shows, addressed by key
-	// rather than by index: a reload re-sorts the list, and a cursor position
-	// would then follow the ranking instead of the application.
-	selectedApp string
-	// groupingShown toggles the section that explains why each object landed
-	// in this application: which signal decided it, and how sure that signal
-	// is (ADR 16 — correlation must be explainable).
-	groupingShown bool
-	// whyFrom is the view Diagnosis was opened from, so Esc returns there
-	// rather than to a fixed screen — the dashboard when it was opened from
-	// there directly, the application otherwise (ADR 23).
-	whyFrom viewKind
-	// whySubject is the application whyPort's scroll was last reset for. It is
-	// its own field rather than a comparison against selectedApp because
-	// explainApplication sets selectedApp (via openApplication) before it
-	// calls explain — comparing against selectedApp there would always read
-	// the new value, never the old one.
-	whySubject string
-	// activityFrom is the same idea for Events (ADR 23).
-	activityFrom viewKind
-
-	// The object inspector.
-	objectTarget objectRef
-	// objectTrail is the way back out: opening an owner or a child pushes the
-	// object it was opened from, so Esc retraces the path instead of dumping
-	// the user at the top.
-	objectTrail []objectRef
-	// objectFrom is the view the inspector was opened from, so Esc returns
-	// there rather than to a fixed screen.
-	objectFrom viewKind
-	objectYAML bool
-	// objectDecode shows the document's base64 values as what they decode to.
-	// It changes what is drawn and nothing else: an edit still sends the
-	// document the server holds.
-	objectDecode bool
-	// tree is the YAML view's document as a foldable tree.
-	tree treeState
-
-	// The log view. The stream lives as long as the view does; leaving it
-	// cancels the context and the connections go with it.
-	logFrom       viewKind // return to the investigation that opened logs
-	logTitle      string
-	logTargets    []logs.Source
-	logLines      []logs.Line
-	logStream     <-chan logs.Event
-	logGeneration uint64
-	logFollow     bool
-	logTimestamps bool
-	logPrevious   bool
-	logWrap       bool
-	logClosed     bool
-	logDropped    int
-	logFailed     []string
-	logErr        error
 
 	// The fleet overview. It is read-only and explicitly opted into: the
 	// members are the contexts named in the configuration, plus whatever was
@@ -279,28 +205,6 @@ type Model struct {
 	// running one.
 	executable string
 
-	// The resource browser.
-	view        viewKind
-	resource    kubediscovery.Resource
-	tableWide   screens.WideMode
-	loadingMore bool
-
-	// The order each table is in. They are kept apart on purpose: ordering the
-	// dashboard by restarts says nothing about how somebody wants a list of
-	// nodes, and one screen quietly reordering another is a change nobody
-	// asked for.
-	appSort tableSort
-	// appGroup is what the dashboard is grouped by, if anything.
-	appGroup  groupMode
-	tableSort tableSort
-	fleetSort tableSort
-
-	// frameTable caches the table the frame being rendered draws, so the body,
-	// the status bar and the palette do not each filter and sort every row
-	// again. It is valid for one View and cleared around it.
-	frameTable   *screens.TableData
-	frameCaching bool
-
 	// The timed reload. It is off until the user turns it on, and it only ever
 	// refetches what is on screen.
 	autoRefresh     bool
@@ -323,8 +227,6 @@ type Model struct {
 	// top of one that has not answered yet.
 	appsLoading     bool
 	evidenceLoading bool
-	objectLoading   bool
-	tableLoading    bool
 	clusterLoading  bool
 	usageLoading    bool
 
@@ -332,13 +234,41 @@ type Model struct {
 	cancelCluster    context.CancelFunc
 	cancelNamespaces context.CancelFunc
 	cancelCatalog    context.CancelFunc
-	cancelTable      context.CancelFunc
 	cancelApps       context.CancelFunc
 	cancelEvidence   context.CancelFunc
-	cancelObject     context.CancelFunc
 	cancelUsage      context.CancelFunc
-	cancelLogs       context.CancelFunc
 	cancelFleet      context.CancelFunc
+
+	// The panes on screen, in the order they are laid out. There is always at
+	// least one, and panes[focus] is the one the keyboard is talking to.
+	panes      []*pane
+	focus      int
+	nextPaneID int
+	// tabs are the screenfuls of panes; the one at tabIndex is in front, and
+	// its panes are the ones above.
+	tabs     []*tab
+	tabIndex int
+	// paneTouched records that a pane other than the focused one handled
+	// something, so what the palette offers is rebuilt for the one in front.
+	paneTouched bool
+	// split is which way the screen is divided; zoomed gives the focused pane
+	// all of it for a while, and crowded says the terminal left no choice.
+	split   layout.Split
+	zoomed  bool
+	crowded bool
+	// fullBody is the body before it was divided, and rules the lines drawn
+	// between panes that sit side by side.
+	fullBody layout.Rect
+	rules    []layout.Rect
+	// driverID is the pane companions take their subject from; followKey is
+	// the selection they were last told about and followSeq retires a
+	// catch-up the selection has since moved on from.
+	driverID  int
+	followKey string
+	followSeq uint64
+	// pendingSplit is the direction the split picker is choosing content for.
+	pendingSplit layout.Split
+	splitPicker  *components.Selector
 
 	// Geometry.
 	screen        layout.Screen
@@ -385,10 +315,6 @@ type Model struct {
 	resPicker  *components.Selector
 	sortPicker *components.Selector
 
-	// The filter over whatever list is on screen.
-	search    components.Input
-	searching bool
-
 	// Transient status message.
 	message       string
 	messageStatus theme.Status
@@ -415,20 +341,22 @@ func New(opts Options) *Model {
 	keys, unknown := NewKeyMap(opts.Config.Keybindings)
 
 	m := &Model{
-		cfg:            opts.Config,
-		keys:           keys,
-		caps:           caps,
-		theme:          theme.New(caps, opts.Config.Theme),
-		kubeconfig:     opts.Kubeconfig,
-		factory:        opts.Factory,
-		classifier:     opts.Classifier,
-		contextName:    opts.ContextName,
-		namespace:      opts.Namespace,
-		allNamespaces:  opts.AllNamespaces,
-		resize:         layout.NewDebouncer(layout.DefaultResizeDebounce),
-		registry:       palette.NewRegistry(),
-		savedViewports: make(map[viewKind]layout.Viewport),
+		cfg:           opts.Config,
+		keys:          keys,
+		caps:          caps,
+		theme:         theme.New(caps, opts.Config.Theme),
+		kubeconfig:    opts.Kubeconfig,
+		factory:       opts.Factory,
+		classifier:    opts.Classifier,
+		contextName:   opts.ContextName,
+		namespace:     opts.Namespace,
+		allNamespaces: opts.AllNamespaces,
+		resize:        layout.NewDebouncer(layout.DefaultResizeDebounce),
+		registry:      palette.NewRegistry(),
+		pane:          newPane(0),
 	}
+	m.panes = []*pane{m.pane}
+	m.tabs = []*tab{{panes: m.panes}}
 	// The first group is the one the session opens on. When a top-level fleet
 	// list is present that is the implicit "default", so a configuration that
 	// predates named groups keeps opening exactly the clusters it always did.
@@ -454,9 +382,6 @@ func New(opts Options) *Model {
 		}
 	}
 
-	// The placeholder is where the comparison syntax is discovered: nobody
-	// reads a help screen to find out that a filter can do arithmetic.
-	m.search = newInput("filter…  or restarts>5, age<1h, ns=shop")
 	m.confirmInput = newInput("")
 	m.promptInput = newInput("")
 
@@ -482,6 +407,8 @@ func New(opts Options) *Model {
 
 	m.resPicker = components.NewSelector("Resources", "Filter resource kinds…", m.filterResources)
 	m.sortPicker = components.NewSelector("Sort by", "Filter columns…", m.filterSortColumns)
+	m.splitPicker = components.NewSelector("Open beside", "Filter…", m.filterSplitChoices)
+	m.splitPicker.EmptyMessage = "Nothing matches."
 	m.resPicker.EmptyMessage = "No resource kind matches."
 	m.resPicker.Footer = "Enter open   Esc cancel"
 

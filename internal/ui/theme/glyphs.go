@@ -35,9 +35,11 @@ type Glyphs struct {
 	Ellipsis  string
 	// Rule draws the line that closes the header block. It is chrome, not
 	// content: one character repeated across the width.
-	Rule   string
-	Prompt string
-	Prod   string
+	Rule string
+	// PaneRule is the line between two panes that sit side by side.
+	PaneRule string
+	Prompt   string
+	Prod     string
 	// BarFull and BarEmpty draw a proportion. They are a shape, never a
 	// meaning: the number they illustrate is always printed beside them.
 	BarFull  string
@@ -78,6 +80,7 @@ var unicodeGlyphs = Glyphs{
 	Arrow:     "→",
 	Ellipsis:  "…",
 	Rule:      "─",
+	PaneRule:  "│",
 	Prompt:    "❯",
 	Prod:      "⬤",
 	BarFull:   "█",
@@ -106,6 +109,7 @@ var asciiGlyphs = Glyphs{
 	Arrow:     "->",
 	Ellipsis:  "...",
 	Rule:      "-",
+	PaneRule:  "|",
 	Prompt:    ">",
 	Prod:      "#",
 	BarFull:   "#",

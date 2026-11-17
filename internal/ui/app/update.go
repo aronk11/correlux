@@ -25,7 +25,68 @@ const busyGrace = 400 * time.Millisecond
 
 // Update is the single place where state changes. It must never block: any
 // work that can take time is returned as a command.
+//
+// It is also where a message finds its pane. An answer addressed to one is
+// handled as if that pane had the focus, and whatever handling it starts is
+// addressed the same way, so a table that was asked for in one pane cannot
+// land in another (ADR 33).
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch target := m.targetPane(msg); {
+	case target == nil:
+		// For a pane that has since been closed, about something only that
+		// pane could use.
+		return m, nil
+	case target == m.pane:
+		origin := m.pane.id
+		_, cmd = m.update(unwrapPaneMsg(msg))
+		cmd = tagCmd(origin, cmd)
+	default:
+		cmd = m.inPane(target, func() tea.Cmd {
+			_, c := m.update(unwrapPaneMsg(msg))
+			return c
+		})
+	}
+	if m.paneTouched {
+		m.paneTouched = false
+		m.rebuildCommands()
+	}
+	if movesSelection(msg) {
+		cmd = tea.Batch(cmd, m.noteSelection())
+	}
+	return m, cmd
+}
+
+// targetPane decides which pane handles msg: the one it is addressed to, the
+// first one for an answer that went out bare, and the one in front for
+// everything that is about the session rather than about a pane.
+func (m *Model) targetPane(msg tea.Msg) *pane {
+	id, inner := 0, msg
+	switch pm, addressed := msg.(paneMsg); {
+	case addressed:
+		id, inner = pm.pane, pm.msg
+	case !ownMsg(msg):
+		// A key, a click, a new window size: the terminal's, and so the
+		// focused pane's.
+		return m.pane
+	}
+	if p := m.paneByID(id); p != nil {
+		return p
+	}
+	if paneScoped(inner) {
+		return nil
+	}
+	return m.pane
+}
+
+func unwrapPaneMsg(msg tea.Msg) tea.Msg {
+	if pm, ok := msg.(paneMsg); ok {
+		return pm.msg
+	}
+	return msg
+}
+
+func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m, m.handleResize(msg)
@@ -69,6 +130,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case autoRefreshTickMsg:
 		return m, m.handleAutoRefreshTick(msg)
+
+	case followDueMsg:
+		if msg.seq != m.followSeq {
+			return m, nil
+		}
+		return m, m.syncFollowers()
 
 	case updateInstalledMsg:
 		return m, m.applyUpdateInstalled(msg)
@@ -290,6 +357,8 @@ func (m *Model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
 
 func (m *Model) applyLayout() {
 	m.screen = layout.Compute(m.width, m.height)
+	m.fullBody = m.screen.Body
+	m.layoutPanes()
 }
 
 // applyTablePage stores a page of results, appending it when it continues the
@@ -376,7 +445,7 @@ func (m *Model) handleAutoRefreshTick(msg autoRefreshTickMsg) tea.Cmd {
 	}
 	cmds := []tea.Cmd{scheduleAutoRefresh(m.refreshSeq, m.autoRefreshDelay())}
 	if m.overlay == overlayNone {
-		if reload := m.autoReload(); len(reload) > 0 {
+		if reload := m.autoReloadPanes(); len(reload) > 0 {
 			// The timer announces itself only if it turns out to be slow, so a
 			// cluster that answers quickly leaves the header still.
 			cmds = append(cmds, m.beginBusy(false))
@@ -384,6 +453,19 @@ func (m *Model) handleAutoRefreshTick(msg autoRefreshTickMsg) tea.Cmd {
 		}
 	}
 	return tea.Batch(cmds...)
+}
+
+// autoReloadPanes is autoReload for every pane on screen. What they share is
+// asked for once: the in-flight markers each reload sets are what stop the
+// second pane from asking again.
+func (m *Model) autoReloadPanes() []tea.Cmd {
+	var cmds []tea.Cmd
+	for _, p := range m.visiblePanes() {
+		if cmd := m.inPane(p, func() tea.Cmd { return tea.Batch(m.autoReload()...) }); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	return cmds
 }
 
 // autoReload refetches what the current view is showing, and only that. The
@@ -474,12 +556,15 @@ func (m *Model) applyApplications(msg *applicationsLoadedMsg) tea.Cmd {
 		}
 		return nil
 	}
-	previous := m.cursorApplicationKey()
+	// Every pane with the dashboard open has a cursor to keep on its
+	// application: the list is one, the places in it are several.
+	previous := make(map[*pane]string, len(m.panes))
+	m.eachPane(func() { previous[m.pane] = m.cursorApplicationKey() })
 	if !m.apps.Succeed(msg.gen, msg.list) {
 		return nil
 	}
 	m.refreshFailures = 0
-	m.keepCursorOnApplication(previous)
+	m.eachPane(func() { m.keepCursorOnApplication(previous[m.pane]) })
 	m.rediagnose()
 	hello := m.greet()
 	cheer := tea.Batch(hello, m.cheerRecoveries())
@@ -857,6 +942,23 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 
+	if m.overlay == overlayNone && m.atFollowRoot() {
+		// A companion shows what the pane beside it has selected, so there is
+		// no screen behind it to go back to: Esc closes it, and the keys that
+		// mean "back" elsewhere do nothing rather than strand it on a screen
+		// nobody opened.
+		switch keystroke {
+		case m.keys.raw(ActionClose):
+			if m.filtering() {
+				m.clearSearch()
+				return nil
+			}
+			return m.closeFocusedPane()
+		case "left", "h":
+			return nil
+		}
+	}
+
 	if m.overlay == overlayNone {
 		switch m.view {
 		case viewTable:
@@ -904,6 +1006,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 
 	action, ok := m.keys.Action(keystroke)
 	if !ok {
+		if i, isTab := tabKey(keystroke); isTab && m.overlay == overlayNone {
+			return m.switchTab(i)
+		}
 		return nil
 	}
 	if m.writesCluster(action) {
@@ -961,7 +1066,29 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case ActionActivity:
 		return m.openActivity()
 	case ActionRefresh:
-		return m.refresh()
+		return m.refreshPanes()
+	case ActionSplitRight:
+		return m.openSplitPicker(layout.SplitRight)
+	case ActionSplitBelow:
+		return m.openSplitPicker(layout.SplitBelow)
+	case ActionPaneNext:
+		return m.cyclePane(1)
+	case ActionPanePrevious:
+		return m.cyclePane(-1)
+	case ActionPaneZoom:
+		return m.toggleZoom()
+	case ActionPanePin:
+		return m.togglePin()
+	case ActionPaneClose:
+		return m.closeFocusedPane()
+	case ActionIncident:
+		return m.openIncident()
+	case ActionTabNew:
+		return m.newTab()
+	case ActionTabNext:
+		return m.cycleTab(1)
+	case ActionTabPrevious:
+		return m.cycleTab(-1)
 	case ActionAutoRefresh:
 		return m.toggleAutoRefresh()
 	case ActionClose:
@@ -973,6 +1100,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			// Esc undoes the filter first; leaving the view is the next press.
 			m.clearSearch()
 			return nil
+		}
+		if m.focus > 0 && m.view == viewApplications {
+			// The dashboard is where back stops. In a pane that is one of
+			// several, the next step out is the pane itself.
+			return m.closeFocusedPane()
 		}
 		return m.goBack()
 	case ActionApplications:
@@ -1066,6 +1198,16 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 		}
 		return nil
 	}
+	// The wheel scrolls what the pointer is over, which need not be the pane
+	// the keyboard is in.
+	if i, ok := m.paneAt(msg.Mouse().X, msg.Mouse().Y); ok && i != m.focus {
+		return m.inPane(m.panes[i], func() tea.Cmd { return m.scrollView(delta) })
+	}
+	return m.scrollView(delta)
+}
+
+// scrollView moves the active pane's view by delta lines.
+func (m *Model) scrollView(delta int) tea.Cmd {
 	switch m.view {
 	case viewTable:
 		return m.scrollTable(delta)
@@ -1113,7 +1255,17 @@ func (m *Model) handleClick(msg tea.MouseClickMsg) tea.Cmd {
 		return nil
 	}
 	if m.overlay == overlayNone && msg.Mouse().Y == m.screen.Nav.Y {
+		if cmd, ok := m.clickTab(msg.Mouse().X); ok {
+			return cmd
+		}
 		return m.clickNavigation(msg.Mouse().X)
+	}
+	if m.overlay == overlayNone {
+		// A click in another pane moves the keyboard there and does nothing
+		// else: selecting and opening stay two separate, deliberate acts.
+		if i, ok := m.paneAt(msg.Mouse().X, msg.Mouse().Y); ok && i != m.focus {
+			return m.focusPane(i)
+		}
 	}
 	if m.overlay == overlayNone && m.screen.Body.Contains(msg.Mouse().X, msg.Mouse().Y) {
 		return m.clickBody(msg.Mouse().X, msg.Mouse().Y)
@@ -1188,8 +1340,8 @@ func shortError(err error) string { return kubeclient.FriendlyError(err) }
 
 // busy reports whether anything the screen is showing is being reloaded.
 func (m *Model) busy() bool {
-	return m.appsLoading || m.evidenceLoading || m.objectLoading ||
-		m.tableLoading || m.clusterLoading || m.usageLoading
+	return m.appsLoading || m.evidenceLoading || m.paneBusy() ||
+		m.clusterLoading || m.usageLoading
 }
 
 // beginBusy starts a burst of reloading and decides when the header may say

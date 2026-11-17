@@ -152,8 +152,27 @@ func (d *BrowserDemo) Step(in DemoInput) DemoFrame {
 		m.quitting = false
 		m.notice("Demo session stays open. Use Reset demo to start again.", theme.StatusUnknown)
 	}
+	// No command ever runs here, the catch-up timer included: companions
+	// are brought up to the selection by hand.
+	m.Update(followDueMsg{seq: m.followSeq})
 	d.hydrate(false)
 	return DemoFrame{ANSI: m.View().Content, View: int(m.view), Overlay: int(m.overlay), Context: m.contextName, Width: m.screen.Width, Height: m.screen.Height}
+}
+
+// hydrateLogs fills the active pane's log view with fixture output.
+func (d *BrowserDemo) hydrateLogs() {
+	m := d.m
+	if m.view != viewLogs || len(m.logLines) != 0 || len(m.logTargets) == 0 {
+		return
+	}
+	for i := 0; i < 35; i++ {
+		text := fmt.Sprintf("INFO request completed method=GET path=/health duration=%dms", 12+i%7)
+		if strings.Contains(m.logTitle, "payments") {
+			text = "ERROR allocation failed: memory limit exceeded; worker shutting down"
+		}
+		m.logLines = append(m.logLines, logs.Line{Source: m.logTargets[0], Text: text, At: time.Now().Add(time.Duration(i-35) * time.Second)})
+	}
+	m.logClosed = true
 }
 
 func (d *BrowserDemo) navigate(screen string) {
@@ -248,12 +267,17 @@ func (d *BrowserDemo) hydrate(force bool) {
 	if force || m.evidence.State() != async.Ready {
 		m.Update(evidenceLoadedMsg{gen: m.evidence.Generation(), context: d.evidence(apps)})
 	}
-	if m.view == viewTable && (force || m.table.State() != async.Ready) {
-		m.Update(tableLoadedMsg{gen: m.table.Generation(), table: d.table(m.resource.Kind(), apps)})
-	}
-	if m.view == viewObject && (force || m.object.State() != async.Ready) {
-		m.Update(objectLoadedMsg{gen: m.object.Generation(), object: d.object(m.objectTarget)})
-	}
+	// Each pane has its own table and its own object; an answer delivered
+	// through Update would be the first pane's.
+	m.eachPane(func() {
+		if m.view == viewTable && (force || m.table.State() != async.Ready) {
+			m.update(tableLoadedMsg{gen: m.table.Generation(), table: d.table(m.resource.Kind(), apps)})
+		}
+		if m.view == viewObject && (force || m.object.State() != async.Ready) {
+			m.update(objectLoadedMsg{gen: m.object.Generation(), object: d.object(m.objectTarget)})
+		}
+		d.hydrateLogs()
+	})
 	if m.view == viewUsage && (force || m.usage.State() != async.Ready) {
 		live := usage.Live{Nodes: d.evidence(apps).Nodes, Metrics: usage.Metrics{Available: true, At: time.Now(), Window: 30 * time.Second}}
 		for _, n := range live.Nodes {
@@ -280,21 +304,10 @@ func (d *BrowserDemo) hydrate(force bool) {
 		m.fleetTable = resources.Merge(parts, m.fleetResource.Namespaced)
 		m.fleetPending = 0
 	}
-	if m.view == viewLogs && len(m.logLines) == 0 {
-		for i := 0; i < 35; i++ {
-			text := fmt.Sprintf("INFO request completed method=GET path=/health duration=%dms", 12+i%7)
-			if strings.Contains(m.logTitle, "payments") {
-				text = "ERROR allocation failed: memory limit exceeded; worker shutting down"
-			}
-			m.logLines = append(m.logLines, logs.Line{Source: m.logTargets[0], Text: text, At: time.Now().Add(time.Duration(i-35) * time.Second)})
-		}
-		m.logClosed = true
-	}
 	m.appsLoading = false
 	m.evidenceLoading = false
 	m.clusterLoading = false
-	m.tableLoading = false
-	m.objectLoading = false
+	m.eachPane(func() { m.tableLoading, m.objectLoading = false, false })
 	m.usageLoading = false
 	m.rebuildCommands()
 	commands := m.registry.Commands()
