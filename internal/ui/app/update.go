@@ -25,21 +25,78 @@ const busyGrace = 400 * time.Millisecond
 
 // Update is the single place where state changes. It must never block: any
 // work that can take time is returned as a command.
+//
+// It is also where a message finds its pane. An answer addressed to one is
+// handled as if that pane had the focus, and whatever handling it starts is
+// addressed the same way, so a table that was asked for in one pane cannot
+// land in another (ADR 33).
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch target := m.targetPane(msg); target {
+	case nil:
+		// For a pane that has since been closed, about something only that
+		// pane could use.
+		return m, nil
+	case m.pane:
+		origin := m.id
+		cmd = tagCmd(origin, m.update(unwrapPaneMsg(msg)))
+	default:
+		cmd = m.inPane(target, func() tea.Cmd { return m.update(unwrapPaneMsg(msg)) })
+	}
+	if m.paneTouched {
+		m.paneTouched = false
+		m.rebuildCommands()
+	}
+	if movesSelection(msg) {
+		cmd = tea.Batch(cmd, m.noteSelection())
+	}
+	return m, cmd
+}
+
+// targetPane decides which pane handles msg: the one it is addressed to, the
+// first one for an answer that went out bare, and the one in front for
+// everything that is about the session rather than about a pane.
+func (m *Model) targetPane(msg tea.Msg) *pane {
+	id, inner := 0, msg
+	switch pm, addressed := msg.(paneMsg); {
+	case addressed:
+		id, inner = pm.pane, pm.msg
+	case !ownMsg(msg):
+		// A key, a click, a new window size: the terminal's, and so the
+		// focused pane's.
+		return m.pane
+	}
+	if p := m.paneByID(id); p != nil {
+		return p
+	}
+	if paneScoped(inner) {
+		return nil
+	}
+	return m.pane
+}
+
+func unwrapPaneMsg(msg tea.Msg) tea.Msg {
+	if pm, ok := msg.(paneMsg); ok {
+		return pm.msg
+	}
+	return msg
+}
+
+func (m *Model) update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		return m, m.handleResize(msg)
+		return m.handleResize(msg)
 
 	case resizeSettledMsg:
 		run, retry := m.resize.Ready(time.Now())
 		if !run {
 			if retry > 0 {
-				return m, scheduleResize(retry)
+				return scheduleResize(retry)
 			}
-			return m, nil
+			return nil
 		}
 		m.applyLayout()
-		return m, nil
+		return nil
 
 	case tea.BackgroundColorMsg:
 		// The terminal told us its real background; rebuild the theme so the
@@ -49,41 +106,47 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.caps.Dark = dark
 			m.theme = theme.New(m.caps, m.cfg.Theme)
 		}
-		return m, nil
+		return nil
 
 	case uv.DarkColorSchemeEvent, uv.LightColorSchemeEvent, tea.FocusMsg:
 		// The system switched between light and dark, or the window came
 		// back to the front, possibly after one. The terminal's background is
 		// what the palette has to match, and it need not follow the system,
 		// so it is asked again rather than assumed.
-		return m, tea.RequestBackgroundColor
+		return tea.RequestBackgroundColor
 
 	case tea.KeyPressMsg:
-		return m, m.handleKey(msg)
+		return m.handleKey(msg)
 
 	case tea.MouseWheelMsg:
-		return m, m.handleWheel(msg)
+		return m.handleWheel(msg)
 
 	case tea.MouseClickMsg:
-		return m, m.handleClick(msg)
+		return m.handleClick(msg)
 
 	case autoRefreshTickMsg:
-		return m, m.handleAutoRefreshTick(msg)
+		return m.handleAutoRefreshTick(msg)
+
+	case followDueMsg:
+		if msg.seq != m.followSeq {
+			return nil
+		}
+		return m.syncFollowers()
 
 	case updateInstalledMsg:
-		return m, m.applyUpdateInstalled(msg)
+		return m.applyUpdateInstalled(msg)
 
 	case updateCheckedMsg:
-		return m, m.applyUpdateCheck(msg)
+		return m.applyUpdateCheck(msg)
 	case clusterProbedMsg:
 		if m.cluster.Accepts(msg.gen) {
 			m.clusterLoading = false
 		}
 		if m.cluster.Succeed(msg.gen, msg.info) && msg.info.State != kubeclient.ConnOK {
 			m.notice(connectionNotice(msg.info), theme.StatusCritical)
-			return m, m.expireNotice()
+			return m.expireNotice()
 		}
-		return m, nil
+		return nil
 
 	case namespacesLoadedMsg:
 		if msg.err != nil {
@@ -97,7 +160,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.overlay == overlayNamespaces && m.nsChoice != nil && m.nsChoice.prefer != "" && m.nsPicker.Query() == "" {
 			m.nsPicker.SelectID(m.nsChoice.prefer)
 		}
-		return m, nil
+		return nil
 
 	case catalogLoadedMsg:
 		if msg.err != nil {
@@ -108,118 +171,118 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.notice(itoa(len(msg.catalog.Failures))+" API group(s) could not be discovered; the rest is usable",
 					theme.StatusWarning)
 				m.resPicker.Refresh()
-				return m, tea.Batch(m.expireNotice(), m.tryRestoreInvestigation())
+				return tea.Batch(m.expireNotice(), m.tryRestoreInvestigation())
 			}
 		}
 		m.resPicker.Refresh()
-		return m, m.tryRestoreInvestigation()
+		return m.tryRestoreInvestigation()
 
 	case applicationsLoadedMsg:
 		cmd := m.applyApplications(&msg)
-		return m, tea.Batch(cmd, m.tryRestoreInvestigation())
+		return tea.Batch(cmd, m.tryRestoreInvestigation())
 
 	case fleetStartedMsg:
 		if msg.gen != m.fleetGeneration {
-			return m, nil
+			return nil
 		}
 		m.fleetResults = msg.results
-		return m, waitForFleet(msg.gen, msg.results)
+		return waitForFleet(msg.gen, msg.results)
 
 	case fleetMemberMsg:
-		return m, m.applyFleetMember(msg)
+		return m.applyFleetMember(msg)
 
 	case fleetPartsMsg:
 		if msg.gen != m.fleetGeneration {
-			return m, nil
+			return nil
 		}
 		m.fleetPartsChan = msg.parts
-		return m, waitForFleetPart(msg.gen, msg.parts)
+		return waitForFleetPart(msg.gen, msg.parts)
 
 	case fleetPartMsg:
-		return m, m.applyFleetPart(msg)
+		return m.applyFleetPart(msg)
 
 	case logsStartedMsg:
 		if msg.gen != m.logGeneration {
-			return m, nil
+			return nil
 		}
 		if msg.err != nil {
 			m.logErr = msg.err
-			return m, nil
+			return nil
 		}
 		m.logStream = msg.stream
-		return m, waitForLogs(msg.gen, msg.stream)
+		return waitForLogs(msg.gen, msg.stream)
 
 	case logBatchMsg:
-		return m, m.applyLogBatch(msg)
+		return m.applyLogBatch(msg)
 
 	case helmValuesLoadedMsg:
-		return m, m.applyHelmValuesLoaded(&msg)
+		return m.applyHelmValuesLoaded(&msg)
 	case helmValuesEditedMsg:
-		return m, m.applyHelmValuesEdited(&msg)
+		return m.applyHelmValuesEdited(&msg)
 	case snapshotReadMsg:
-		return m, m.applySnapshotRead(&msg)
+		return m.applySnapshotRead(&msg)
 	case reportExportedMsg:
-		return m, m.applyReportExported(msg)
+		return m.applyReportExported(msg)
 	case forwardStartedMsg:
-		return m, m.applyForwardStarted(msg)
+		return m.applyForwardStarted(msg)
 	case forwardEventMsg:
-		return m, m.applyForwardEvent(msg)
+		return m.applyForwardEvent(msg)
 	case debugCreatedMsg:
-		return m, m.applyDebugCreated(&msg)
+		return m.applyDebugCreated(&msg)
 	case probeStartedMsg:
-		return m, m.applyProbeStarted(&msg)
+		return m.applyProbeStarted(&msg)
 
 	case ephemeralAddedMsg:
-		return m, m.applyEphemeralAdded(&msg)
+		return m.applyEphemeralAdded(&msg)
 	case helmChangedMsg:
-		return m, m.applyHelmChanged(&msg)
+		return m.applyHelmChanged(&msg)
 	case objectLoadedMsg:
 		if m.object.Accepts(msg.gen) {
 			m.objectLoading = false
 		}
 		if msg.err != nil {
 			m.object.Fail(msg.gen, msg.err)
-			return m, nil
+			return nil
 		}
 		if m.object.Accepts(msg.gen) {
 			m.observeObject(msg.object)
 		}
 		m.object.Succeed(msg.gen, msg.object)
 		m.rebuildCommands()
-		return m, nil
+		return nil
 
 	case usageLoadedMsg:
 		m.applyUsage(msg)
-		return m, nil
+		return nil
 
 	case scaledMsg:
-		return m, m.applyScaled(msg)
+		return m.applyScaled(msg)
 
 	case cordonedMsg:
-		return m, m.applyCordoned(msg)
+		return m.applyCordoned(msg)
 	case deletedMsg:
-		return m, m.applyDeleted(msg)
+		return m.applyDeleted(msg)
 
 	case restartProbedMsg:
-		return m, m.applyRestartProbe(&msg)
+		return m.applyRestartProbe(&msg)
 
 	case restartedMsg:
-		return m, m.applyRestarted(msg)
+		return m.applyRestarted(msg)
 
 	case rollbackPlannedMsg:
-		return m, m.applyRollbackPlan(&msg)
+		return m.applyRollbackPlan(&msg)
 
 	case rolledBackMsg:
-		return m, m.applyRolledBack(msg)
+		return m.applyRolledBack(msg)
 
 	case execEndedMsg:
-		return m, m.applyExecEnded(msg)
+		return m.applyExecEnded(msg)
 
 	case editFinishedMsg:
-		return m, m.applyEditedBuffer(msg)
+		return m.applyEditedBuffer(msg)
 
 	case editedMsg:
-		return m, m.applyEdited(msg)
+		return m.applyEdited(msg)
 
 	case evidenceLoadedMsg:
 		if m.evidence.Accepts(msg.gen) {
@@ -227,37 +290,37 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.err != nil {
 			m.evidence.Fail(msg.gen, msg.err)
-			return m, nil
+			return nil
 		}
 		if m.evidence.Succeed(msg.gen, msg.context) {
 			// The explanation improves as soon as the evidence lands.
 			m.rediagnose()
 		}
-		return m, nil
+		return nil
 
 	case permissionsLoadedMsg:
 		if msg.err != nil {
 			m.permissions.Fail(msg.gen, msg.err)
-			return m, nil
+			return nil
 		}
 		m.permissions.Succeed(msg.gen, msg.permissions)
-		return m, nil
+		return nil
 
 	case tableLoadedMsg:
-		return m, m.applyTablePage(msg)
+		return m.applyTablePage(msg)
 
 	case kubeconfigReloadedMsg:
-		return m, m.applyReloadedKubeconfig(msg)
+		return m.applyReloadedKubeconfig(msg)
 
 	case greetingDoneMsg:
 		m.greeting = ""
-		return m, nil
+		return nil
 	case messageExpiredMsg:
 		if msg.seq == m.messageSeq {
 			m.message = ""
 			m.messageStatus = theme.StatusUnknown
 		}
-		return m, nil
+		return nil
 
 	case busyAdmittedMsg:
 		// Only if the burst this was scheduled for is the current one and is
@@ -266,9 +329,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.seq == m.busySeq && m.busy() {
 			m.busyShown = true
 		}
-		return m, nil
+		return nil
 	}
-	return m, nil
+	return nil
 }
 
 // handleResize coalesces resize bursts: dragging a window emits dozens of
@@ -290,6 +353,8 @@ func (m *Model) handleResize(msg tea.WindowSizeMsg) tea.Cmd {
 
 func (m *Model) applyLayout() {
 	m.screen = layout.Compute(m.width, m.height)
+	m.fullBody = m.screen.Body
+	m.layoutPanes()
 }
 
 // applyTablePage stores a page of results, appending it when it continues the
@@ -376,7 +441,7 @@ func (m *Model) handleAutoRefreshTick(msg autoRefreshTickMsg) tea.Cmd {
 	}
 	cmds := []tea.Cmd{scheduleAutoRefresh(m.refreshSeq, m.autoRefreshDelay())}
 	if m.overlay == overlayNone {
-		if reload := m.autoReload(); len(reload) > 0 {
+		if reload := m.autoReloadPanes(); len(reload) > 0 {
 			// The timer announces itself only if it turns out to be slow, so a
 			// cluster that answers quickly leaves the header still.
 			cmds = append(cmds, m.beginBusy(false))
@@ -384,6 +449,19 @@ func (m *Model) handleAutoRefreshTick(msg autoRefreshTickMsg) tea.Cmd {
 		}
 	}
 	return tea.Batch(cmds...)
+}
+
+// autoReloadPanes is autoReload for every pane on screen. What they share is
+// asked for once: the in-flight markers each reload sets are what stop the
+// second pane from asking again.
+func (m *Model) autoReloadPanes() []tea.Cmd {
+	var cmds []tea.Cmd
+	for _, p := range m.visiblePanes() {
+		if cmd := m.inPane(p, func() tea.Cmd { return tea.Batch(m.autoReload()...) }); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	return cmds
 }
 
 // autoReload refetches what the current view is showing, and only that. The
@@ -474,12 +552,15 @@ func (m *Model) applyApplications(msg *applicationsLoadedMsg) tea.Cmd {
 		}
 		return nil
 	}
-	previous := m.cursorApplicationKey()
+	// Every pane with the dashboard open has a cursor to keep on its
+	// application: the list is one, the places in it are several.
+	previous := make(map[*pane]string, len(m.panes))
+	m.eachPane(func() { previous[m.pane] = m.cursorApplicationKey() })
 	if !m.apps.Succeed(msg.gen, msg.list) {
 		return nil
 	}
 	m.refreshFailures = 0
-	m.keepCursorOnApplication(previous)
+	m.eachPane(func() { m.keepCursorOnApplication(previous[m.pane]) })
 	m.rediagnose()
 	hello := m.greet()
 	cheer := tea.Batch(hello, m.cheerRecoveries())
@@ -857,6 +938,23 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 
+	if m.overlay == overlayNone && m.atFollowRoot() {
+		// A companion shows what the pane beside it has selected, so there is
+		// no screen behind it to go back to: Esc closes it, and the keys that
+		// mean "back" elsewhere do nothing rather than strand it on a screen
+		// nobody opened.
+		switch keystroke {
+		case m.keys.raw(ActionClose):
+			if m.filtering() {
+				m.clearSearch()
+				return nil
+			}
+			return m.closeFocusedPane()
+		case "left", "h":
+			return nil
+		}
+	}
+
 	if m.overlay == overlayNone {
 		switch m.view {
 		case viewTable:
@@ -904,6 +1002,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 
 	action, ok := m.keys.Action(keystroke)
 	if !ok {
+		if i, isTab := tabKey(keystroke); isTab && m.overlay == overlayNone {
+			return m.switchTab(i)
+		}
 		return nil
 	}
 	if m.writesCluster(action) {
@@ -961,7 +1062,29 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case ActionActivity:
 		return m.openActivity()
 	case ActionRefresh:
-		return m.refresh()
+		return m.refreshPanes()
+	case ActionSplitRight:
+		return m.openSplitPicker(layout.SplitRight)
+	case ActionSplitBelow:
+		return m.openSplitPicker(layout.SplitBelow)
+	case ActionPaneNext:
+		return m.cyclePane(1)
+	case ActionPanePrevious:
+		return m.cyclePane(-1)
+	case ActionPaneZoom:
+		return m.toggleZoom()
+	case ActionPanePin:
+		return m.togglePin()
+	case ActionPaneClose:
+		return m.closeFocusedPane()
+	case ActionIncident:
+		return m.openIncident()
+	case ActionTabNew:
+		return m.newTab()
+	case ActionTabNext:
+		return m.cycleTab(1)
+	case ActionTabPrevious:
+		return m.cycleTab(-1)
 	case ActionAutoRefresh:
 		return m.toggleAutoRefresh()
 	case ActionClose:
@@ -973,6 +1096,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			// Esc undoes the filter first; leaving the view is the next press.
 			m.clearSearch()
 			return nil
+		}
+		if m.focus > 0 && m.view == viewApplications {
+			// The dashboard is where back stops. In a pane that is one of
+			// several, the next step out is the pane itself.
+			return m.closeFocusedPane()
 		}
 		return m.goBack()
 	case ActionApplications:
@@ -1066,6 +1194,16 @@ func (m *Model) handleWheel(msg tea.MouseWheelMsg) tea.Cmd {
 		}
 		return nil
 	}
+	// The wheel scrolls what the pointer is over, which need not be the pane
+	// the keyboard is in.
+	if i, ok := m.paneAt(msg.Mouse().X, msg.Mouse().Y); ok && i != m.focus {
+		return m.inPane(m.panes[i], func() tea.Cmd { return m.scrollView(delta) })
+	}
+	return m.scrollView(delta)
+}
+
+// scrollView moves the active pane's view by delta lines.
+func (m *Model) scrollView(delta int) tea.Cmd {
 	switch m.view {
 	case viewTable:
 		return m.scrollTable(delta)
@@ -1113,7 +1251,17 @@ func (m *Model) handleClick(msg tea.MouseClickMsg) tea.Cmd {
 		return nil
 	}
 	if m.overlay == overlayNone && msg.Mouse().Y == m.screen.Nav.Y {
+		if cmd, ok := m.clickTab(msg.Mouse().X); ok {
+			return cmd
+		}
 		return m.clickNavigation(msg.Mouse().X)
+	}
+	if m.overlay == overlayNone {
+		// A click in another pane moves the keyboard there and does nothing
+		// else: selecting and opening stay two separate, deliberate acts.
+		if i, ok := m.paneAt(msg.Mouse().X, msg.Mouse().Y); ok && i != m.focus {
+			return m.focusPane(i)
+		}
 	}
 	if m.overlay == overlayNone && m.screen.Body.Contains(msg.Mouse().X, msg.Mouse().Y) {
 		return m.clickBody(msg.Mouse().X, msg.Mouse().Y)
@@ -1188,8 +1336,8 @@ func shortError(err error) string { return kubeclient.FriendlyError(err) }
 
 // busy reports whether anything the screen is showing is being reloaded.
 func (m *Model) busy() bool {
-	return m.appsLoading || m.evidenceLoading || m.objectLoading ||
-		m.tableLoading || m.clusterLoading || m.usageLoading
+	return m.appsLoading || m.evidenceLoading || m.paneBusy() ||
+		m.clusterLoading || m.usageLoading
 }
 
 // beginBusy starts a burst of reloading and decides when the header may say

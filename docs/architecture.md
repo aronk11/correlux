@@ -56,12 +56,12 @@ The rule that keeps this honest: **no Kubernetes call happens outside a
 | `internal/domain/fleet` | The application model one level up: several clusters merged into one answer, with each cluster's own state kept ([ADR 19](adr/0019-fleet-overview.md)). |
 | `internal/domain/diagnosis` | Twenty-nine deterministic rules that turn evidence into a problem, a cause, the facts behind it and what to check next. Degrades with the evidence available ([ADR 18](adr/0018-evidence-on-demand.md)). |
 | `internal/ui/async` | `Value[T]`: lifecycle plus generation counter for every remote value. |
-| `internal/ui/layout` | Screen geometry, the resize debouncer and `Viewport` — the scrolling and selection rules every scrollable screen shares. Pure arithmetic. |
+| `internal/ui/layout` | Screen geometry, the resize debouncer and `Viewport` — the scrolling and selection rules every scrollable screen shares. Pure arithmetic. `Panes` divides the body among panes: one arrangement, not a tree ([ADR 33](adr/0033-panes-and-tabs.md)). |
 | `internal/ui/theme` | Colours, glyphs, terminal capability detection. |
 | `internal/ui/palette` | Command registry and fuzzy ranking. No UI dependency. |
 | `internal/ui/components` | Reusable widgets: input, selector, header, status bar. |
 | `internal/ui/screens` | Full-window views (application dashboard, application detail, WHY, resource table, session); data in, string out. |
-| `internal/ui/app` | The Bubble Tea model: keys, overlays, commands, rendering. |
+| `internal/ui/app` | The Bubble Tea model: keys, overlays, commands, rendering. Per-view state lives in a `pane`; the model embeds the focused one. |
 
 ## Start-up sequence
 
@@ -114,6 +114,31 @@ stays on screen, scrolling drags it along rather than leaving it for the next
 keypress to jump back to, nothing runs past the last screenful, and a screenful
 with nothing selectable scrolls instead of jumping. Those rules were written six
 times before, and had drifted far enough apart to produce a bug.
+
+## Panes
+
+A screen is up to four panes, and the session holds up to nine screens as tabs.
+Everything that belongs to one view (which screen it is on, the cursor, the
+scroll positions, the filter, the log stream, the object being read) is a field
+of `pane`. The `Model` embeds the focused pane, so the handlers read and write
+`m.view` and `m.appPort` as they always did, against whichever pane has the
+keyboard. A tab that is not in front is parked in a `tab` and written back to the
+model when it returns.
+
+Every asynchronous answer is addressed to the pane that asked: the command is
+wrapped on the way out and arrives as a `paneMsg`. `Update` looks the pane up
+and handles the message as if that pane had the focus, so a table requested in
+one pane cannot land in another; an answer for a pane that was closed is
+dropped. The first pane's messages go out bare, so a session that never splits
+takes the paths it took before there were panes.
+
+What is about the cluster stays on the model and is shared: the applications,
+the evidence, the resource catalog and the context and namespace scope. All
+panes and tabs are on one cluster in one scope. A companion (logs, why, details,
+YAML, events) is a pane that reads the selection of the first independent pane
+and catches up 150 ms after it rests. Auto-refresh reloads what the panes on
+screen show, and a tab that is off screen stops its log streams. The reasoning
+is in [ADR 33](adr/0033-panes-and-tabs.md).
 
 ## Rendering
 

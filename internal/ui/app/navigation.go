@@ -36,7 +36,7 @@ func (m *Model) navigationItems() []navigationItem {
 // print it.
 func (m *Model) navigationShowsKeys() bool {
 	items := m.navigationItemsWith(true)
-	return items[len(items)-1].end <= m.screen.Width
+	return items[len(items)-1].end <= m.screen.Width-m.tabBarWidth()
 }
 
 func (m *Model) navigationItemsWith(keys bool) []navigationItem {
@@ -97,7 +97,11 @@ func (m *Model) renderNavigation() string {
 		}
 		b.WriteString(m.theme.Muted.Render(" "))
 	}
-	return b.String() + strings.Repeat(" ", max(m.screen.Width-lipgloss.Width(b.String()), 0))
+	used := lipgloss.Width(b.String())
+	if tabs := m.tabBar(used); len(tabs) > 0 && tabs[0].start >= used {
+		return b.String() + strings.Repeat(" ", tabs[0].start-used) + m.renderTabBar(tabs)
+	}
+	return b.String() + strings.Repeat(" ", max(m.screen.Width-used, 0))
 }
 
 func (m *Model) clickNavigation(x int) tea.Cmd {
@@ -151,6 +155,9 @@ func (m *Model) commandSubject() string {
 // came" was: an object pops its trail, logs return to whatever opened them.
 // What is left is the screens one step below the dashboard.
 func (m *Model) goBack() tea.Cmd {
+	if m.atFollowRoot() {
+		return nil
+	}
 	if m.view == viewWhy {
 		// Diagnosis is a detour, and whyFrom is where it was a detour from
 		// (ADR 23) — usually the application detail, but the dashboard when
@@ -171,6 +178,9 @@ func (m *Model) goBack() tea.Cmd {
 // it is what you land on — the application, the table you were browsing, or
 // the whole way out to the dashboard.
 func (m *Model) backDestination() string {
+	if m.atFollowRoot() || (m.focus > 0 && m.view == viewApplications) {
+		return "Close pane"
+	}
 	switch m.view {
 	case viewApplications:
 		return ""

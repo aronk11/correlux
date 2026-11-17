@@ -285,6 +285,11 @@ func (m *Model) stopLogs() {
 
 // closeLogs stops the stream and leaves the view.
 func (m *Model) closeLogs() tea.Cmd {
+	if m.atFollowRoot() {
+		// A companion's logs are what the pane is; there is nothing behind
+		// them to return to.
+		return nil
+	}
 	if m.cancelLogs != nil {
 		m.cancelLogs()
 		m.cancelLogs = nil

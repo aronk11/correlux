@@ -7,6 +7,7 @@ import (
 
 	"github.com/aronk11/correlux/internal/config"
 	"github.com/aronk11/correlux/internal/ui/async"
+	"github.com/aronk11/correlux/internal/ui/layout"
 	"github.com/aronk11/correlux/internal/ui/palette"
 	"github.com/aronk11/correlux/internal/ui/theme"
 )
@@ -23,7 +24,59 @@ func (m *Model) savedCommands() []palette.Command {
 	return out
 }
 
+// currentInvestigation reads the navigation from the driver pane, not from
+// whichever companion has the focus, then adds the layout around it.
 func (m *Model) currentInvestigation() config.SavedInvestigation {
+	var saved config.SavedInvestigation
+	m.withPane(m.driver(), func() { saved = m.navigationInvestigation() })
+	for _, p := range m.panes {
+		if p.follow != followNone {
+			saved.Panes = append(saved.Panes, p.follow.id())
+		}
+	}
+	if len(saved.Panes) > 0 {
+		saved.Split = splitName(m.split)
+	}
+	return saved
+}
+
+// splitName is how a layout direction is spelled in the config file.
+func splitName(s layout.Split) string {
+	switch s {
+	case layout.SplitRight:
+		return "right"
+	case layout.SplitBelow:
+		return "below"
+	}
+	return ""
+}
+
+// restoreLayout puts the saved companions back beside the main pane. Names it
+// does not know are skipped rather than reported: saved investigations are not
+// validated on load, and a layout from a newer version should still open.
+func (m *Model) restoreLayout(saved *config.SavedInvestigation) tea.Cmd {
+	m.focusPaneOf(m.driver())
+	m.closeOtherPanes()
+	split := layout.SplitAuto
+	switch saved.Split {
+	case "right":
+		split = layout.SplitRight
+	case "below":
+		split = layout.SplitBelow
+	}
+	var cmds []tea.Cmd
+	for _, name := range saved.Panes {
+		if len(m.panes) >= maxPanes {
+			break
+		}
+		if kind, ok := followKindOf(name); ok {
+			cmds = append(cmds, m.openPane(kind, split))
+		}
+	}
+	return tea.Batch(cmds...)
+}
+
+func (m *Model) navigationInvestigation() config.SavedInvestigation {
 	saved := config.SavedInvestigation{Context: m.contextName, Namespace: m.namespace, AllNamespaces: m.allNamespaces, View: "applications", Filter: m.search.Value()}
 	switch m.view {
 	case viewFleet, viewFleetResource:
@@ -147,6 +200,9 @@ func (m *Model) restoreInvestigation(saved *config.SavedInvestigation) tea.Cmd {
 		m.notice("Saved cluster "+saved.Context+" is not in kubeconfig", theme.StatusWarning)
 		return m.expireNotice()
 	}
+	// The main pane is the one that navigates, so a companion with the focus
+	// must not be sent to the saved place.
+	m.focusPaneOf(m.driver())
 	cmd := m.switchContextScoped(saved.Context, saved.Namespace)
 	m.namespace = saved.Namespace
 	m.allNamespaces = saved.AllNamespaces
@@ -188,5 +244,5 @@ func (m *Model) tryRestoreInvestigation() tea.Cmd {
 	}
 	m.search.SetValue(saved.Filter)
 	m.rebuildCommands()
-	return cmd
+	return tea.Batch(cmd, m.restoreLayout(saved))
 }

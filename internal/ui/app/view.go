@@ -50,7 +50,7 @@ func (m *Model) View() tea.View {
 		components.RenderHeader(m.theme, m.headerData(), m.screen.Header.Width),
 		m.renderNavigation(),
 		m.renderRule(),
-		m.renderBody(),
+		m.renderPanes(),
 		components.RenderStatus(m.theme, m.statusData(), m.screen.Status.Width),
 	}, "\n")
 
@@ -350,6 +350,8 @@ func (m *Model) statusData() components.StatusData {
 		})
 	}
 
+	hints = append(hints, m.paneHints()...)
+
 	switch m.view {
 	case viewTable:
 		var table []components.KeyHint
@@ -615,6 +617,9 @@ func (m *Model) filterStatus() (filter, note string) {
 
 func (m *Model) renderBody() string {
 	body := m.screen.Body
+	if m.follow != followNone && m.blank != "" && m.atFollowRoot() {
+		return padBlock(m.renderBlank(body.Width), body.Width, body.Height)
+	}
 	var content string
 	switch m.view {
 	case viewTable:
@@ -1205,6 +1210,16 @@ func (m *Model) helpTextAt(width int) string {
 			{m.keys.Key(ActionSort), "Sort by a column; the same column again reverses it"},
 			{"Click a heading", "Sorts by it, the way clicking a row selects it"},
 			{m.keys.Key(ActionToggleWide), "Show or hide the wide columns; they appear on their own where they fit"},
+		}},
+		{"Panes", [][2]string{
+			{m.keys.Key(ActionSplitRight) + " / " + m.keys.Key(ActionSplitBelow), "Split the screen: open logs, the diagnosis, details, YAML or events beside what is selected, or below it"},
+			{m.keys.Key(ActionIncident), "Incident layout: why, logs and events of the application in hand, at once"},
+			{m.keys.Key(ActionPaneNext), "Move to the next pane; a click does the same"},
+			{m.keys.Key(ActionPanePin), "Pin a pane to what it shows, or let it follow the selection again"},
+			{m.keys.Key(ActionPaneZoom), "Give the pane the whole screen, and back"},
+			{m.keys.Key(ActionPaneClose), "Close the pane; Esc does the same in a pane that follows"},
+			{m.keys.Key(ActionTabNew), "Open a new tab: a second investigation with panes of its own"},
+			{m.keys.Key(ActionTabPrevious) + " / " + m.keys.Key(ActionTabNext), "Previous and next tab; Alt+1 to Alt+9 go straight to one"},
 		}},
 		{"General", [][2]string{
 			{m.keys.Key(ActionHelp), "This help"},

@@ -32,7 +32,8 @@ produce: **<https://aronk11.github.io/correlux/>**
 > serves — custom resources included — with the API server's own columns; and
 > the changes it can make to a cluster — scale, edit, restart, roll back, delete
 > and cordon — each behind one confirmation that states the blast radius and
-> names the cluster, or refused outright in a read-only context. See
+> names the cluster, or refused outright in a read-only context; and split panes
+> whose logs, diagnosis and events follow the selection, with tabs. See
 > [the roadmap](#roadmap). Nothing in the UI is a mock-up: if Correlux does not
 > know something yet, it says so.
 
@@ -118,6 +119,14 @@ correlux version
 | `l` | Read the logs of the pod, workload or application in hand |
 | `u` | Where the pods are, and what they use against what they asked for |
 | `E` | Recent Kubernetes Events in the active scope, newest first |
+| `\|` / `_` | Split: open logs, why, details, YAML, events or another view beside or below |
+| `Tab` / `Shift+Tab` | Move between panes (a click does too) |
+| `z` | Zoom the focused pane, and back |
+| `P` | Pin a companion to what it shows, or let it follow again |
+| `X` | Close the focused pane, or the tab when it is its last (`Esc` closes a companion) |
+| `I` | Incident layout: why, logs and events of the application in hand |
+| `T` | Open a tab |
+| `[` / `]` | Previous / next tab (`Alt+1` to `Alt+9` jump to one) |
 | `Ctrl+B` | Browse resource kinds, custom resources included |
 | `Enter` | Open the object under the cursor |
 | `Ctrl+K` | Switch cluster |
@@ -139,6 +148,36 @@ dashboard — and the bottom row names the screen it will land on. Getting out
 in one keystroke is `Ctrl+A`.
 
 You are not expected to memorise those. Press `Ctrl+P` and type what you want.
+
+### Panes and tabs
+
+Reading the logs of a pod should not mean leaving the list it was picked from.
+`|` or `_` splits the screen and asks what to open:
+
+```text
+ Applications                      | Logs of checkout
+ ! checkout    payments  crash     | 12:01:44 connecting to db:5432
+ > checkout-db payments  degraded  | 12:01:44 dial tcp: i/o timeout
+   cart        shop      healthy   | 12:01:49 retrying in 5s
+```
+
+Logs, Why, Details, YAML and Events are companions: they show the selection of
+the pane beside them and change when it does, a moment after you stop moving,
+so holding the down key does not open a log stream per row. `P` pins a
+companion to what it shows now, and again lets it follow. "Another view" is an
+independent pane with its own navigation. `I` opens the incident layout for the
+application in hand: why it is unhealthy, what it is printing and what the
+cluster did to it, next to the list.
+
+The layout is one arrangement, not a tree: the first pane keeps one side and
+the others share the other, side by side from 120 columns and stacked below
+that. Where neither fits, one pane is shown at a time and its title says "pane
+2 of 3". There are at most four panes. `T` opens a tab, a second investigation
+with its own panes, up to nine; a tab that is not on screen stops reading its
+logs. All panes and tabs share one cluster and one namespace scope; for two
+clusters at once, use the fleet. An interactive shell (`x`) still takes the
+whole terminal. Saved investigations remember the panes. The reasoning is in
+[ADR 33](docs/adr/0033-panes-and-tabs.md).
 
 ### Applications, not resource types
 
@@ -1208,6 +1247,7 @@ See [ADR 9](docs/adr/0009-accessibility-and-terminal-capabilities.md).
 | — | Labels, platform roles and grouping; dependencies between applications | **done** |
 | — | Zones and node pools, placement and sizing remarks, what the account may do | **done** |
 | — | Argo CD sync state, Argo Rollouts and Gateway API routes | **done** |
+| — | Panes that follow the selection, the incident layout and tabs | **done** |
 | 6 | Large-cluster performance work, guided by the benchmarks | planned |
 | 7 | Platform polish across macOS, Linux and Windows | planned |
 

@@ -128,6 +128,9 @@ func (m *Model) backFromObject() tea.Cmd {
 		m.objectTrail = m.objectTrail[:len(m.objectTrail)-1]
 		return m.showObject(previous)
 	}
+	if m.atFollowRoot() {
+		return nil
+	}
 	if m.cancelObject != nil {
 		m.cancelObject()
 	}

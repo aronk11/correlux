@@ -56,6 +56,17 @@ const (
 	ActionAutoRefresh     = "refresh.auto"
 	ActionReloadKubeconfi = "kubeconfig.reload"
 	ActionClose           = "close"
+	ActionSplitRight      = "pane.split.right"
+	ActionSplitBelow      = "pane.split.below"
+	ActionPaneNext        = "pane.next"
+	ActionPanePrevious    = "pane.previous"
+	ActionPaneZoom        = "pane.zoom"
+	ActionPanePin         = "pane.pin"
+	ActionPaneClose       = "pane.close"
+	ActionIncident        = "pane.incident"
+	ActionTabNew          = "tab.new"
+	ActionTabNext         = "tab.next"
+	ActionTabPrevious     = "tab.previous"
 )
 
 // KeyMap maps keystrokes to actions. Users may override any of it from the
@@ -103,6 +114,19 @@ var DefaultBindings = map[string]string{
 	ActionRefresh:         "ctrl+r",
 	ActionAutoRefresh:     "ctrl+f",
 	ActionClose:           "esc",
+	// The pane keys are the ones people already rebind tmux to: a bar for a
+	// split with a bar in it, an underscore for the one with a line across.
+	ActionSplitRight:   "|",
+	ActionSplitBelow:   "_",
+	ActionPaneNext:     "tab",
+	ActionPanePrevious: "shift+tab",
+	ActionPaneZoom:     "z",
+	ActionPanePin:      "P",
+	ActionPaneClose:    "X",
+	ActionIncident:     "I",
+	ActionTabNew:       "T",
+	ActionTabNext:      "]",
+	ActionTabPrevious:  "[",
 }
 
 // secondaryBindings are additional keystrokes for the same actions. They are
@@ -180,6 +204,10 @@ func normalizeShiftedLetter(keystroke string) string {
 	}
 	return string(unicode.ToUpper(r))
 }
+
+// raw returns the keystroke bound to an action exactly as a terminal reports
+// it, for comparing against one.
+func (k KeyMap) raw(action string) string { return k.keys[action] }
 
 // Key returns the primary keystroke for an action, for display in help.
 func (k KeyMap) Key(action string) string {

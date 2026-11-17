@@ -36,7 +36,9 @@ navigation item also has brackets, so it remains identifiable without colour.
 Commands, resource pickers and confirmations remain transient UI. Logs and
 large YAML documents retain the full body area because their content benefits
 from the available width. Returning from logs must be reliable before adding
-multiple simultaneous panes.
+multiple simultaneous panes. That condition was met by the sibling
+navigation of [ADR 23](adr/0023-consistent-sibling-navigation.md), and panes were
+added afterwards ([ADR 33](adr/0033-panes-and-tabs.md)).
 
 ## Follow-up priorities
 
@@ -45,7 +47,12 @@ These remain product work, not claims made by this change:
 1. Make the investigation itself a stable workspace with resource, diagnosis,
    events and logs tabs. Keep selection, filters and scroll per view, with a
    wide-terminal split view as an option. Avoid silently interpreting a filter
-   against unrelated columns after navigation.
+   against unrelated columns after navigation. *Partly done since
+   ([ADR 33](adr/0033-panes-and-tabs.md)): panes whose logs, diagnosis, details
+   and events follow the selection, an incident layout, and tabs, each pane
+   keeping its own selection, filter and scroll. Not done: a shell inside a
+   pane, and two clusters in one session, which is what the fleet is for. The
+   filter-against-unrelated-columns point has not been revisited.*
 2. Extend mouse support to application/resource rows, relationship links and
    sorting headers. A click should select; opening or mutation should remain
    a separate deliberate action.

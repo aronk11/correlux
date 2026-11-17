@@ -297,6 +297,9 @@ func (m *Model) clickBody(x, y int) tea.Cmd {
 		return nil
 	}
 	row := y - body.Y
+	// A pane that does not start at the left edge reads the pointer from its
+	// own first column.
+	x -= body.X
 
 	switch m.view {
 	case viewApplications, viewTable, viewFleetResource:

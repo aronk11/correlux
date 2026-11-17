@@ -41,6 +41,9 @@ func (m *Model) openActivity() tea.Cmd {
 // leaveActivity returns to wherever Events was opened from (ADR 23) — the E
 // toggle and Esc both mean "leave", so both go through here.
 func (m *Model) leaveActivity() tea.Cmd {
+	if m.atFollowRoot() {
+		return nil
+	}
 	m.view = m.activityFrom
 	m.rebuildCommands()
 	return nil
