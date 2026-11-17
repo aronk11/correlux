@@ -32,20 +32,16 @@ const busyGrace = 400 * time.Millisecond
 // land in another (ADR 33).
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
-	switch target := m.targetPane(msg); {
-	case target == nil:
+	switch target := m.targetPane(msg); target {
+	case nil:
 		// For a pane that has since been closed, about something only that
 		// pane could use.
 		return m, nil
-	case target == m.pane:
-		origin := m.pane.id
-		_, cmd = m.update(unwrapPaneMsg(msg))
-		cmd = tagCmd(origin, cmd)
+	case m.pane:
+		origin := m.id
+		cmd = tagCmd(origin, m.update(unwrapPaneMsg(msg)))
 	default:
-		cmd = m.inPane(target, func() tea.Cmd {
-			_, c := m.update(unwrapPaneMsg(msg))
-			return c
-		})
+		cmd = m.inPane(target, func() tea.Cmd { return m.update(unwrapPaneMsg(msg)) })
 	}
 	if m.paneTouched {
 		m.paneTouched = false
@@ -86,21 +82,21 @@ func unwrapPaneMsg(msg tea.Msg) tea.Msg {
 	return msg
 }
 
-func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		return m, m.handleResize(msg)
+		return m.handleResize(msg)
 
 	case resizeSettledMsg:
 		run, retry := m.resize.Ready(time.Now())
 		if !run {
 			if retry > 0 {
-				return m, scheduleResize(retry)
+				return scheduleResize(retry)
 			}
-			return m, nil
+			return nil
 		}
 		m.applyLayout()
-		return m, nil
+		return nil
 
 	case tea.BackgroundColorMsg:
 		// The terminal told us its real background; rebuild the theme so the
@@ -110,47 +106,47 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.caps.Dark = dark
 			m.theme = theme.New(m.caps, m.cfg.Theme)
 		}
-		return m, nil
+		return nil
 
 	case uv.DarkColorSchemeEvent, uv.LightColorSchemeEvent, tea.FocusMsg:
 		// The system switched between light and dark, or the window came
 		// back to the front, possibly after one. The terminal's background is
 		// what the palette has to match, and it need not follow the system,
 		// so it is asked again rather than assumed.
-		return m, tea.RequestBackgroundColor
+		return tea.RequestBackgroundColor
 
 	case tea.KeyPressMsg:
-		return m, m.handleKey(msg)
+		return m.handleKey(msg)
 
 	case tea.MouseWheelMsg:
-		return m, m.handleWheel(msg)
+		return m.handleWheel(msg)
 
 	case tea.MouseClickMsg:
-		return m, m.handleClick(msg)
+		return m.handleClick(msg)
 
 	case autoRefreshTickMsg:
-		return m, m.handleAutoRefreshTick(msg)
+		return m.handleAutoRefreshTick(msg)
 
 	case followDueMsg:
 		if msg.seq != m.followSeq {
-			return m, nil
+			return nil
 		}
-		return m, m.syncFollowers()
+		return m.syncFollowers()
 
 	case updateInstalledMsg:
-		return m, m.applyUpdateInstalled(msg)
+		return m.applyUpdateInstalled(msg)
 
 	case updateCheckedMsg:
-		return m, m.applyUpdateCheck(msg)
+		return m.applyUpdateCheck(msg)
 	case clusterProbedMsg:
 		if m.cluster.Accepts(msg.gen) {
 			m.clusterLoading = false
 		}
 		if m.cluster.Succeed(msg.gen, msg.info) && msg.info.State != kubeclient.ConnOK {
 			m.notice(connectionNotice(msg.info), theme.StatusCritical)
-			return m, m.expireNotice()
+			return m.expireNotice()
 		}
-		return m, nil
+		return nil
 
 	case namespacesLoadedMsg:
 		if msg.err != nil {
@@ -164,7 +160,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.overlay == overlayNamespaces && m.nsChoice != nil && m.nsChoice.prefer != "" && m.nsPicker.Query() == "" {
 			m.nsPicker.SelectID(m.nsChoice.prefer)
 		}
-		return m, nil
+		return nil
 
 	case catalogLoadedMsg:
 		if msg.err != nil {
@@ -175,118 +171,118 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.notice(itoa(len(msg.catalog.Failures))+" API group(s) could not be discovered; the rest is usable",
 					theme.StatusWarning)
 				m.resPicker.Refresh()
-				return m, tea.Batch(m.expireNotice(), m.tryRestoreInvestigation())
+				return tea.Batch(m.expireNotice(), m.tryRestoreInvestigation())
 			}
 		}
 		m.resPicker.Refresh()
-		return m, m.tryRestoreInvestigation()
+		return m.tryRestoreInvestigation()
 
 	case applicationsLoadedMsg:
 		cmd := m.applyApplications(&msg)
-		return m, tea.Batch(cmd, m.tryRestoreInvestigation())
+		return tea.Batch(cmd, m.tryRestoreInvestigation())
 
 	case fleetStartedMsg:
 		if msg.gen != m.fleetGeneration {
-			return m, nil
+			return nil
 		}
 		m.fleetResults = msg.results
-		return m, waitForFleet(msg.gen, msg.results)
+		return waitForFleet(msg.gen, msg.results)
 
 	case fleetMemberMsg:
-		return m, m.applyFleetMember(msg)
+		return m.applyFleetMember(msg)
 
 	case fleetPartsMsg:
 		if msg.gen != m.fleetGeneration {
-			return m, nil
+			return nil
 		}
 		m.fleetPartsChan = msg.parts
-		return m, waitForFleetPart(msg.gen, msg.parts)
+		return waitForFleetPart(msg.gen, msg.parts)
 
 	case fleetPartMsg:
-		return m, m.applyFleetPart(msg)
+		return m.applyFleetPart(msg)
 
 	case logsStartedMsg:
 		if msg.gen != m.logGeneration {
-			return m, nil
+			return nil
 		}
 		if msg.err != nil {
 			m.logErr = msg.err
-			return m, nil
+			return nil
 		}
 		m.logStream = msg.stream
-		return m, waitForLogs(msg.gen, msg.stream)
+		return waitForLogs(msg.gen, msg.stream)
 
 	case logBatchMsg:
-		return m, m.applyLogBatch(msg)
+		return m.applyLogBatch(msg)
 
 	case helmValuesLoadedMsg:
-		return m, m.applyHelmValuesLoaded(&msg)
+		return m.applyHelmValuesLoaded(&msg)
 	case helmValuesEditedMsg:
-		return m, m.applyHelmValuesEdited(&msg)
+		return m.applyHelmValuesEdited(&msg)
 	case snapshotReadMsg:
-		return m, m.applySnapshotRead(&msg)
+		return m.applySnapshotRead(&msg)
 	case reportExportedMsg:
-		return m, m.applyReportExported(msg)
+		return m.applyReportExported(msg)
 	case forwardStartedMsg:
-		return m, m.applyForwardStarted(msg)
+		return m.applyForwardStarted(msg)
 	case forwardEventMsg:
-		return m, m.applyForwardEvent(msg)
+		return m.applyForwardEvent(msg)
 	case debugCreatedMsg:
-		return m, m.applyDebugCreated(&msg)
+		return m.applyDebugCreated(&msg)
 	case probeStartedMsg:
-		return m, m.applyProbeStarted(&msg)
+		return m.applyProbeStarted(&msg)
 
 	case ephemeralAddedMsg:
-		return m, m.applyEphemeralAdded(&msg)
+		return m.applyEphemeralAdded(&msg)
 	case helmChangedMsg:
-		return m, m.applyHelmChanged(&msg)
+		return m.applyHelmChanged(&msg)
 	case objectLoadedMsg:
 		if m.object.Accepts(msg.gen) {
 			m.objectLoading = false
 		}
 		if msg.err != nil {
 			m.object.Fail(msg.gen, msg.err)
-			return m, nil
+			return nil
 		}
 		if m.object.Accepts(msg.gen) {
 			m.observeObject(msg.object)
 		}
 		m.object.Succeed(msg.gen, msg.object)
 		m.rebuildCommands()
-		return m, nil
+		return nil
 
 	case usageLoadedMsg:
 		m.applyUsage(msg)
-		return m, nil
+		return nil
 
 	case scaledMsg:
-		return m, m.applyScaled(msg)
+		return m.applyScaled(msg)
 
 	case cordonedMsg:
-		return m, m.applyCordoned(msg)
+		return m.applyCordoned(msg)
 	case deletedMsg:
-		return m, m.applyDeleted(msg)
+		return m.applyDeleted(msg)
 
 	case restartProbedMsg:
-		return m, m.applyRestartProbe(&msg)
+		return m.applyRestartProbe(&msg)
 
 	case restartedMsg:
-		return m, m.applyRestarted(msg)
+		return m.applyRestarted(msg)
 
 	case rollbackPlannedMsg:
-		return m, m.applyRollbackPlan(&msg)
+		return m.applyRollbackPlan(&msg)
 
 	case rolledBackMsg:
-		return m, m.applyRolledBack(msg)
+		return m.applyRolledBack(msg)
 
 	case execEndedMsg:
-		return m, m.applyExecEnded(msg)
+		return m.applyExecEnded(msg)
 
 	case editFinishedMsg:
-		return m, m.applyEditedBuffer(msg)
+		return m.applyEditedBuffer(msg)
 
 	case editedMsg:
-		return m, m.applyEdited(msg)
+		return m.applyEdited(msg)
 
 	case evidenceLoadedMsg:
 		if m.evidence.Accepts(msg.gen) {
@@ -294,37 +290,37 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.err != nil {
 			m.evidence.Fail(msg.gen, msg.err)
-			return m, nil
+			return nil
 		}
 		if m.evidence.Succeed(msg.gen, msg.context) {
 			// The explanation improves as soon as the evidence lands.
 			m.rediagnose()
 		}
-		return m, nil
+		return nil
 
 	case permissionsLoadedMsg:
 		if msg.err != nil {
 			m.permissions.Fail(msg.gen, msg.err)
-			return m, nil
+			return nil
 		}
 		m.permissions.Succeed(msg.gen, msg.permissions)
-		return m, nil
+		return nil
 
 	case tableLoadedMsg:
-		return m, m.applyTablePage(msg)
+		return m.applyTablePage(msg)
 
 	case kubeconfigReloadedMsg:
-		return m, m.applyReloadedKubeconfig(msg)
+		return m.applyReloadedKubeconfig(msg)
 
 	case greetingDoneMsg:
 		m.greeting = ""
-		return m, nil
+		return nil
 	case messageExpiredMsg:
 		if msg.seq == m.messageSeq {
 			m.message = ""
 			m.messageStatus = theme.StatusUnknown
 		}
-		return m, nil
+		return nil
 
 	case busyAdmittedMsg:
 		// Only if the burst this was scheduled for is the current one and is
@@ -333,9 +329,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.seq == m.busySeq && m.busy() {
 			m.busyShown = true
 		}
-		return m, nil
+		return nil
 	}
-	return m, nil
+	return nil
 }
 
 // handleResize coalesces resize bursts: dragging a window emits dozens of

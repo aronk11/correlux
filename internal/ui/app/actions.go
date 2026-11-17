@@ -1440,7 +1440,7 @@ func (m *Model) reloadScopedViews() tea.Cmd {
 		m.objectTarget, m.objectTrail = objectRef{}, nil
 		m.leaveScope(false)
 		if m.pane != focused && m.follow == followNone {
-			others = append(others, tagCmd(m.pane.id, m.reloadScopedPane()))
+			others = append(others, tagCmd(m.id, m.reloadScopedPane()))
 		}
 	})
 	reload := tea.Batch(append(others, m.loadApplications())...)
@@ -1533,8 +1533,8 @@ func autoRefreshSubtitle(on bool, every time.Duration) string {
 // happened — hiding every key hint behind it, and telling anybody whose
 // cluster answered in a tenth of a second that refreshing takes five.
 func (m *Model) refresh() tea.Cmd {
-	cmds := []tea.Cmd{m.beginBusy(true), m.probeCluster(), m.loadNamespaces(), m.loadApplications()}
-	return tea.Batch(append(cmds, m.reloadView()...)...)
+	return tea.Batch(m.beginBusy(true), m.probeCluster(), m.loadNamespaces(), m.loadApplications(),
+		tea.Batch(m.reloadView()...))
 }
 
 // refreshPanes is refresh for a divided screen: the cluster is asked once, and

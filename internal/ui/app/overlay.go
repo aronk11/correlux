@@ -230,7 +230,10 @@ func (m *Model) confirmSelection() tea.Cmd {
 		return m.switchNamespace(item.ID)
 	case overlaySplit:
 		m.closeOverlay()
-		kind, _ := followKindOf(item.ID)
+		kind, known := followKindOf(item.ID)
+		if !known && item.ID != splitIndependent {
+			return nil
+		}
 		return m.openPane(kind, m.pendingSplit)
 	case overlaySort:
 		m.closeOverlay()

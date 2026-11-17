@@ -215,7 +215,8 @@ func (m *Model) openPane(kind followKind, split layout.Split) tea.Cmd {
 		m.driverID = p.id
 		m.layoutPanes()
 	} else {
-		cmds = append(cmds, m.syncPane(p, m.subjectOf(m.driver())))
+		s := m.subjectOf(m.driver())
+		cmds = append(cmds, m.syncPane(p, &s))
 		m.followKey = m.subjectKey()
 	}
 	if m.crowded {
@@ -354,7 +355,8 @@ func (m *Model) togglePin() tea.Cmd {
 	}
 	// Following again starts with catching up.
 	target.subject = ""
-	return m.syncPane(target, m.subjectOf(m.driver()))
+	s := m.subjectOf(m.driver())
+	return m.syncPane(target, &s)
 }
 
 // pinTarget is the pane the pin key means.
@@ -512,7 +514,10 @@ func (m *Model) paneCommands() []palette.Command {
 // runPaneCommand runs one of paneCommands.
 func (m *Model) runPaneCommand(arg string) tea.Cmd {
 	if id, ok := strings.CutPrefix(arg, "beside:"); ok {
-		kind, _ := followKindOf(id)
+		kind, known := followKindOf(id)
+		if !known {
+			return nil
+		}
 		return m.openPane(kind, layout.SplitAuto)
 	}
 	switch arg {

@@ -147,7 +147,7 @@ func (m *Model) paneState(p *pane) string {
 
 // renderBlank is what a companion draws when the selection gives it nothing
 // to show.
-func (m *Model) renderBlank(width, height int) string {
+func (m *Model) renderBlank(width int) string {
 	lines := []string{"", "  " + m.theme.Muted.Render(xansi.Truncate(m.blank, max(width-4, 1), m.theme.Glyphs.Ellipsis))}
 	return strings.Join(lines, "\n")
 }

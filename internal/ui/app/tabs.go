@@ -68,7 +68,7 @@ func (m *Model) newTab() tea.Cmd {
 	m.stashTab()
 	m.nextPaneID++
 	p := newPane(m.nextPaneID)
-	p.appSort, p.appGroup = m.pane.appSort, m.pane.appGroup
+	p.appSort, p.appGroup = m.appSort, m.appGroup
 	p.frame, p.body = m.fullBody, m.fullBody
 	m.tabs = append(m.tabs, &tab{panes: []*pane{p}, driverID: p.id})
 	m.loadTab(len(m.tabs) - 1)

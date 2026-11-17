@@ -618,7 +618,7 @@ func (m *Model) filterStatus() (filter, note string) {
 func (m *Model) renderBody() string {
 	body := m.screen.Body
 	if m.follow != followNone && m.blank != "" && m.atFollowRoot() {
-		return padBlock(m.renderBlank(body.Width, body.Height), body.Width, body.Height)
+		return padBlock(m.renderBlank(body.Width), body.Width, body.Height)
 	}
 	var content string
 	switch m.view {

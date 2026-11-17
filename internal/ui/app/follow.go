@@ -207,29 +207,16 @@ func (m *Model) syncFollowers() tea.Cmd {
 	var cmds []tea.Cmd
 	for _, p := range m.panes {
 		if p.follow != followNone && !p.pinned {
-			cmds = append(cmds, m.syncPane(p, s))
+			cmds = append(cmds, m.syncPane(p, &s))
 		}
 	}
 	return tea.Batch(cmds...)
 }
 
-// resyncFollowers is syncFollowers for when what the companions show was just
-// thrown away — a new namespace, a new cluster — and has to be asked for
-// again even though the selection reads the same.
-func (m *Model) resyncFollowers() tea.Cmd {
-	for _, p := range m.panes {
-		if p.follow != followNone && !p.pinned {
-			p.subject = ""
-		}
-	}
-	m.followKey = m.subjectKey()
-	return m.syncFollowers()
-}
-
 // syncPane shows s in companion p. A selection the companion has nothing to
 // say about leaves a sentence in its place: an empty pane reads as one that
 // is still loading.
-func (m *Model) syncPane(p *pane, s subject) tea.Cmd {
+func (m *Model) syncPane(p *pane, s *subject) tea.Cmd {
 	if p.follow == followNone || (p.subject == s.key && p.subject != "" && p.follow != followEvents) {
 		return nil
 	}
@@ -251,7 +238,7 @@ func (m *Model) syncPane(p *pane, s subject) tea.Cmd {
 	})
 }
 
-func (m *Model) followLogs(s subject) tea.Cmd {
+func (m *Model) followLogs(s *subject) tea.Cmd {
 	m.stopLogs()
 	m.view, m.logFrom = viewLogs, viewLogs
 	if !s.hasLogs {
@@ -268,7 +255,7 @@ func (m *Model) followLogs(s subject) tea.Cmd {
 	return m.startLogs()
 }
 
-func (m *Model) followWhy(s subject) tea.Cmd {
+func (m *Model) followWhy(s *subject) tea.Cmd {
 	m.view, m.whyFrom = viewWhy, viewWhy
 	if s.app == "" {
 		m.blank = "A diagnosis is about an application. Select one, or an object inside one."
@@ -284,7 +271,7 @@ func (m *Model) followWhy(s subject) tea.Cmd {
 	return nil
 }
 
-func (m *Model) followObject(s subject, yaml bool) tea.Cmd {
+func (m *Model) followObject(s *subject, yaml bool) tea.Cmd {
 	m.objectTrail = nil
 	m.objectFrom = viewObject
 	if !s.hasRef {
